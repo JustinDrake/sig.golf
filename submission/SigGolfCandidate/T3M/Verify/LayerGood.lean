@@ -34,25 +34,24 @@ namespace SigGolfCandidate.T3M.Nonbinary.NCtx
 open SigGolfCandidate.Legacy SigGolfCandidate.T3
 open SigGolfResearch.NonbinaryTop
 open scoped BigOperators
+set_option maxRecDepth 8192
 set_option maxHeartbeats 1000000
 set_option linter.unusedSimpArgs false
 def digitCredit (i d : Nat) : Nat := if last i≤d then 1 else 0
 def digitSum (f : Nat → Nat) : Nat := ((List.range 54).map f).sum
 def creditSum (f : Nat → Nat) : Nat := ((List.range 54).map fun i => digitCredit i (f i)).sum
-def liveCredit (i d : Nat) : Nat := if d < topMax i then 1 else 0
-def liveSum (f : Nat → Nat) : Nat := ((List.range 54).map fun i => liveCredit i (f i)).sum
 def totalCost (f : Nat → Nat) : Nat := ((List.range 54).map fun i => chainCost i (f i)).sum
 theorem chainCost_balance (i d : Nat) (hd : d≤topMax i) :
-    chainCost i d+9*d+digitCredit i d+liveCredit i d=5+tableJump i+9*topMax i := by
+    chainCost i d+9*d+digitCredit i d=5+tableJump i+9*topMax i := by
   have hm := topMax_bounds i
   have hl : last i+1=topMax i := by unfold last;omega
-  unfold chainCost digitCredit liveCredit
+  unfold chainCost digitCredit
   split_ifs <;> omega
 theorem total_balance (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i) :
-    totalCost f+9*digitSum f+creditSum f+liveSum f=2205 := by
+    totalCost f+9*digitSum f+creditSum f=2205 := by
   have H : ∀ l : List Nat,(∀i∈l,f i≤topMax i) →
       (l.map fun i => chainCost i (f i)).sum+9*(l.map f).sum+
-        (l.map fun i => digitCredit i (f i)).sum+(l.map fun i => liveCredit i (f i)).sum=
+        (l.map fun i => digitCredit i (f i)).sum=
         (l.map fun i => 5+tableJump i+9*topMax i).sum := by
     intro l
     induction l with
@@ -67,28 +66,9 @@ theorem total_balance (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i) :
   have he : ((List.range 54).map fun i => 5+tableJump i+9*topMax i).sum=2205 := by decide +kernel
   exact hs.trans he
 theorem total_cost_credit (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i)
-    (hs : digitSum f=126) : totalCost f+17*4+1+creditSum f+liveSum f=1140 := by
+    (hs : digitSum f=126) : totalCost f+17*4+1+creditSum f=1140 := by
   have h := total_balance f hd
   omega
-theorem packed_credit_floor (f : Nat → Nat) (hd : ∀i,i<54 → f i≤topMax i) :
-    54 ≤ creditSum f + liveSum f := by
-  have H : ∀ l : List Nat, (∀ i ∈ l, f i ≤ topMax i) →
-      l.length ≤ (l.map fun i => digitCredit i (f i)).sum +
-        (l.map fun i => liveCredit i (f i)).sum := by
-    intro l
-    induction l with
-    | nil => simp
-    | cons i l ih =>
-      intro h
-      have hi := h i (by simp)
-      have ht := ih (fun j hj => h j (by simp [hj]))
-      have hcredit : 1 ≤ digitCredit i (f i) + liveCredit i (f i) := by
-        unfold digitCredit liveCredit last
-        split_ifs <;> omega
-      simp only [List.length_cons, List.map_cons, List.sum_cons]
-      omega
-  simpa only [creditSum, liveSum, List.length_range] using
-    H (List.range 54) (fun i hi => hd i (List.mem_range.mp hi))
 theorem range_map_ofFn (f : Nat → Nat) :
     (List.range 54).map f=List.ofFn (fun i : Fin 54 => f i.val) := by
   apply List.ext_getElem
@@ -137,7 +117,7 @@ theorem source_accepted_sum {v : Digest} {digits : List Nat}
   change (dataDigits 0 v).sum=126
   rw [T3.Nonbinary.dataDigits_parse hp,T3.Nonbinary.wordDigits_sum,hs]
 theorem source_accepted_total {v : Digest} {digits : List Nat}
-    (h : T3.decode 0 v=some digits) : totalCost (coreDigit 0 v)+17*4+1≤1086 := by
+    (h : T3.decode 0 v=some digits) : totalCost (coreDigit 0 v)+17*4+1≤1129 := by
   have hd : ∀i,i<54 → coreDigit 0 v i≤topMax i := by
     intro i hi
     have hc := T3.Nonbinary.coreDigit_le (0:Layer) v i
@@ -148,7 +128,7 @@ theorem source_accepted_total {v : Digest} {digits : List Nat}
     rw [he] at hc
     exact hc
   have hb := total_cost_credit (coreDigit 0 v) hd (source_accepted_sum h)
-  have hc := packed_credit_floor (coreDigit 0 v) hd
+  have hc := source_accepted_credit h
   omega
 #print axioms total_cost_credit
 #print axioms source_accepted_total
@@ -161,6 +141,7 @@ section
 namespace SigGolfCandidate.T3M.Nonbinary.NCtx
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Nonbinary SigGolfCandidate.T3
+set_option maxRecDepth 8192
 set_option maxHeartbeats 1000000
 set_option linter.unusedSimpArgs false
 def TopOut (c : NCtx) (s0 : MachineState) (acc : List Digest) (s : MachineState) : Prop :=
@@ -262,7 +243,7 @@ theorem top_good (c : NCtx) (hc : c.ok) {s0 : MachineState} {v : Digest} {ds : L
     (K : List Digest → OracleComp Legacy.HashSpec Verify.Obs) (N C A : Nat) (Q : Prop)
     (hK : ∀ acc t,c.TopOut s0 acc t → Verify.GoodQ t N C Q A (K acc))
     (s : MachineState) (hs : c.ChainIn s0 0 [] s) :
-    Verify.GoodQ s (N+2321) (C+1086) Q (A+1086) (Verify.ccM c.topP K) := by
+    Verify.GoodQ s (N+2321) (C+1129) Q (A+1129) (Verify.ccM c.topP K) := by
   have hd := decode_facts hv
   have H := c.top_good_exact hc hk h0 he hf hd.1 hd.2.1 K N C A Q hK s hs
   have e : c.chainsCost 0 54=totalCost (coreDigit 0 v) := by
@@ -293,7 +274,7 @@ def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (14104 ≤ A
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
-    (hp : s.pc = pcOf (trPc 0 c + 69))
+    (hp : s.pc = pcOf (trPc 0 c + 17))
     (hr : RegsExcept s0 s topChainRegs) (hf : Frame s0 s topChainWrites)
     (hlen : ends.length = 54) (hend : ∀j<54, DigAt s (slotT j) (ends.getD j 0)) :
     TopLeafReady w pk index c ends s := by
@@ -314,7 +295,7 @@ theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : Mac
   refine ⟨hp,hglob,?_,?_,?_,?_,hlen,hend,?_⟩
   · intro p hp
     simp [lfKeepK] at hp
-    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     all_goals rw [hr.get (by simp [topChainRegs])]
     all_goals try exact he.s6
     all_goals rw [he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
@@ -352,20 +333,20 @@ theorem nctx_block (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) :
   omega
 theorem nctx_chain_eq (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) (hi : i < 54) :
     let c := nctxOf w index v p
-    chainP 0 c.tree c.leaf i (c.dig i) (NCtx.topMax i - c.dig i) (c.pad0 i) (c.pad1 i) (c.padHeader i) (c.val i) =
+    chainP 0 c.tree c.leaf i (c.dig i) (NCtx.topMax i - c.dig i) (c.pad0 i) (c.pad1 i) (c.val i) =
       chainP 0 (route index 0).2 (route index 0).1 i ((dataDigits 0 v).getD i 0)
-        (maxDigit 0 i - (dataDigits 0 v).getD i 0) (wchainPads w 0 i).1 (wchainPads w 0 i).2 (wchainHeaderPad w 0 i) (wvalue w 0 i) := by
+        (maxDigit 0 i - (dataDigits 0 v).getD i 0) (wchainPads w 0 i).1 (wchainPads w 0 i).2 (wvalue w 0 i) := by
   have hm : NCtx.topMax i = maxDigit 0 i := by
     simp [NCtx.topMax, Nonbinary.mx, maxDigit, show (i / 3 < 17) ↔ i < 51 by omega]
   dsimp only
   rw [T3.dataDigits_getD 0 v i hi, hm]
-  unfold NCtx.pad0 NCtx.pad1 NCtx.padHeader NCtx.val
+  unfold NCtx.pad0 NCtx.pad1 NCtx.val
   rw [nctx_block]
   rfl
 theorem nctx_mapM_eq (w : WBytes) (index : Nat) (v : Digest) (p : Nat) :
     let c := nctxOf w index v p
     (List.finRange 54).mapM (fun i => chainP 0 c.tree c.leaf i.val (c.dig i.val)
-      (NCtx.topMax i.val - c.dig i.val) (c.pad0 i.val) (c.pad1 i.val) (c.padHeader i.val) (c.val i.val)) =
+      (NCtx.topMax i.val - c.dig i.val) (c.pad0 i.val) (c.pad1 i.val) (c.val i.val)) =
     chainsP w 0 (route index 0).2 (route index 0).1 (dataDigits 0 v) := by
   unfold chainsP
   apply congrArg (fun f => (List.finRange 54).mapM f)
@@ -385,6 +366,7 @@ open SigGolfCandidate.T3 (Digest HashOutput Layer route height chainCount counte
   dataDigits pad64 shortHash leafHash)
 open Nonbinary (NCtx)
 set_option maxHeartbeats 1000000
+set_option maxRecDepth 8192
 set_option linter.unusedSimpArgs false
 theorem nctx_topP_eq (w : WBytes) (index : Nat) (v : Digest) (p : Nat) :
     (nctxOf w index v p).topP = chainsP w 0 (route index 0).2 (route index 0).1 (dataDigits 0 v) := by
@@ -409,11 +391,6 @@ theorem nctx_encoded (u s : MachineState) (v : Digest) (p : Nat) (he : TopEntry 
   · rw [he.hi]
     exact Search.topWindow_cross v
   · rw [he.tail,Search.topWindow_tail v hv]
-theorem top_chain_frame (c : NCtx) (hc : c.S3 = 15768) {s t : MachineState}
-    (hf : Frame s t (c.Wr 54)) : Frame s t topChainWrites := by
-  apply hf.mono
-  intro A _ hA
-  simpa only [NCtx.Wr, NCtx.blk, hc, topChainWrites] using hA
 theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     (s : MachineState) (hs : LayerIn w pk index 0 M s) {β : Type} (R : List Digest → T3.M (Option β))
     (K : Option β → OracleComp HashSpec Obs) (hK0 : K none = pure (false, 0)) (N C A : Nat) (Q : Prop)
@@ -421,9 +398,9 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 16 + 1 + 124 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 16 + 8 + 76 + 13 + 1086 := by decide
-  have hsA : stepsA (0 : Layer).val = 16 := rfl
+  have hfuel : layerFuel 0 = 15 + 1 + 118 + 2321 + 13 := by decide
+  have hcost : layerCost 0 0 = 15 + 8 + 69 + 13 + 1129 := by decide
+  have hsA : stepsA (0 : Layer).val = 15 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -434,7 +411,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
     rw [hsA] at hst
     have hblk := blocks_encodingInput 0 (route index 0).2 (route index 0).1 M (wctr w 0)
-    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 124) (C + 13 + 1086 + 76) Q (A + 13 + 1086 + 76)
+    have H : ∀ a : BitVec 256, GoodQ (writeHash t a) (N + 13 + 2321 + 118) (C + 13 + 1129 + 69) Q (A + 13 + 1129 + 69)
         (ccM (match decode 0 (a.extractLsb' 0 128) with
           | none => pure none
           | some digits => chainsP w 0 (route index 0).2 (route index 0).1 digits >>= R) K) := by
@@ -454,7 +431,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         obtain ⟨s0,st0,he⟩ := topTransition_ok w pk index c hc t hpre a hcan
         let L := nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)
         have hLok : L.ok := nctx_ok w index _ c hidx
-        have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hidx hpre he
+        have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hpre he
         have h12 : t.getReg .x12 = 320#64 := hpre.glob.1 (_, _) (by simp [bK])
         have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 320 h12 (by decide)).2.2.2.2.2.congr
           (fun A _ hA => he.frame.get (by omega) (by simp))
@@ -473,7 +450,7 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
               · intro hh;exact hrn ((by decide : chainRegs ⊆ topChainRegs) hh)
               · intro hh;subst r;exact hrn (by decide)
             have hframe : Frame s0 z topChainWrites := by
-              exact top_chain_frame L rfl hf
+              exact hf
             have hready := topLeafReady_of w pk index c t s0 z a ends hpre he hpc hregs hframe hlen
               (fun j hj => by have h := hend j (by omega);exact h)
             obtain ⟨u,st,hu⟩ := leafT_step w pk index c hc hidx ends z hready

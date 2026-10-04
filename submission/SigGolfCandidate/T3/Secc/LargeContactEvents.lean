@@ -25,8 +25,9 @@ theorem slotValue_block4_three (a b c d : Digest) : slotValue (block4 a b c d) 3
   rw [show (bytesLE 16 d).take 16 = bytesLE 16 d from List.take_of_length_le (by rw [hd])]
   exact Correctness.readDigest_bytesLE d
 theorem chainRow_block4 (a : Wots.ChainAddr) (s : Nat) (v : Digest) :
-    Wots.chainRow a s v = block4 0 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) 0 v := by
-  simp only [Wots.chainRow, chainInput, block4, show zero16 = bytesLE 16 (0 : Digest) by decide]
+    Wots.chainRow a s v = block4 0 (header 1 a.key.lay.val a.key.tree (s + 256 * a.chain) a.key.leaf) 0 v := by
+  unfold Wots.chainRow
+  rw [chainInput_eq_zero, chainInputP_eq_block4]
 theorem slotValue_chainRow (a : Wots.ChainAddr) (s : Nat) (v : Digest) : slotValue (Wots.chainRow a s v) 3 = v := by
   rw [chainRow_block4, slotValue_block4_three]
 theorem chainCount_le58 (lay : Layer) : chainCount lay ≤ 58 := by fin_cases lay <;> decide
@@ -41,15 +42,14 @@ theorem posOf_chainRow (a : Wots.ChainAddr) (ha : WotsExtract.SourceChain a) (s 
     Extract.posOf (Wots.chainRow a s v) = some (CanonGraph.Node.chain (gAddr a ha, ⟨s, hs⟩)).toPos := by
   apply Extract.posOf_eq (CanonGraph.toPos_bounded _)
   unfold Wots.chainRow
-  rw [show Extract.hdrBlock (chainInput a.key.lay a.key.tree a.key.leaf a.chain s v) =
-    bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) from chainInput_header _ _ _ _ _ _]
+  rw [chainInput_eq_zero, ← pad64_chainInputP, Extract.hdrBlock_chainInputP]
   rfl
 theorem honestInput_chainNode (A : Answers) (p : ChainGraph.Point) :
     Extract.honestInput A (CanonGraph.Node.chain p).toPos =
       Wots.chainRow (wotsAddr p.1) p.2.val (honestChainValue A p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val
         (leafSeed A p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val) p.2.val) := by
   show pad64 _ = _
-  rw [chainInput_padded]
+  rw [chainInput_eq_zero, pad64_chainInputP, ← chainInput_eq_zero]
   rfl
 theorem honestValue_chainNode (A : Answers) (p : ChainGraph.Point) :
     honestValue A (.inl (.chain p)) = honestChainValue A p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val

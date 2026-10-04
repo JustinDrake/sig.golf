@@ -27,8 +27,6 @@ def wleafPad (w : WBytes) (s : Nat) : Digest := wdig w (leafBlock s)
 def wvalue (w : WBytes) (lay : Layer) (i : Nat) : Digest := wdig w (chainBlock lay i + 48)
 def wchainPads (w : WBytes) (lay : Layer) (i : Nat) : Digest × Digest :=
   (wdig w (chainBlock lay i), wdig w (chainBlock lay i + 32))
-def wchainHeaderPad (w : WBytes) (lay : Layer) (i : Nat) : BitVec 64 :=
-  (wdig w (chainBlock lay i + 16)).extractLsb' 64 64
 def wpath (w : WBytes) (lay : Layer) (leaf j : Nat) : Digest :=
   wdig w (merkleBlock lay j + sibOff (leaf / 2 ^ j % 2))
 def wmerklePad (w : WBytes) (lay : Layer) (j : Nat) : Digest := wdig w (merkleBlock lay j + 32)

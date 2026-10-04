@@ -78,9 +78,8 @@ structure Pads where
   wctMerkle : WCT9.Coord → Fin 7 → Digest
   chain : (lay : Layer) → Fin (chainCount lay) → Digest × Digest
   merkle : (lay : Layer) → Fin (height lay) → Digest
-  chainHeader : (lay : Layer) → Fin (chainCount lay) → BitVec 64
-instance : Zero Pads := ⟨⟨fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => 0⟩⟩
-def Pads.toT3 (pads : Pads) : SigGolfCandidate.T3M.Pads := ⟨fun _ => 0, fun _ => 0, pads.chain, pads.merkle, pads.chainHeader⟩
+instance : Zero Pads := ⟨⟨fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => (0, 0), fun _ _ => 0⟩⟩
+def Pads.toT3 (pads : Pads) : SigGolfCandidate.T3M.Pads := ⟨fun _ => 0, fun _ => 0, pads.chain, pads.merkle⟩
 def recoverCoordinateP (sig : WCT9.Signature) (pads : Pads) (index : Nat) (output : HashOutput)
     (coord : WCT9.Coord) : M Digest := do
   let selected := WCT9.child output coord
