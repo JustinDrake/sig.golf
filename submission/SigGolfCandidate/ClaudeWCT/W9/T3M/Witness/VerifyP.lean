@@ -1,7 +1,10 @@
 import SigGolfCandidate.T3M.Witness.Layout
 import SigGolfCandidate.ClaudeWCT.WCT9.Limits
 import SigGolfCandidate.T3M.Witness.Basic
+
 section
+
+
 namespace ClaudeWCT.W9.T3M
 open SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig sibOff)
@@ -25,7 +28,10 @@ theorem wleaf_zero (w : WBytes) (k : Nat) : wleaf w k 0 = wopen w k 0 := by
   unfold wleaf wopen; rw [wctLeafSlot_zero]
 end ClaudeWCT.W9.T3M
 end
+
 section
+
+
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig wrho wdc wctr layersP nodeHashP verifyLayersP)
@@ -65,7 +71,7 @@ def verifyP (m : Message) (pk : Digest) (w : WBytes) : M Bool := do
   if !gateOk N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← wctP w N | pure false
-  let some root ← layersP w index 4 (root, 0, 0) | pure false
+  let some root ← layersP w index 4 root | pure false
   pure (root == pk)
 structure Pads where
   wctChain : WCT9.Coord → Fin 7 → Digest × Digest
@@ -95,7 +101,7 @@ def verifyPadsTail (pk : Digest) (output : HashOutput) (w : WCT9.Witness) (pads 
   if !WCT9.admissible output then return false
   let index := output.toNat % 2 ^ 31
   let root ← recoverFtsP w.signature pads index output
-  let some root ← verifyLayersP (WCT9.toT3Witness w) pads.toT3 index 4 (root, 0, 0) | pure false
+  let some root ← verifyLayersP (WCT9.toT3Witness w) pads.toT3 index 4 root | pure false
   pure (root == pk)
 def verifyPads (m : Message) (pk : Digest) (w : WCT9.Witness) (pads : Pads) : M Bool := do
   if w.digestCounter.toNat ≥ WCT9.digestAttemptLimit then return false

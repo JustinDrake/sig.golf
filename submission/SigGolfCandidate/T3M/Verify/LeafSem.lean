@@ -2,7 +2,10 @@ import SigGolfCandidate.T3M.Verify.ChainGood
 import SigGolfCandidate.T3M.Verify.Decode
 import SigGolfCandidate.T3M.Verify.Words
 import SigGolfCandidate.T3M.Verify.LayerSem
+
 section
+
+
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.T3 OracleComp
 theorem mapM_congr' {α β : Type} {f g : α → M β} : ∀ (l : List α), (∀ x ∈ l, f x = g x) → l.mapM f = l.mapM g
@@ -36,7 +39,9 @@ theorem sum_range'_eq (f g : Nat → Nat) (a n : Nat) (h : ∀ i, a ≤ i → i 
 end QCtx
 end SigGolfCandidate.T3M
 end
+
 section
+
 set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
@@ -124,7 +129,10 @@ theorem lowCost_accept (c : LCtx) (hck : c.ck < 8) (D : List Nat) (hD : ∀ i < 
 end LCtx
 end SigGolfCandidate.T3M
 end
+
 section
+
+
 set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
@@ -221,7 +229,10 @@ theorem topLeaf_hashInput (t : MachineState) (tree leaf : Nat) (ends : List Dige
   simp [List.append_assoc, dw]
 end SigGolfCandidate.T3M
 end
+
 section
+
+
 set_option linter.unusedSimpArgs false
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
@@ -491,7 +502,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     exact (hu.orig_const hOt).mono (fun o ho => ⟨ho, by simp⟩)
 structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List Digest)
     (t : MachineState) : Prop where
-  pc : t.pc = pcOf (trPc 0 c + 19)
+  pc : t.pc = pcOf (trPc 0 c + 69)
   glob : Glob (leafK 0) w pk t
   keep : KnownOK (lfKeepK 0) t
   s7 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + (route index 0).1)

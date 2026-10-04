@@ -1,6 +1,7 @@
 import SigGolfCandidate.T3.Proofs
 import SigGolfCandidate.T3M.Search.CounterSearch
 import SigGolfCandidate.T3M.Expand.LayersBlocks
+
 namespace SigGolfCandidate.T3M.Expand
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (Layer Digest Signature route height chainCount target width maxDigit counterSearch counterLimit
@@ -29,15 +30,15 @@ structure LZero (s : MachineState) : Prop where
   l944 : s.getMem (BitVec.ofNat 64 (LEAFPK + 880)) = 0
   l952 : s.getMem (BitVec.ofNat 64 (LEAFPK + 888)) = 0
   e40 : s.getMem (BitVec.ofNat 64 (ENC + 40)) = 0
-structure LInv (sig : Signature) (index n : Nat) (value : T3.LayerMessage) (s : MachineState) : Prop where
+  e48 : s.getMem (BitVec.ofNat 64 (ENC + 48)) = 0
+  e56 : s.getMem (BitVec.ofNat 64 (ENC + 56)) = 0
+structure LInv (sig : Signature) (index n : Nat) (value : Digest) (s : MachineState) : Prop where
   pc : s.pc = pcOf (entryOf n)
   hn : n ≤ 4
   x5 : s.getReg .x5 = 0
   hidx : index < 2 ^ 31
   idx : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 index
-  enc : DigAt s (if n = 0 then NOUT else ENC) value.1
-  encR : n ≠ 0 → DigAt s (ENC + 48) value.2.2
-  pad : value.2.1 = 0
+  enc : DigAt s ENC value
   c32 : ∃ x < 2 ^ 32, s.getMem (BitVec.ofNat 64 (ENC + 32)) = BitVec.ofNat 64 x
   sigl : SigLayersAt s sig
   z : LZero s
@@ -58,19 +59,19 @@ def LayerOut (t : MachineState) (sig : Signature) (index : Nat) (lay : Layer) (c
 def LPost (s : MachineState) (sig : Signature) (index n : Nat) :
     Option (Digest × List (BitVec 32)) → MachineState → Prop
   | none, t => Search.FailedAt 354 t
-  | some (root, counters), t => t.pc = pcOf 342 ∧ t.getReg .x5 = 0 ∧ DigAt t NOUT root ∧ counters.length = n ∧
+  | some (root, counters), t => t.pc = pcOf 342 ∧ t.getReg .x5 = 0 ∧ DigAt t ENC root ∧ counters.length = n ∧
       (∀ lay : Layer, lay.val < n → LayerOut t sig index lay (counters.getD lay.val 0)) ∧
       HalfFrame s t n ∧ RegsExcept s t lRegs ∧ Frame s t (LW index n)
 def layCost (lay : Layer) : Nat := lK lay + (10 + 2 ^ 22 * csT lay + csOk lay) + 10 + rlCost lay
 def lcost : Nat → Nat
   | 0 => 0
   | n + 1 => layCost (Fin.ofNat 4 n) + lcost n
-theorem expandLayers_succ (sig : Signature) (index n : Nat) (value : T3.LayerMessage) :
+theorem expandLayers_succ (sig : Signature) (index n : Nat) (value : Digest) :
     expandLayers sig index (n + 1) value =
       counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value 0
           counterLimit >>= fun r => match r with
-        | some (counter, digits) => pairRoot sig index (Fin.ofNat 4 n) digits >>= fun pr =>
-            expandLayers sig index n (if n = 0 then (pr.2, 0, 0) else pr.1) >>= fun r' => match r' with
+        | some (counter, digits) => recoverLayer sig index (Fin.ofNat 4 n) digits >>= fun root =>
+            expandLayers sig index n root >>= fun r' => match r' with
               | some (root, counters) => pure (some (root, counters ++ [counter]))
               | none => pure none
         | none => pure none := by
@@ -80,8 +81,12 @@ theorem expandLayers_succ (sig : Signature) (index n : Nat) (value : T3.LayerMes
   funext r
   rcases r with _ | ⟨c, d⟩
   · rfl
-  · simp only [T3.expandNext, pairRoot, bind_assoc, pure_bind]
-    try (congr 1; funext pair; congr 1; funext root; congr 1; funext r'; rcases r' with _ | ⟨a, b⟩ <;> rfl)
+  · simp only []
+    congr 1
+    funext root
+    congr 1
+    funext r'
+    rcases r' with _ | ⟨a, b⟩ <;> rfl
 theorem ltable (lay : Layer) :
     0x7000 ≤ lP lay ∧ lP lay + 16 * (chainCount lay + height lay) ≤ 0x7000 + 5616 ∧ lP lay % 8 = 0 ∧
     lWC lay % 8 = 0 ∧ lWM lay % 8 = 0 ∧ 0x800 + 64 * (height lay - 1) ≤ lWM lay ∧
@@ -126,7 +131,7 @@ theorem ltable_lo (lay : Layer) : 0x3418 ≤ lWM lay - 64 * (height lay - 1) := 
   fin_cases lay <;> decide
 section step
 variable {sk : BitVec 256}
-theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {s : MachineState} (hn : n < 4)
+theorem layer_step {sig : Signature} {index n : Nat} {value : Digest} {s : MachineState} (hn : n < 4)
     (hI : LInv sig index (n + 1) value s)
     (ih : ∀ v' s', LInv sig index n v' s' →
       TBSim image sk s' (lcost n) (expandLayers sig index n v') (LPost s' sig index n)) :
@@ -146,13 +151,11 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
     fun A hA => f1.get hA (fun h => h)
   obtain ⟨x, hx, hx32⟩ := hI.c32
   have htable1 : Search.TableOK t1 := hI.table.frame f1 (by intro i hi h; exact h)
-  have hEnc : DigAt s ENC value.1 := by have h := hI.enc; rwa [if_neg (Nat.succ_ne_zero n)] at h
-  have hEncR : DigAt s (ENC + 48) value.2.2 := hI.encR (Nat.succ_ne_zero n)
   have hcs : CsPre 354 ⟨lay, tree, leaf, value, lR1 lay⟩ t1 :=
     ⟨p1, x1, by rw [r1.get (by decide)]; exact hI.x5, x8, x9, x18, x17, x26, x27, htree, hleaf32,
-      by rw [g1 _ (by decide)]; exact hEnc.1, by rw [g1 _ (by decide)]; exact hEnc.2,
+      by rw [g1 _ (by decide)]; exact hI.enc.1, by rw [g1 _ (by decide)]; exact hI.enc.2,
       ⟨x, hx, by rw [g1 _ (by decide)]; exact hx32⟩, by rw [g1 _ (by decide)]; exact hI.z.e40,
-      by rw [g1 _ (by decide)]; exact hEncR.1, by rw [g1 _ (by decide)]; exact hEncR.2, hI.pad, htable1⟩
+      by rw [g1 _ (by decide)]; exact hI.z.e48, by rw [g1 _ (by decide)]; exact hI.z.e56, htable1⟩
   rw [expandLayers_succ]
   refine (TBSim.steps s1 (TBSim.bind (W₂ := 10 + rlCost lay + lcost n)
     (counterSearch_tbsim (sk := sk) kernAt_expand hcs) (fun r t2 h2 => ?_))).mono
@@ -200,8 +203,15 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
              first | exact hI.z.c0 | exact hI.z.c8 | exact hI.z.c32 | exact hI.z.c40 | exact hI.z.n32 |
                exact hI.z.n40 | exact hI.z.l944 | exact hI.z.l952)
     refine (TBSim.steps s3 (TBSim.bind (W₂ := lcost n) (recoverLayer_tbsim (sk := sk) hrl)
-      (fun pr t4 h4 => ?_))).mono (by omega) (fun _ _ h => h)
-    obtain ⟨p4, n4, e4, e4R, e4p, cv4, pv4, r4, f4⟩ := h4
+      (fun root t4 h4 => ?_))).mono (by omega) (fun _ _ h => h)
+    obtain ⟨p4, e4, cv4, pv4, r4, f4⟩ := h4
+    have hrlw : ∀ A, (A < CHAIN ∨ CHAIN + 80 ≤ A) → (A < NODE ∨ NOUT + 32 ≤ A) → (A < LEAFPK ∨ LEAFPK + 880 ≤ A) →
+        A ≠ ENC → A ≠ ENC + 8 → (A < 0x3418 ∨ 0x7000 ≤ A) →
+        ¬ (RlScratch A ∨ RlWit lay (route index lay).1 (lWC lay) (lWM lay) A) := by
+      intro A h1 h2 h3 h4 h5 h6 h
+      rcases h with h | h
+      · unfold RlScratch at h; simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h h1 h2 h3 h4 h5; omega
+      · have := rlWit_range h; have := ltable_lo lay; omega
     have hfar4 : ∀ A, A < 2 ^ 64 → ¬ CsW A → A ≠ lD lay → (A < 0x3418 ∨ 0x7000 ≤ A) → ¬ RlScratch A →
         t4.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
       intro A hA h1 h2 h3 h4
@@ -216,21 +226,14 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
       intro A hA h; unfold CsW Search.DigW at h; simp only [ENC, EOUT, DIGITS] at h hA; omega
     have nrl : ∀ A, ((A < CHAIN + 16 ∨ (CHAIN + 32 ≤ A ∧ A < CHAIN + 48) ∨ CHAIN + 80 ≤ A) ∧
         (A < NODE ∨ (NODE + 32 ≤ A ∧ A < NODE + 48) ∨ NOUT + 32 ≤ A) ∧ (A < LEAFPK ∨ LEAFPK + 880 ≤ A) ∧
-        A ≠ ENC ∧ A ≠ ENC + 8 ∧ A ≠ ENC + 48 ∧ A ≠ ENC + 56 ∧ (A % 8 = 0)) → ¬ RlScratch A := by
+        A ≠ ENC ∧ A ≠ ENC + 8 ∧ (A % 8 = 0)) → ¬ RlScratch A := by
       intro A hA h; unfold RlScratch at h; simp only [CHAIN, NODE, NOUT, LEAFPK, ENC] at h hA; omega
-    have hI4 : LInv sig index n (if n = 0 then (pr.2, 0, 0) else pr.1) t4 := by
+    have hI4 : LInv sig index n root t4 := by
       have hx5 : t4.getReg .x5 = 0 := by
         rw [r4.get (by decide), g3 _ (by decide) (by decide) (by decide)]; exact hI.x5
-      refine ⟨by rw [p4, hlay, lR2_eq n hn], by omega, hx5, hI.hidx, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      refine ⟨by rw [p4, hlay, lR2_eq n hn], by omega, hx5, hI.hidx, ?_, e4, ?_, ?_, ?_, ?_⟩
       · rw [hfar4 IDXV (by decide) (ncs _ (by decide)) (by simp only [IDXV, CHAIN, NODE, LEAFPK, ENC]; omega) (by decide) (nrl _ (by decide))]
         exact hI.idx
-      · split_ifs
-        · exact n4
-        · exact e4
-      · intro hn0; rw [if_neg hn0]; exact e4R
-      · split_ifs
-        · rfl
-        · exact e4p
       · refine ⟨c.toNat, by omega, ?_⟩
         have hw : ¬ (RlScratch (ENC + 32) ∨ RlWit lay (route index lay).1 (lWC lay) (lWM lay) (ENC + 32)) := by
           rintro (h | h)
@@ -256,7 +259,7 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
         · rw [hfar4 (lP lay' + 16 * chainCount lay' + 16 * j + 8) (by omega) (ncs _ (by omega)) (by omega)
             (by omega) (nrl _ (by simp only [CHAIN, NODE, NOUT, LEAFPK, ENC]; omega))]
           exact ((hI.sigl lay').2 j hj).2
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
         · rw [hfar4 CHAIN (by decide) (ncs _ (by decide)) (by simp only [IDXV, CHAIN, NODE, LEAFPK, ENC]; omega) (by decide) (nrl _ (by decide))]
           exact hI.z.c0
         · rw [hfar4 (CHAIN + 8) (by decide) (ncs _ (by decide)) (by simp only [IDXV, CHAIN, NODE, LEAFPK, ENC]; omega) (by decide) (nrl _ (by decide))]
@@ -275,6 +278,10 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
           exact hI.z.l952
         · rw [hfar4 (ENC + 40) (by decide) (ncs _ (by decide)) (by simp only [IDXV, CHAIN, NODE, LEAFPK, ENC]; omega) (by decide) (nrl _ (by decide))]
           exact hI.z.e40
+        · rw [hfar4 (ENC + 48) (by decide) (ncs _ (by decide)) (by simp only [IDXV, CHAIN, NODE, LEAFPK, ENC]; omega) (by decide) (nrl _ (by decide))]
+          exact hI.z.e48
+        · rw [hfar4 (ENC + 56) (by decide) (ncs _ (by decide)) (by simp only [IDXV, CHAIN, NODE, LEAFPK, ENC]; omega) (by decide) (nrl _ (by decide))]
+          exact hI.z.e56
       · apply hI.table.frame (((f1.trans f2).trans f3).trans f4)
         intro i hi h
         rcases h with ((h | h) | h) | h
@@ -293,7 +300,7 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
             have hb := htab.2.2.2.2.2.2.2.1
             simp only [Search.TOP_DATA] at hh
             omega
-    refine (TBSim.bind (W₂ := 0) (ih _ t4 hI4) (fun r' t5 h5 => ?_)).mono (by omega) (fun _ _ h => h)
+    refine (TBSim.bind (W₂ := 0) (ih root t4 hI4) (fun r' t5 h5 => ?_)).mono (by omega) (fun _ _ h => h)
     rcases r' with _ | ⟨root', counters⟩
     · exact TBSim.pure h5
     · obtain ⟨p5, x5', e5, hlen5, hout5, hhf5, r5, f5⟩ := h5
@@ -360,11 +367,10 @@ theorem layer_step {sig : Signature} {index n : Nat} {value : T3.LayerMessage} {
           · exact Or.inr (Or.inl h)
           · exact Or.inr (Or.inr ⟨lay'', by omega, h⟩)
 theorem layers_tbsim {sig : Signature} {index : Nat} :
-    ∀ n (value : T3.LayerMessage) (s : MachineState), LInv sig index n value s →
+    ∀ n (value : Digest) (s : MachineState), LInv sig index n value s →
       TBSim image sk s (lcost n) (expandLayers sig index n value) (LPost s sig index n)
   | 0, value, s, hI => by
-    refine TBSim.pure (Q := LPost s sig index 0) (a := some (value.1, []))
-      ⟨hI.pc, hI.x5, by have h := hI.enc; rwa [if_pos rfl] at h, rfl,
+    refine TBSim.pure (Q := LPost s sig index 0) (a := some (value, [])) ⟨hI.pc, hI.x5, hI.enc, rfl,
       fun lay h => absurd h (by omega), fun _ _ _ _ _ => rfl, RegsExcept.refl _ _, Frame.refl _ _⟩
   | n + 1, value, s, hI => layer_step (by have := hI.hn; omega) hI
       (fun v' s' h' => layers_tbsim n v' s' h')

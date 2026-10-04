@@ -1,7 +1,10 @@
 import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Merkle.ChildDefs
 import SigGolfCandidate.T3M.Verify.Post
 import SigGolfCandidate.T3M.Verify.Common
+
 section
+
+
 namespace ClaudeWCT.W9.Machine.Merkle
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
@@ -40,7 +43,9 @@ def childPiecesOK (j : Nat) : Bool :=
 def childPiecesRange (lo n : Nat) : Bool := (List.range' lo n).all childPiecesOK
 end ClaudeWCT.W9.Machine.Merkle
 end
+
 section
+
 namespace ClaudeWCT.W9.Machine.Merkle
 set_option maxRecDepth 100000
 theorem childPieces_4 : childPiecesRange 64 16 = true := by decide +kernel
@@ -49,7 +54,9 @@ theorem childPieces_6 : childPiecesRange 96 16 = true := by decide +kernel
 theorem childPieces_7 : childPiecesRange 112 16 = true := by decide +kernel
 end ClaudeWCT.W9.Machine.Merkle
 end
+
 section
+
 namespace ClaudeWCT.W9.Machine.Merkle
 set_option maxRecDepth 100000
 theorem childPieces_0 : childPiecesRange 0 16 = true := by decide +kernel
@@ -58,7 +65,10 @@ theorem childPieces_2 : childPiecesRange 32 16 = true := by decide +kernel
 theorem childPieces_3 : childPiecesRange 48 16 = true := by decide +kernel
 end ClaudeWCT.W9.Machine.Merkle
 end
+
 section
+
+
 namespace ClaudeWCT.W9.Machine.Merkle
 open SigGolfCandidate.T3M.Verify
 theorem childPiecesOK_at (j : Nat) (hj : j < 128) : childPiecesOK j = true := by
@@ -87,7 +97,9 @@ theorem childRun_p7 (j : Nat) (hj : j < 128) : childRun j (ecIdx 6 + 1) [.jmp] =
   exact optBeq_eq h.2
 end ClaudeWCT.W9.Machine.Merkle
 end
+
 section
+
 namespace ClaudeWCT.W9.Machine.Merkle
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
@@ -151,7 +163,11 @@ theorem GoodQIm.shortHash_bind {β : Type} {s : MachineState} {N C A : Nat} {Q :
   rwa [ccM_shortHash_bind]
 end ClaudeWCT.W9.Machine.Merkle
 end
+
 section
+
+
+
 namespace ClaudeWCT.W9.Machine.Merkle
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
@@ -298,7 +314,9 @@ theorem childWrites_bound {j off : Nat} (h : off ∈ childWrites j) : off % 8 = 
   rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> omega
 end ClaudeWCT.W9.Machine.Merkle
 end
+
 section
+
 namespace ClaudeWCT.W9.Machine.Merkle
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify

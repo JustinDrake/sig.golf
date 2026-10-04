@@ -280,7 +280,7 @@ def payAfterDigest (cache : T3.Cache) (rho : Digest) (output : HashOutput) : M (
       let opening : Opening := ⟨fun i => values.getD i.val 0, fun i => path.getD i.val 0⟩
       pure (state.1 ++ [opening], state.2 ++ [(levels.getD 7 []).getD 0 0])) ([], [])
   let root ← WCT9.forestPk index state.2
-  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
+  let some layers ← signLayers cache index 4 root | pure none
   pure (some ⟨rho, fun coord => state.1.getD coord.val ⟨fun _ => 0, fun _ => 0⟩,
     fun lay => piecesSignature lay (layers.getD lay.val ([], []))⟩)
 theorem signPayload_factor (cache : T3.Cache) (message : Message) :

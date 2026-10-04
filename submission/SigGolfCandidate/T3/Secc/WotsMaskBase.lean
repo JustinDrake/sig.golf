@@ -1,5 +1,6 @@
 import SigGolfCandidate.T3.PackedChain
 import SigGolfCandidate.T3.Secc.WotsEvents
+
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -384,7 +385,7 @@ theorem respects_signForest (index : Nat) (chosen : List Selection) :
   refine Respects.bind (respects_buildFts a index coord) ?_
   rintro ⟨levels, secrets⟩
   exact Respects.pure' _
-theorem respects_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
+theorem respects_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest) :
     ∀ fuel counter, Respects (Untouched a) (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with

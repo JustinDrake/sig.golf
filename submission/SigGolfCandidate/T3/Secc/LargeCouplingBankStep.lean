@@ -1,5 +1,7 @@
 import SigGolfCandidate.T3.Secc.LargeCouplingBankState
+
 section
+
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -172,7 +174,9 @@ theorem BankInv.born {ws : LargeResidual.State WCoord (Cell U)} {st : RouterStat
 end Invariant
 end SigGolfCandidate.T3.Security.LargeCoupling
 end
+
 section
+
 namespace SigGolfCandidate.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -287,10 +291,10 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
           rw [hXe] at h
           exact encRow_not_digest L m ctr h.2
         split
-        · rw [ev_lazy_map]
-          exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_guess _ _ _ (hit_target _)) ws _ _ ((hnd hndX).map U _)
-        · apply ev_discloseAll_le
-          intro pairs s1 hd
+        · rw [lazy_discloseReq]
+          apply ev_bind_le
+          intro msg
+          have hd := discFrame_disclose U q ws (msgCoord (Classical.choose he)) msg
           split
           · rw [lazy_tickReq, lazy_pure, expectedValue_pure]
             apply ((hnd hndX).of_disc U hd).1
@@ -298,6 +302,8 @@ theorem bank_routeQuery (a : AuxData) (st : RouterState) (ws : LargeResidual.Sta
           · rw [ev_lazy_map]
             exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_none _ (hit_target _))
               _ _ _ (((hnd hndX).of_disc U hd).map U _)
+        · rw [ev_lazy_map]
+          exact ev_testReq_le U aux q _ ⟨X, hX⟩ _ (inlTest_guess _ _ _ (hit_target _)) ws _ _ ((hnd hndX).map U _)
       · rw [dif_neg he]
         by_cases hd : IsDigestRow X
         · rw [if_pos hd, ev_lazy_map, ← bind_pure (readReq U ⟨X, hX⟩ .mass), lazy_readReq]

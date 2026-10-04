@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsExtractChain
+
 namespace SigGolfCandidate.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -79,18 +80,15 @@ theorem referenceDigits_length (answers : Answers) (L : LeafAddr) :
     (referenceDigits answers L).length = chainCount L.lay := by
   obtain ⟨value, hv⟩ := referenceDigits_decode answers L
   exact (decode_length_sum hv).1
-theorem encodingRow_injective {L : LeafAddr} {m m' : (Digest × BitVec 96 × Digest)} {c c' : BitVec 32}
+theorem encodingRow_injective {L : LeafAddr} {m m' : Digest} {c c' : BitVec 32}
     (h : encodingRow L m c = encodingRow L m' c') : m = m' ∧ c = c' := by
   unfold encodingRow at h
   have h' := Sampling.pad64_inj_of_length (by simp only [encodingInput, List.length_append, bytesLE_length]) h
   unfold encodingInput at h'
-  obtain ⟨hh, hr⟩ := List.append_inj h' (by simp only [List.length_append, bytesLE_length])
-  obtain ⟨hh, hp⟩ := List.append_inj hh (by simp only [List.length_append, bytesLE_length])
-  obtain ⟨hh, hc⟩ := List.append_inj hh (by simp only [List.length_append, bytesLE_length])
+  obtain ⟨hh, hc⟩ := List.append_inj h' (by simp only [List.length_append, bytesLE_length])
   obtain ⟨hm, -⟩ := List.append_inj hh (by simp only [bytesLE_length])
-  exact ⟨Prod.ext (bytesLE_injective hm) (Prod.ext (bytesLE_injective hp) (bytesLE_injective hr)),
-    bytesLE_injective hc⟩
-theorem referenceInput_ne (answers : Answers) (L : LeafAddr) (msg : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32)
+  exact ⟨bytesLE_injective hm, bytesLE_injective hc⟩
+theorem referenceInput_ne (answers : Answers) (L : LeafAddr) (msg : Digest) (ctr : BitVec 32)
     {digits : List Nat} (hd : decode L.lay (low (answers (.inl (.inr (encodingRow L msg ctr))))) = some digits)
     (hne : msg ≠ leafMsg answers L ∨ digits ≠ referenceDigits answers L) :
     referenceInput answers L ≠ some (encodingRow L msg ctr) := by

@@ -1,6 +1,7 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskChain
 import SigGolfCandidate.ClaudeWCT.WCT9.Forest
 import SigGolfCandidate.T3.Secc.WotsMask
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -73,9 +74,8 @@ theorem eval_buildTree_maskAt (lay : Layer) (tree selected : Nat) (digits : List
     Correctness.eval_buildTree_result _ lay tree selected digits hvalid hsel, builtTree_maskAt,
     leafValues_maskAt answers a lay tree selected digits hvalid halias]
 theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
-    (((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
-      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
-      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 1 0) = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
+    ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
+      (height (Fin.ofNat 4 (m + 1))) []).getD 0 0 = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
   have hl : (Fin.ofNat 4 m : Layer).val < 3 := by
     change m % 4 < 3
     omega
@@ -88,7 +88,7 @@ theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
   rw [hlay, ← route_tree_succ index m hm]
   rfl
 theorem signedMsg_top (T : Answers) (index : Nat) :
-    ((Extract.honestForest T index, 0, 0) : Digest × BitVec 96 × Digest) = leafMsg T (routeLeaf index 3) := by
+    Extract.honestForest T index = leafMsg T (routeLeaf index 3) := by
   unfold leafMsg routeLeaf
   simp only [show ¬((3 : Layer).val < 3) by decide, dite_false]
   rw [route_top_index]
@@ -166,8 +166,7 @@ theorem eval_maskAt_signPayload (answers : Answers) (a : ChainAddr) (htree : a.k
     refine Mask.eval_bind_of (Mask.eval_signLayers_maskAt answers a htree hleaf cache _ (Nat.mod_lt _ (by decide)) 4
       le_rfl _ (fun m hm => ?_)) ?_
     · obtain rfl : m = 3 := by omega
-      exact (congrArg (fun x => ((x, 0, 0) : Digest × BitVec 96 × Digest))
-        (Extract.honestForest_eq_wct9 answers _).symm).trans (Mask.signedMsg_top answers _)
+      exact (Extract.honestForest_eq_wct9 answers _).symm.trans (Mask.signedMsg_top answers _)
     · generalize evalWithAnswerFn answers (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
       rcases pieces with _ | pieces <;> rfl
 theorem eval_maskAt_coreSign (answers : Answers) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40)

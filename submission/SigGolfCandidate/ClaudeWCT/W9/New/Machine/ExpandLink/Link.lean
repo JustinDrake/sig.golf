@@ -84,17 +84,8 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
     intro A h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h
     unfold NewW at h; simp only [DIG, NBUF, IDXV, ENC] at h h7 h8 h9 h10 h11; omega
   have hT3 : (WCT9.toT3Signature sig).layers = sig.layers := rfl
-  have hL : LInv (WCT9.toT3Signature sig) index 4 (root, 0, 0) t7 := by
-    refine ⟨by rw [P.pc]; rfl, le_refl _, P.x5, hi, P.idx, by rw [if_neg (by decide)]; exact P.enc,
-      fun _ => ⟨?_, ?_⟩, rfl, ⟨0, by norm_num, ?_⟩, ?_, ?_, ?_⟩
-    · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
-        (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
-          (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
-      show (0 : BitVec 64) = BitVec.extractLsb' 0 64 (0 : BitVec 128); decide
-    · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
-        (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
-          (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
-      show (0 : BitVec 64) = BitVec.extractLsb' 64 64 (0 : BitVec 128); decide
+  have hL : LInv (WCT9.toT3Signature sig) index 4 root t7 := by
+    refine ⟨by rw [P.pc]; rfl, le_refl _, P.x5, hi, P.idx, P.enc, ⟨0, by norm_num, ?_⟩, ?_, ?_, ?_⟩
     · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
         (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
           (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
@@ -112,7 +103,7 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
           show 0x7000 + 2192 + 16 * (ClaudeWCT.W9.T3M.layIdx lay - 127 + (chainCount lay + j)) = lP lay + 16 * chainCount lay + 16 * j by
             rw [hP]; ring] at hd
         exact hd
-    · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
       · rw [g7 _ (by decide) (nFW _ (by decide) (by decide))
           (nNW _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
             (by decide) (by decide) (by decide)), hz0 _ (by decide) (by decide) (by decide) (by decide)]
@@ -143,10 +134,10 @@ theorem expandW_tbsim {im : Image} (hc : NewCodeAt im) (hF : FrontAt im) (hd : E
         (by simp only [ENC]; omega))]
     exact w9init_pk hd m pk σ j hj
   obtain ⟨t9, st9, p9, x28, x29, r9, f9⟩ := c342W hB.2.1 t8 p8
-  have hlo : (t8.getMem (BitVec.ofNat 64 NOUT) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
+  have hlo : (t8.getMem (BitVec.ofNat 64 ENC) = t8.getMem (BitVec.ofNat 64 0xA0)) ↔
       root'.extractLsb' 0 64 = pk.extractLsb' 0 64 := by
     rw [e8.1, show (0xA0 : Nat) = 0xA0 + 8 * 0 from rfl, hpk 0 (by decide)]
-  have hhi : (t9.getMem (BitVec.ofNat 64 (NOUT + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
+  have hhi : (t9.getMem (BitVec.ofNat 64 (ENC + 8)) = t9.getMem (BitVec.ofNat 64 0xA8)) ↔
       root'.extractLsb' 64 64 = pk.extractLsb' 64 64 := by
     rw [f9.get (by decide) (by simp), f9.get (by decide) (by simp), e8.2,
       show (0xA8 : Nat) = 0xA0 + 8 * 1 from rfl, hpk 1 (by decide)]
@@ -356,7 +347,7 @@ theorem wct_compareCode : CodeAt image (pcOf 342) compareCode := by
   · decide +kernel
   · decide +kernel
 theorem wct_backSpec : BackSpec Images.expandImage := by
-  exact ⟨fun sk sig index value s h => layers_tbsim 4 (value, 0, 0) s h, wct_compareCode, Search.kernAt_expand⟩
+  exact ⟨fun sk sig index value s h => layers_tbsim 4 value s h, wct_compareCode, Search.kernAt_expand⟩
 theorem wct_headerBank : Images.expandPrefixData =
     ClaudeWCT.W9.Machine.Expand.hdrBankBytes := by
   set_option maxRecDepth 100000 in decide +kernel
@@ -420,7 +411,7 @@ open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGol
 set_option maxRecDepth 100000 in
 theorem expChunks_full : ∀ c, c < 158 → (expChunks.getD c []).length = 256 := by decide +kernel
 set_option maxRecDepth 100000 in
-theorem expChunks_flatten_length : expChunks.flatten.length = 40691 := by decide +kernel
+theorem expChunks_flatten_length : expChunks.flatten.length = 40686 := by decide +kernel
 theorem drop_flatten_chunks : ∀ (L : List (List (BitVec 32))) (c : Nat), (∀ i, i < c → (L.getD i []).length = 256) →
     c ≤ L.length → L.flatten.drop (256 * c) = (L.drop c).flatten
   | L, 0, _, _ => by simp
