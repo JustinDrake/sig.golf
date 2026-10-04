@@ -797,15 +797,14 @@ theorem posOf_chainRow (a : Wots.ChainAddr) (ha : WotsExtract.SourceChain a) (s 
     Extract.posOf (Wots.chainRow a s v) = some (CanonGraph.Node.chain (gAddr a ha, ⟨s, hs⟩)).toPos := by
   apply Extract.posOf_eq (CanonGraph.toPos_bounded _)
   unfold Wots.chainRow
-  rw [show Extract.hdrBlock (chainInput a.key.lay a.key.tree a.key.leaf a.chain s v) =
-    bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) from chainInput_header _ _ _ _ _ _]
+  rw [chainInput_eq_zero, ← pad64_chainInputP, Extract.hdrBlock_chainInputP]
   rfl
 theorem honestInput_chainNode (A : Answers) (p : ChainGraph.Point) :
     Extract.honestInput A (CanonGraph.Node.chain p).toPos =
       Wots.chainRow (wotsAddr p.1) p.2.val (honestChainValue A p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val
         (leafSeed A p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val) p.2.val) := by
   show pad64 _ = _
-  rw [chainInput_padded]
+  rw [chainInput_eq_zero, pad64_chainInputP, ← chainInput_eq_zero]
   rfl
 theorem honestValue_chainNode (A : Answers) (p : ChainGraph.Point) :
     honestValue A (.inl (.chain p)) = honestChainValue A p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val

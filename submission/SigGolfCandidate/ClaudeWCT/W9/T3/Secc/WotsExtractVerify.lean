@@ -166,16 +166,11 @@ theorem structuralHitSrc_of_fts_hitIn (answers : Answers) (N : HashOutput) (w : 
   obtain ⟨actual', hqe, pos', hb', hsrc', hfts', hdr'⟩ := fts_queries_pos answers N w _ hq
   have hae : actual = actual' := by simpa using hqe
   subst hae
-  have hkey' : Extract.canonicalHeader (Extract.hdrBlock actual) = bytesLE 16 pos'.hdr := by
-    rw [hdr', Extract.Pos.canonicalHeader_eq hb']
-  have hhdr : pos.hdr = pos'.hdr := by
-    apply bytesLE_injective (n := 16)
-    have hkey := hs.symm.trans hkey'
-    rw [Extract.hdrBlock_honestInput, Extract.Pos.canonicalHeader_eq hb] at hkey
-    exact hkey
+  have hhdr : pos.hdr = pos'.hdr :=
+    bytesLE_injective ((Extract.hdrBlock_honestInput answers pos).symm.trans (hs.symm.trans hdr'))
   have hpos : pos = pos' := Extract.Pos.hdr_injective hb hb' hhdr
   subst hpos
-  refine ⟨pos, actual, _, mem_entriesOf hq, Extract.posOf_key_eq hb (by rw [hs, Extract.hdrBlock_honestInput, Extract.Pos.canonicalHeader_eq hb]), hb,
+  refine ⟨pos, actual, _, mem_entriesOf hq, Extract.posOf_eq hb (by rw [hs, Extract.hdrBlock_honestInput]), hb,
     hsrc', ?_, hh⟩
   cases pos <;> trivial
 theorem fts_structural (answers : Answers) (N : HashOutput) (w : WBytes) (hS : Shaped N w)

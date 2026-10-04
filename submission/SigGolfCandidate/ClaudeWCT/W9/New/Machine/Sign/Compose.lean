@@ -134,7 +134,7 @@ def FinalQ : Option WCT9.Signature → MachineState → Prop
       ∀ k < 341, DigAt t (SIG + 16 * k) ((W9.T3M.sigDigests sig).getD k 0)
 def restC : Nat := searchC + (ftsC + (layC + compactK))
 def signCW : Nat := frontC + restC
-theorem signCW_eq : signCW = 3198752146 := by
+theorem signCW_eq : signCW = 3196440466 := by
   norm_num [signCW, restC, frontC, searchC, trialC, WCT9.digestAttemptLimit, ftsC, layC, compactK]
 theorem signCW_lt : signCW + 1 < CYCLE_LIMIT := by
   rw [signCW_eq]; norm_num [CYCLE_LIMIT]

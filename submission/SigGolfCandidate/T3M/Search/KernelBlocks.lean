@@ -190,7 +190,7 @@ theorem kernAt_of {image : Image} {b : Nat} (hb : b = 354 ∨ b = 543) (hlen : b
     exact List.take_prefix _ _
 theorem kernAt_expand : KernAt Images.expandImage 354 := by
   apply kernAt_of (Or.inl rfl) _ kernCode_expand
-  rw [show Images.expandImage.code.length = 41710 from Images.expandCode_length]
+  rw [show Images.expandImage.code.length = 41685 from Images.expandCode_length]
   decide
 theorem kernAt_sign : KernAt Images.signImage 543 := by
   apply kernAt_of (Or.inr rfl) _ kernCode_sign

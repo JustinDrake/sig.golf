@@ -136,7 +136,7 @@ def PHalf (s : MachineState) : Prop := (s.getMem (BitVec.ofNat 64 CTRW)).toNat /
 def WitHdr (w : WBytes) (s : MachineState) : Prop :=
   ∀ j, j < 8 → s.getMem (BitVec.ofNat 64 (WIT + 8 * j)) = wword w j
 def dataWords : List Nat :=
-  [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30101, 0x3fe00, 2256, 11736, 0xa01, 0x901, 7072, 15264, 0]
+  [2 ^ 40, 17311559823019733055, 8198552921648689607, 0x30401, 0x3fe00, 2256, 11736, 0xa01, 0x901, 7072, 15264, 0]
 def DATA : Nat := 16777120
 def TAB : Nat := 16709632
 def HDATA : Nat := 16726016
@@ -148,11 +148,7 @@ structure DataOK (s : MachineState) : Prop where
   tab : ∀ j, j < 2048 → s.getMem (BitVec.ofNat 64 (TAB + 8 * j)) = BitVec.ofNat 64 (T3.Rev.revBits 64 (2048 + j))
   header : ∀ lay i d, lay < 4 → i < 64 → d < 8 →
     s.getMem (BitVec.ofNat 64 (HDATA + 4096 * lay + 64 * i + 8 * d)) =
-      BitVec.ofNat 64 (if lay = 0 ∧ i = 0 ∧ d < 4 then 128 + 193 * 2 ^ 56 + d * 2 ^ 48
-        else 0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d)
-theorem DataOK.prefix {s : MachineState} (h : DataOK s) (lay : Nat) (hl : lay < 4) :
-    s.getMem (BitVec.ofNat 64 (HDATA + 8 * lay)) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 + lay * 2 ^ 48) := by
-  simpa [hl] using h.header 0 0 lay (by decide) (by decide) (by omega)
+      BitVec.ofNat 64 (0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d)
 instance {s : MachineState} : CoeFun (DataOK s) (fun _ => ∀ k, k < 12 →
     s.getMem (BitVec.ofNat 64 (DATA + 8 * k)) = BitVec.ofNat 64 (dataWords.getD k 0)) := ⟨DataOK.constants⟩
 theorem DataOK.congr {s t : MachineState} (h : DataOK s)

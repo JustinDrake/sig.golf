@@ -62,12 +62,8 @@ theorem encodingQuery_ne_cell (key : QuerySpace.EncodingKey) (secrets : Secrets)
     QuerySpace.queryHeader_encoding _ _ _ _ _
   rw [heq, hdrBlock_cell] at h1
   have h2 := bytesLE_injective h1
-  cases node with
-  | chain point =>
-      exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ h2
-  | _ =>
-      simp only [Node.toPos, Extract.Pos.hdr] at h2
-      exact QuerySpace.header_ne_of_tag (by decide) h2
+  cases node <;> simp only [Node.toPos, Extract.Pos.hdr] at h2 <;>
+    exact QuerySpace.header_ne_of_tag (by decide) h2
 noncomputable def encCell (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : Labels)
     (x : EncLeaf × Fin (2^22)) : U :=
   ⟨QuerySpace.encodingQuery (encKey labels x), hE (encodingQuery_mem _)⟩
