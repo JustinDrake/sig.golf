@@ -1,13 +1,13 @@
 import SigGolfCandidate.T3.Secc.WotsReference
 import SigGolfCandidate.T3.Secc.WotsMask
 import SigGolfCandidate.T3.Secc.CanonGraphHonest
-
 namespace SigGolfCandidate.T3.Security.Wots.Structural
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue leafRoot)
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
 set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 attribute [local irreducible] SigGolfCandidate.T3.buildFts SigGolfCandidate.T3.buildTree SigGolfCandidate.T3.buildLeaf
@@ -137,7 +137,7 @@ theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ 
     Extract.hdrBlock_prefix,
     Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
   exact header_ne_hdr ht l tr pos ix p (bytesLE_injective he)
-theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) :
+theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) :
     Extract.posOf (pad64 (encodingInput lay tree leaf message counter)) = none := by
   unfold encodingInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
@@ -145,7 +145,7 @@ theorem posOf_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
     Extract.posOf (pad64 (digestInput rho message counter)) = none := by
   unfold digestInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
-theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter, QueriesSat T (HonestQuery T) (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with

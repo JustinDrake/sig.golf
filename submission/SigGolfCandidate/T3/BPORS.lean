@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3.PackedChain
 import SigGolfCandidate.T3.FullCache.NativeGame
 import SigGolfCandidate.T3.FullCache.NativeMac
 import SigGolfCandidate.T3.FullCache.RequestRun
@@ -20,7 +21,6 @@ import SigGolfCandidate.SphincsSecurity.Proof.Fts.CachedIndexHashMoments
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalQueryProjection
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.TerminalProposalWord
 import SigGolfCandidate.T3.Proofs
-import SigGolfCandidate.T3.PackedChain
 import Mathlib.RingTheory.Polynomial.Pochhammer
 import SigGolfCandidate.SphincsSecurity.Proof.Scheme.HashOutputSplit
 import SigGolfCandidate.SphincsSecurity.Proof.Base.BinomialMoments
@@ -36,7 +36,6 @@ import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.Replay
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixExponential
 import SigGolfCandidate.T3M.Final.SecurityP
 import SigGolfCandidate.T3M.Witness.Queries
-
 section
 namespace SigGolfCandidate.T3.Security.CountedPrivate
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
@@ -2580,7 +2579,7 @@ macro "public_verdict_queries" : tactic => `(tactic|
 @[local aesop safe apply] theorem forestPk_public (index : Nat) (roots : List Digest) :
     Only (forestPk index roots) := by unfold forestPk; public_verdict_queries
 @[local aesop safe apply] theorem counterSearch_public (lay : Layer) (tree leaf : Nat)
-    (message : Digest) (counter fuel : Nat) : Only (counterSearch lay tree leaf message counter fuel) := by
+    (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) : Only (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; public_verdict_queries
   | succ fuel ih => unfold counterSearch; public_verdict_queries
@@ -2604,7 +2603,23 @@ theorem recoverLayer_public (sig : Signature) (index : Nat) (lay : Layer) (digit
     Only (recoverLayer sig index lay digits) := by
   unfold recoverLayer;public_verdict_queries
 attribute [local aesop safe apply] recoverLayer_public
-theorem expandLayers_public (sig : Signature) (index n : Nat) (value : Digest) :
+theorem recoverPair_public (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    Only (recoverPair sig index lay digits) := by
+  unfold recoverPair;public_verdict_queries
+attribute [local aesop safe apply] recoverPair_public
+theorem rootHash_public (index : Nat) (lay : Layer) (pair : (Digest × BitVec 96 × Digest)) :
+    Only (rootHash index lay pair) := by
+  unfold rootHash;public_verdict_queries
+attribute [local aesop safe apply] rootHash_public
+theorem recoverNext_public (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    Only (recoverNext sig index n lay digits) := by
+  unfold recoverNext;split <;> public_verdict_queries
+attribute [local aesop safe apply] recoverNext_public
+theorem expandNext_public (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat) :
+    Only (expandNext sig index n lay digits) := by
+  unfold expandNext;public_verdict_queries
+attribute [local aesop safe apply] expandNext_public
+theorem expandLayers_public (sig : Signature) (index n : Nat) (value : Digest × BitVec 96 × Digest) :
     Only (expandLayers sig index n value) := by
   induction n generalizing value with
   | zero => unfold expandLayers;public_verdict_queries
@@ -2614,7 +2629,7 @@ theorem expand_public (message : Message) (pk : Digest) (sig : Signature) :
     Only (expand message pk sig) := by
   unfold expand;public_verdict_queries
 attribute [local aesop safe apply] expand_public
-theorem verifyLayers_public (witness : Witness) (index n : Nat) (root : Digest) :
+theorem verifyLayers_public (witness : Witness) (index n : Nat) (root : Digest × BitVec 96 × Digest) :
     Only (verifyLayers witness index n root) := by
   induction n generalizing root with
   | zero => unfold verifyLayers;public_verdict_queries
@@ -2662,7 +2677,7 @@ theorem payloadAfterDigest_forestRows (cache : T3.Cache) (rho : Digest) (output 
       let index := output.toNat%2^31
       let state ← forestRows index (selections output)
       let root ← forestPk index state.2.2
-      let some layers ← signLayers cache index 4 root | pure none
+      let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
       pure (some ⟨rho,fun i => state.1.getD i.val 0,fun i => state.2.1.getD i.val 0,
         fun lay => piecesSignature lay (layers.getD lay.val ([],[]))⟩)) := rfl
 theorem payloadAfterDigest_fields (answers : Answers) (cache : T3.Cache) (rho : Digest)
@@ -2674,7 +2689,7 @@ theorem payloadAfterDigest_fields (answers : Answers) (cache : T3.Cache) (rho : 
   rw [payloadAfterDigest_forestRows] at hs
   simp only [evalWithAnswerFn_bind,eval_forestRows] at hs
   cases hp : evalWithAnswerFn answers (signLayers cache (output.toNat%2^31) 4
-    (evalWithAnswerFn answers (forestPk (output.toNat%2^31) (forestRoots answers (output.toNat%2^31) 7)))) with
+    (evalWithAnswerFn answers (forestPk (output.toNat%2^31) (forestRoots answers (output.toNat%2^31) 7)),0,0)) with
   | none => simp only [hp,evalWithAnswerFn_pure,reduceCtorEq] at hs
   | some parts =>
       simp only [hp,evalWithAnswerFn_pure,Option.some.injEq] at hs

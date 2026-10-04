@@ -1,7 +1,6 @@
 import SigGolfCandidate.T3.Secc.WotsMaskRef
 import SigGolfCandidate.T3.Secc.WotsExtractWord
 import SigGolfCandidate.T3.Secc.CanonEncoding
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -212,7 +211,7 @@ theorem RespAt.queried_eq {α : Type} {p : M α} (h : RespAt T S p) {T' : Answer
     SourceReplay.queried T' p = SourceReplay.queried T p := (h T' hT').2
 end RespAt
 theorem respAt_counterSearch (T : Answers) (S : Spec.Domain → Prop) (lay : Layer) (tree leaf : Nat)
-    (message : Digest) : ∀ fuel start,
+    (message : Digest × BitVec 96 × Digest) : ∀ fuel start,
       (∀ c < fuel, (∀ c' < c, decode lay (low (T (.inl (.inr (pad64 (encodingInput lay tree leaf message
           (BitVec.ofNat 32 (start + c')))))))) = none) →
         S (.inl (.inr (pad64 (encodingInput lay tree leaf message (BitVec.ofNat 32 (start + c))))))) →
@@ -400,9 +399,9 @@ theorem leafMsg_congr_nonEnc {T T' : Answers} (h : ∀ q, NonEnc q → T' q = T 
     leafMsg T' L = leafMsg T L := by
   unfold leafMsg
   split
-  · unfold Extract.honestRoot
+  · unfold Extract.honestPair
     rw [builtTree_congr_nonEnc h]
-  · exact honestForest_congr_nonEnc h _
+  · rw [honestForest_congr_nonEnc h _]
 theorem nonEnc_of_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) : ∀ q, NonEnc q → T' q = T q :=
   fun q hq => h q (honestQ_of_nonEnc hq)
 theorem referenceSearch_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)

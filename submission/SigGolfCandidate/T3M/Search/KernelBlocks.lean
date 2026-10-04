@@ -190,11 +190,11 @@ theorem kernAt_of {image : Image} {b : Nat} (hb : b = 354 ∨ b = 543) (hlen : b
     exact List.take_prefix _ _
 theorem kernAt_expand : KernAt Images.expandImage 354 := by
   apply kernAt_of (Or.inl rfl) _ kernCode_expand
-  rw [show Images.expandImage.code.length = 41718 from Images.expandCode_length]
+  rw [show Images.expandImage.code.length = 41715 from Images.expandCode_length]
   decide
 theorem kernAt_sign : KernAt Images.signImage 543 := by
   apply kernAt_of (Or.inr rfl) _ kernCode_sign
-  rw [show Images.signImage.code.length = 10947 from Images.signCode_length]
+  rw [show Images.signImage.code.length = 10952 from Images.signCode_length]
   decide
 sym_block blk354_0 := symRun { noAlias := true } k_0 (pcOf (354 + 0)) 200
 sym_block blk543_0 := symRun { noAlias := true } k_0 (pcOf (543 + 0)) 200

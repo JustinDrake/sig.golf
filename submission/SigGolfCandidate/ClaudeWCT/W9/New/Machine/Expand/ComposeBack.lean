@@ -148,7 +148,7 @@ namespace ClaudeWCT.W9.Machine.Expand
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M
 open SigGolfCandidate.T3 (Digest HashOutput M)
-open SigGolfCandidate.T3M.Search (DIG NBUF ENC OutAt FailedAt TOP_DATA TableOK)
+open SigGolfCandidate.T3M.Search (DIG NBUF ENC NOUT OutAt FailedAt TOP_DATA TableOK)
 open SigGolfCandidate.T3M.Expand (IDXV bytesToWordLE_bytes_e bytes_length_e extractByte_bytesToWordLE_e)
 open ClaudeWCT.W9.T3M (sigDig sigDec sigDigests sigDigests_sigDec)
 set_option linter.unusedSimpArgs false
@@ -396,7 +396,7 @@ theorem wordsOf_zeros48_dig (d : Digest) :
   rw [wordsOf_append _ _ (by rfl), wordsOf_bytesLE16,
     show T3M.zeros 48 = List.replicate (8 * 6) 0 from rfl, wordsOf_replicate_zero]
   rfl
-def lBase (lay : Layer) : Nat := ![0x3148, 0x41C8, 0x4E48, 0x5A88] lay
+def lBase (lay : Layer) : Nat := ![0x3418, 0x4598, 0x5218, 0x5E58] lay
 theorem lBase_eq (lay : Layer) : lWM lay = lBase lay + 64 * (height lay - 1) ∧
     lWC lay = lBase lay + 64 * height lay + 64 * (chainCount lay - 1) := by
   fin_cases lay <;> decide
@@ -549,14 +549,14 @@ theorem headerBytes_words (w : Witness) :
   simp
 theorem witList_length_parts (N : HashOutput) (w : Witness) :
     (headerBytes w).length = 64 ∧ (leafBytes w.signature).length = 1024 ∧
-      (streamBytes (T3.selections N) w.signature.proof).length = 9480 := by
+      (streamBytes (T3.selections N) w.signature.proof).length = 10200 := by
   refine ⟨?_, ?_, ?_⟩
   · simp [headerBytes, bytesLE_length, T3M.zeros]
   · unfold leafBytes
     rw [List.length_append, length_flatMap_const _ 48 (fun s => by simp [bytesLE_length, T3M.zeros])]
     simp [T3M.zeros]
   · unfold streamBytes
-    rw [List.length_take, List.length_append, show (T3M.zeros 9480).length = 9480 from List.length_replicate]
+    rw [List.length_take, List.length_append, show (T3M.zeros 10200).length = 10200 from List.length_replicate]
     omega
 theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
     (layerBytes lay leaf ls).length = 64 * (height lay + chainCount lay) := by
@@ -565,8 +565,8 @@ theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
     length_flatMap_const _ 64 (fun i => by simp [bytesLE_length, T3M.zeros])]
   simp; ring
 theorem layerStorage_length' (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
-    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) := by
-  simp [layerStorage, layerBytes_length]
+    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) + (if lay = 0 then 256 else 0) := by
+  simp [layerStorage, layerBytes_length, T3M.zeros]
 theorem readWords_zero (t : MachineState) (B n : Nat) (hB : B + 8 * n < 2 ^ 64)
     (hz : ∀ j < n, t.getMem (BitVec.ofNat 64 (B + 8 * j)) = 0) :
     t.readWords (BitVec.ofNat 64 B) n = List.replicate n 0 := by
@@ -579,17 +579,26 @@ theorem readWords_zero (t : MachineState) (B n : Nat) (hB : B + 8 * n < 2 ^ 64)
 theorem witList_words (t : MachineState) (N : HashOutput) (w : Witness)
     (hh : t.readWords (BitVec.ofNat 64 0x800) 8 = wordsOf (headerBytes w))
     (hleaf : t.readWords (BitVec.ofNat 64 0x840) 128 = wordsOf (leafBytes w.signature))
-    (hstream : t.readWords (BitVec.ofNat 64 0xC40) 1185 =
+    (hstream : t.readWords (BitVec.ofNat 64 0xC40) 1275 =
       wordsOf (streamBytes (T3.selections N) w.signature.proof))
+    (hpad : t.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0)
     (hlay : ∀ lay : Layer, t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
       wordsOf (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay))) :
-    t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (witList N w) := by
+    t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (witList N w) := by
   have hstorage : ∀ lay : Layer,
-      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
+      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay) + (if lay = 0 then 32 else 0)) =
         wordsOf (layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) := by
     intro lay
     unfold layerStorage
-    exact hlay lay
+    by_cases hl : lay = 0
+    · subst lay
+      simp only [if_true]
+      rw [wordsOf_append _ _ (by rw [layerBytes_length]; decide),
+        show T3M.zeros 256 = List.replicate (8 * 32) 0 from rfl, wordsOf_replicate_zero, ← hlay 0, ← hpad]
+      rw [readWords_add]
+      rfl
+    · simp only [if_neg hl, T3M.zeros, List.replicate_zero, List.append_nil, Nat.add_zero]
+      exact hlay lay
   obtain ⟨l1, l2, l3⟩ := witList_length_parts N w
   have l4 := fun lay : Layer => layerStorage_length' lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
   have hf : (List.finRange 4).flatMap (fun lay : Layer =>
@@ -609,8 +618,9 @@ theorem witList_words (t : MachineState) (N : HashOutput) (w : Witness)
     wordsOf_append _ _ (by rw [layerStorage_length']; decide), ← hh, ← hleaf, ← hstream]
   have h0 := hstorage 0; have h1 := hstorage 1; have h2 := hstorage 2; have h3 := hstorage 3
   rw [← h0, ← h1, ← h2, ← h3]
-  simp only [lBase, height, chainCount]
-  rw [show (3033 : Nat) = 8 + (128 + (1185 + (528 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
+  simp only [lBase, height, chainCount, show (0 : Layer) = 0 from rfl, if_true,
+    show (1 : Layer) ≠ 0 by decide, show (2 : Layer) ≠ 0 by decide, show (3 : Layer) ≠ 0 by decide, if_false, Nat.add_zero]
+  rw [show (3155 : Nat) = 8 + (128 + (1275 + (560 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
     readWords_add, readWords_add, readWords_add, readWords_add]
   rfl
 end SigGolfCandidate.T3M.Expand
@@ -624,7 +634,7 @@ namespace ClaudeWCT.W9.Machine.Expand
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M
 open SigGolfCandidate.T3 (Digest HashOutput M Layer height chainCount route)
-open SigGolfCandidate.T3M.Search (DIG NBUF ENC OutAt FailedAt TOP_DATA TableOK)
+open SigGolfCandidate.T3M.Search (DIG NBUF ENC NOUT OutAt FailedAt TOP_DATA TableOK)
 open SigGolfCandidate.T3M.Expand (IDXV lBase layer_words layerStorage_length' readWords_zero
   headerBytes_words)
 open SigGolfCandidate.T3M (window window_flatMap_const zeros)
@@ -647,27 +657,27 @@ theorem codeAt_353W : CodeAt im (pcOf 353) SigGolfCandidate.T3M.Expand.seg_353 :
 variable (s : MachineState)
 theorem c342W (hpc : s.pc = pcOf 342) :
     ∃ t, Steps im s 6 6 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
-      t.getReg .x28 = BitVec.ofNat 64 ENC ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 NOUT) = s.getMem (BitVec.ofNat 64 0xA0) then pcOf 348 else pcOf 354) ∧
+      t.getReg .x28 = BitVec.ofNat 64 NOUT ∧ t.getReg .x29 = BitVec.ofNat 64 0xA0 ∧
       RegsExcept s t [.x6, .x7, .x28, .x29] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound SigGolfCandidate.T3M.Expand.eblk_342 (codeAt_342W hC) s hpc
     (by simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp, accessValid_iff, MEMORY_BYTES]),
     ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC]
+  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_342.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT]
     split_ifs with h1 h2 h2 <;> simp_all
   · simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp]
   · simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp]
   · ex_regs SigGolfCandidate.T3M.Expand.eblk_342.res
   · intro A _ _; simp [SigGolfCandidate.T3M.Expand.eblk_342.res, rv_simp]
-theorem c348W (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 ENC)
+theorem c348W (hpc : s.pc = pcOf 348) (h28 : s.getReg .x28 = BitVec.ofNat 64 NOUT)
     (h29 : s.getReg .x29 = BitVec.ofNat 64 0xA0) :
     ∃ t, Steps im s 3 3 t ∧
-      t.pc = (if s.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
+      t.pc = (if s.getMem (BitVec.ofNat 64 (NOUT + 8)) = s.getMem (BitVec.ofNat 64 0xA8) then pcOf 351 else pcOf 354) ∧
       RegsExcept s t [.x6, .x7] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound SigGolfCandidate.T3M.Expand.eblk_348 (codeAt_348W hC) s hpc
-    (by simp [SigGolfCandidate.T3M.Expand.eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, ENC]),
+    (by simp [SigGolfCandidate.T3M.Expand.eblk_348.res, rv_simp, accessValid_iff, MEMORY_BYTES, h28, h29, NOUT]),
     ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, ENC,
+  · simp only [Result.toState_pc, SigGolfCandidate.T3M.Expand.eblk_348.res, E.eval, CmpOp.eval, rebase, rv_simp, NOUT,
       h28, h29]
     split_ifs with h1 h2 h2 <;> simp_all
   · ex_regs SigGolfCandidate.T3M.Expand.eblk_348.res
@@ -685,7 +695,7 @@ theorem c351W (hpc : s.pc = pcOf 351) :
   · ex_regs SigGolfCandidate.T3M.Expand.eblk_351.res
   · intro A _ _; simp [SigGolfCandidate.T3M.Expand.eblk_351.res, rv_simp]
 end compare
-theorem codeAt_1420 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf 1420) [0x00000073] :=
+theorem codeAt_1387 {im : Image} (hc : NewCodeAt im) : CodeAt im (pcOf 1387) [0x00000073] :=
   codeAt_of_window hc (by decide) (by decide +kernel)
 theorem readWords_ext (t : MachineState) : ∀ (L : List Word) (A : Nat),
     (∀ i, i < L.length → t.getMem (BitVec.ofNat 64 (A + 8 * i)) = L.getD i 0) →
@@ -725,16 +735,26 @@ theorem headerW_eq (w : WCT9.Witness) :
 theorem witListW_words (t : MachineState) (N : HashOutput) (w : WCT9.Witness)
     (hh : t.readWords (BitVec.ofNat 64 0x800) 8 = wordsOf (ClaudeWCT.W9.T3M.headerBytes w))
     (hwct : t.readWords (BitVec.ofNat 64 0x840) 1152 = wordsOf (wctBytes N w.signature))
-    (hgap : t.readWords (BitVec.ofNat 64 0x2c40) 161 = List.replicate 161 0)
+    (hgap : t.readWords (BitVec.ofNat 64 0x2c40) 251 = List.replicate 251 0)
+    (hpad : t.readWords (BitVec.ofNat 64 0x4498) 32 = List.replicate 32 0)
     (hlay : ∀ lay : Layer, t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
       wordsOf (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay))) :
-    t.readWords (BitVec.ofNat 64 0x800) 3033 = wordsOf (ClaudeWCT.W9.T3M.witList N w) := by
+    t.readWords (BitVec.ofNat 64 0x800) 3155 = wordsOf (ClaudeWCT.W9.T3M.witList N w) := by
   have hstorage : ∀ lay : Layer,
-      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay)) =
+      t.readWords (BitVec.ofNat 64 (lBase lay)) (8 * (height lay + chainCount lay) + (if lay = 0 then 32 else 0)) =
         wordsOf (layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) := by
     intro lay
     unfold layerStorage
-    exact hlay lay
+    by_cases hl : lay = 0
+    · subst lay
+      simp only [if_true]
+      rw [wordsOf_append _ _ (by rw [SigGolfCandidate.T3M.Expand.layerBytes_length]; decide),
+        show SigGolfCandidate.T3M.zeros 256 = List.replicate (8 * 32) 0 from rfl, wordsOf_replicate_zero, ← hlay 0,
+        ← hpad]
+      rw [readWords_add]
+      rfl
+    · simp only [if_neg hl, SigGolfCandidate.T3M.zeros, List.replicate_zero, List.append_nil, Nat.add_zero]
+      exact hlay lay
   have l1 : (ClaudeWCT.W9.T3M.headerBytes w).length = 64 := by
     rw [headerW_eq]; exact (SigGolfCandidate.T3M.Expand.witList_length_parts N (WCT9.toT3Witness w)).1
   have hf : (List.finRange 4).flatMap (fun lay : Layer =>
@@ -750,23 +770,24 @@ theorem witListW_words (t : MachineState) (N : HashOutput) (w : WCT9.Witness)
   rw [hf]
   simp only [List.append_assoc]
   rw [wordsOf_append _ _ (by rw [l1]), wordsOf_append _ _ (by rw [wctBytes_length]),
-    wordsOf_append _ _ (by rw [show (SigGolfCandidate.T3M.zeros 1288).length = 1288 from List.length_replicate]),
+    wordsOf_append _ _ (by rw [show (SigGolfCandidate.T3M.zeros 2008).length = 2008 from List.length_replicate]),
     wordsOf_append _ _ (by rw [layerStorage_length']; decide), wordsOf_append _ _ (by rw [layerStorage_length']; decide),
     wordsOf_append _ _ (by rw [layerStorage_length']; decide), ← hh, ← hwct]
-  have hz : wordsOf (SigGolfCandidate.T3M.zeros 1288) = List.replicate 161 0 := by
-    rw [show SigGolfCandidate.T3M.zeros 1288 = List.replicate (8 * 161) 0 from rfl, wordsOf_replicate_zero]
+  have hz : wordsOf (SigGolfCandidate.T3M.zeros 2008) = List.replicate 251 0 := by
+    rw [show SigGolfCandidate.T3M.zeros 2008 = List.replicate (8 * 251) 0 from rfl, wordsOf_replicate_zero]
   rw [hz, ← hgap]
   have h0 := hstorage 0; have h1 := hstorage 1; have h2 := hstorage 2; have h3 := hstorage 3
   rw [← h0, ← h1, ← h2, ← h3]
-  simp only [lBase, height, chainCount]
-  rw [show (3033 : Nat) = 8 + (1152 + (161 + (528 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
+  simp only [lBase, height, chainCount, show (0 : Layer) = 0 from rfl, if_true,
+    show (1 : Layer) ≠ 0 by decide, show (2 : Layer) ≠ 0 by decide, show (3 : Layer) ≠ 0 by decide, if_false, Nat.add_zero]
+  rw [show (3155 : Nat) = 8 + (1152 + (251 + (560 + (400 + (392 + 392))))) from rfl, readWords_add, readWords_add,
     readWords_add, readWords_add, readWords_add, readWords_add]
   rfl
 def tailProg (pk : PublicKey) (sig : WCT9.Signature) :
     Option (BitVec 32 × HashOutput × Digest) → M (Option (HashOutput × WCT9.Witness))
   | none => pure none
   | some (counter, N, root) => do
-    let some (root, counters) ← SigGolfCandidate.T3.expandLayers (WCT9.toT3Signature sig) (N.toNat % 2 ^ 31) 4 root
+    let some (root, counters) ← SigGolfCandidate.T3.expandLayers (WCT9.toT3Signature sig) (N.toNat % 2 ^ 31) 4 (root, 0, 0)
       | pure none
     if root ≠ pk then return none
     pure (some (N, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩))

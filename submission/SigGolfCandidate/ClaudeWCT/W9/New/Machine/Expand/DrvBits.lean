@@ -236,22 +236,11 @@ theorem field_toNat0 (a : BitVec 256) (w : Nat) :
   have := field_toNat a w 0 (by omega)
   simpa using this
 theorem gate_toNat (a : BitVec 256) :
-    ((a.extractLsb' 192 64 <<< 8) >>> 50).toNat = a.toNat / 2 ^ 234 % 2 ^ 14 := by
-  rw [BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow,
-    BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
-  have h1 : a.toNat / 2 ^ 192 % 2 ^ 64 * 2 ^ 8 % 2 ^ 64 / 2 ^ 50 = a.toNat / 2 ^ 192 % 2 ^ 64 / 2 ^ 42 % 2 ^ 14 := by
-    have := Nat.mod_lt (a.toNat / 2 ^ 192) (show 0 < 2 ^ 64 by positivity)
-    omega
-  rw [h1, show (2 : Nat) ^ 64 = 2 ^ 42 * 2 ^ 22 by norm_num, Nat.mod_mul_right_div_self,
-    Nat.mod_mod_of_dvd _ (pow_dvd_pow 2 (by norm_num : 14 ≤ 22)), Nat.div_div_eq_div_mul, ← pow_add]
-theorem beq_sltu5 {α : Type} (g : Word) (n : Nat) (hg : g.toNat = n) (A B : α) :
-    (if ((if BitVec.ult g 5#64 = true then (1 : Word) else 0) == 0#64) = true then A else B) =
-      (if n < 5 then B else A) := by
-  by_cases hn : n < 5
-  · have : BitVec.ult g 5#64 = true := by simp [BitVec.ult, hg, hn]
-    simp [this, hn]
-  · have : BitVec.ult g 5#64 = false := by simp [BitVec.ult, hg]; omega
-    simp [this, hn]
+    ((a.extractLsb' 0 64 >>> 31) &&& 4095#64).toNat = a.toNat / 2 ^ 31 % 2 ^ 12 := by
+  rw [BitVec.toNat_and, BitVec.toNat_ushiftRight, show (0 : Nat) = 64 * 0 from rfl, extractLsb'_256_toNat,
+    show (4095#64).toNat = 2 ^ 12 - 1 from rfl, Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow,
+    mod_div_mod _ _ _ (by omega)]
+  simp
 theorem index_eq (a : BitVec 256) :
     a.extractLsb' 0 64 <<< 33 >>> 33 = BitVec.ofNat 64 (a.toNat % 2 ^ 31) := by
   rw [SigGolfCandidate.T3M.Expand.shl_shr_33]
@@ -260,7 +249,7 @@ theorem index_eq (a : BitVec 256) :
   rw [show 64 * 0 = 0 from rfl, pow_zero, Nat.div_one, Nat.mod_mod_of_dvd _ (by norm_num)]
 def fieldN (a : BitVec 256) (c : Nat) : Nat := a.toNat / 2 ^ (WCT9.coordBase c + 7) % 2 ^ 14
 theorem admissible_eq (a : BitVec 256) :
-    WCT9.admissible a = (decide (a.toNat / 2 ^ 234 % 2 ^ 14 < 5) &&
+    WCT9.admissible a = (decide (a.toNat / 2 ^ 31 % 2 ^ 12 = 0) &&
       (List.range 9).all fun c => decide (fieldN a c < 16016)) := rfl
 def SearchAt (im : Image) (b : Nat) : Prop := CodeAt im (pcOf b) SearchCode.code
 theorem ult_ofNat (x y : Nat) (hx : x < 2 ^ 64) (hy : y < 2 ^ 64) :
@@ -461,16 +450,16 @@ theorem bne_zero {α : Type} (v : Word) (n : Nat) (hv : v.toNat = n) (A B : α) 
     simp [this, hn]
 theorem sr17_spec (h : SearchAt im b) (s : MachineState) (hpc : s.pc = pcOf (b + 17)) (a : BitVec 256)
     (hN : OutAt s NBUF a) :
-    ∃ t, Steps im s 8 8 t ∧ t.pc = (if a.toNat / 2 ^ 234 % 2 ^ 14 < 5 then pcOf (b + 25) else pcOf (b + 136)) ∧
+    ∃ t, Steps im s 8 8 t ∧ t.pc = (if a.toNat / 2 ^ 31 % 2 ^ 12 = 0 then pcOf (b + 25) else pcOf (b + 136)) ∧
       t.getReg .x22 = a.extractLsb' 0 64 ∧ RegsExcept s t [.x6, .x7, .x22, .x28] ∧ Frame s t (fun _ => False) := by
   have hw := hN 0 (by decide)
-  have hw3 := hN 3 (by decide)
-  simp only [NBUF, Nat.reduceMul, Nat.reduceAdd] at hw hw3
+  simp only [NBUF, Nat.reduceMul, Nat.reduceAdd] at hw
   refine ⟨_, symRun_sound (run'_17 b) (codeAt_17 h) s hpc (by simp [blk_17.res, rv_simp]), ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, rebase, blk_17.res, E.eval, CmpOp.eval, BinOp.eval, hw, hw3]
+  · simp only [Result.toState_pc, rebase, blk_17.res, E.eval, CmpOp.eval, BinOp.eval, hw]
     have hv := gate_toNat a
-    simp only [BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow] at hv ⊢
-    rw [beq_sltu5 _ _ hv]
+    simp only [BitVec.toNat_ofNat, Nat.reduceMod, Nat.reducePow]
+    rw [bne_zero _ _ hv]
+    norm_num
   · simp [blk_17.res, rv_simp, hw]
   · intro r hr; simp at hr; cases r <;> simp_all [blk_17.res, rv_simp] <;> rfl
   · intro A _ _; simp [blk_17.res, rv_simp]
@@ -564,7 +553,7 @@ theorem fields_spec (h : SearchAt im b) (a : BitVec 256) :
       refine ⟨t1, _, s1, by omega, ?_, r1, f1⟩
       rw [p1, if_neg (fun hh => hf (hh c (le_refl _) hc9))]
 theorem admissible_iff (a : BitVec 256) :
-    WCT9.admissible a = true ↔ a.toNat / 2 ^ 234 % 2 ^ 14 < 5 ∧ ∀ c', 0 ≤ c' → c' < 9 → fieldN a c' < 16016 := by
+    WCT9.admissible a = true ↔ a.toNat / 2 ^ 31 % 2 ^ 12 = 0 ∧ ∀ c', 0 ≤ c' → c' < 9 → fieldN a c' < 16016 := by
   rw [admissible_eq]
   simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range]
   constructor
@@ -669,7 +658,7 @@ theorem search_loop (h : SearchAt im b) {s0 : MachineState} {rho : Digest} {m : 
       · exact Or.inr (Or.inr (Or.inl h)))
     have rA : RegsExcept s0 (writeHash u a) srchRegs := (ru.trans rw').mono (by decide)
     have g19 : (writeHash u a).getReg .x19 = BitVec.ofNat 64 i := by rw [getReg_writeHash, u19]
-    by_cases hg : a.toNat / 2 ^ 234 % 2 ^ 14 < 5
+    by_cases hg : a.toNat / 2 ^ 31 % 2 ^ 12 = 0
     · rw [if_pos hg] at p3
       obtain ⟨t4, k4, s4, hk4, p4, r4, f4⟩ := fields_spec h a 9 0 rfl t2 p3 hN2
       have hN4 : OutAt t4 NBUF a := fun j hj => by
@@ -732,12 +721,12 @@ namespace ClaudeWCT.W9.Machine.Expand.Driver
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M ClaudeWCT.W9.Machine.Expand
 set_option maxRecDepth 16384
-def base : Nat := 3164
+def base : Nat := 3131
 def seg_0 : List (BitVec 32) := [16777327]
 def seg_1 : List (BitVec 32) := [1049235,1049875,115]
-def seg_4 : List (BitVec 32) := [0x6003b03,0x7803183,8491411,52547987,5353875]
-def seg_9 : List (BitVec 32) := [0xfe0180e3]
-def seg_10 : List (BitVec 32) := [35330835,35347219,1049363,2098067,1049747,33854611,23389363,2098835,33986195,23520947,3148179,34183571,23718323,4196883,34216467,23751219,5245587,34249363,23784115,6294803,34413843,23948595,7343891,34545427,24080179,5175,0x84040413,0xffee37,0x600e0e13,65847,0xffc10113,20151,0x4c0e8e93,52279,0x4c0c0c13]
+def seg_4 : List (BitVec 32) := [0x6003b03,33247635,6455,0xfff90913,19001779]
+def seg_9 : List (BitVec 32) := [0xfe0190e3]
+def seg_10 : List (BitVec 32) := [35330835,35347219,1049363,2098067,1049747,33854611,23389363,2098835,33986195,23520947,3148179,34183571,23718323,4196883,34216467,23751219,5245587,34249363,23784115,6294803,34413843,23948595,7343891,34545427,24080179,5175,0x84040413,0xffee37,0x600e0e13,65847,0xffc10113,20151,0x43ce8e93,52279,0x43cc0c13]
 def seg_45 : List (BitVec 32) := [0x6003803,45633939,0x7f1f193,33657363,23224883,8493971,31165363,0x9c0e3d83,67110291,50878227,2586419,25626419,458983]
 def seg_58 : List (BitVec 32) := [0x70000613]
 def seg_59 : List (BitVec 32) := [115]
@@ -910,8 +899,8 @@ theorem field4_bits (a : BitVec 256) (w sh : Nat) (h : sh + 21 ≤ 64) :
     · simp [show ¬ i < 16 by omega, show ¬ i - 2 < 14 by omega]
 theorem not1_eq : (18446744073709551614#64 : Word) = ~~~1#64 := by decide
 theorem disp_pc (v : Word) (f : Nat) (hv : v.toNat = 4 * f) (hf : f < 2 ^ 14) :
-    v + 50368#64 &&& 18446744073709551614#64 = pcOf (11568 + f) := by
-  have : v + 50368#64 = pcOf (11568 + f) := by
+    v + 50236#64 &&& 18446744073709551614#64 = pcOf (11535 + f) := by
+  have : v + 50236#64 = pcOf (11535 + f) := by
     apply BitVec.eq_of_toNat_eq
     simp only [BitVec.toNat_add, hv, pcOf, BitVec.toNat_ofNat]
     omega
@@ -924,7 +913,7 @@ theorem disp_x4 (c : Word) (n index : Nat) (hc : c.toNat = n) (_hn : n < 128) (h
   rw [e, ofNat_or_add index n 32 (by omega)]
   congr 1; ring
 theorem disp_x23 (c : Word) (n : Nat) (hc : c.toNat = n) (hn : n < 128) :
-    c <<< 8 + 17600#64 = BitVec.ofNat 64 (17600 + 256 * n) := by
+    c <<< 8 + 17468#64 = BitVec.ofNat 64 (17468 + 256 * n) := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, hc, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
   omega

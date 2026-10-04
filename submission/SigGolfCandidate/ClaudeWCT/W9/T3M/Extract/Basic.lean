@@ -1,13 +1,14 @@
-import SigGolfCandidate.T3M.Witness.Queries
-import SigGolfCandidate.T3M.Extract.Normalize
+import SigGolfCandidate.T3M.Extract.Basic
 import SigGolfCandidate.ClaudeWCT.WCT9.Correctness
-
 namespace ClaudeWCT.W9.T3M.Extract
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open Correctness (Answers treeValue builtTree leafSeed leafEnd)
 open SphincsSecurity (bytesLE)
-export SigGolfCandidate.T3M.Extract (canonicalHeader)
+export SigGolfCandidate.T3M.Extract
+  (canonicalHeader canonicalHeader_unmarked canonicalHeader_marked canonicalHeader_pad_irrelevant
+   canonicalHeader_zero_pad bytesLE_header_words bytesLE8_marker bytesLE16_marker
+   canonicalHeader_words canonicalHeader_high_irrelevant canonicalHeader_high_zero canonicalHeader_marker_ne)
 noncomputable def honestRoot (answers : Answers) (lay : Layer) (tree : Nat) : Digest :=
   treeValue (builtTree answers lay tree) (height lay) 0
 def wctSeed (answers : Answers) (index coord child chain : Nat) : Digest :=
@@ -35,9 +36,12 @@ def forestInput (index : Nat) (roots : List Digest) : HashInput :=
   listInput (roots.getD 0 0) (header 15 0 index 0 0) (roots.drop 1)
 def honestForest (answers : Answers) (index : Nat) : Digest :=
   evalWithAnswerFn answers (WCT9.forestPk index (ftsRootsHonest answers index))
-noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : Digest :=
-  if h : lay.val < 3 then honestRoot answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
-  else honestForest answers index
+noncomputable def honestPair (answers : Answers) (lay : Layer) (tree : Nat) : LayerMessage :=
+  (treeValue (builtTree answers lay tree) (height lay - 1) 0, 0,
+    treeValue (builtTree answers lay tree) (height lay - 1) 1)
+noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : LayerMessage :=
+  if h : lay.val < 3 then honestPair answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
+  else (honestForest answers index, 0, 0)
 inductive Pos where
   | chain (lay : Layer) (tree leaf i step : Nat)
   | leaf (lay : Layer) (tree leaf : Nat)
@@ -78,8 +82,7 @@ def Pos.Bounded : Pos → Prop
   | .wctLeaf index coord child => index < 2 ^ 31 ∧ coord < 9 ∧ child < 128
   | .wctNode index coord level nd => index < 2 ^ 31 ∧ coord < 9 ∧ level < 7 ∧ nd < 2 ^ (7 - level - 1)
 def hdrBlock (input : HashInput) : HashInput := (input.drop 16).take 16
-def SameHeader (actual honest : HashInput) : Prop :=
-  canonicalHeader (hdrBlock actual) = canonicalHeader (hdrBlock honest)
+def SameHeader (actual honest : HashInput) : Prop := canonicalHeader (hdrBlock actual) = canonicalHeader (hdrBlock honest)
 def HitIn (answers : Answers) (qs : List Spec.Domain) : Prop :=
   ∃ pos actual, pos.Bounded ∧ .inl (.inr actual) ∈ qs ∧ HashHit answers (honestInput answers pos) actual ∧
     SameHeader actual (honestInput answers pos)

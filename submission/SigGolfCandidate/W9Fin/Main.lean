@@ -1,8 +1,8 @@
 import SigGolfCandidate.W9Drv.Gate
 import SigGolfCandidate.W9Drv.FtsDefs
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Witness.VerifyP
+import SigGolfCandidate.ClaudeWCT.W9.New.Machine.ExpandLink.Link
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.Pending
-import SigGolfCandidate.T3M.Submission
 
 section
 
@@ -85,7 +85,7 @@ theorem Bank.congr {s t : MachineState} (h : Bank s)
   · rw [hm _ (by unfold W9Machine.Chain.table VERIFY_DATA; omega)
       (by unfold W9Machine.Chain.table VERIFY_DATA; have := k.isLt; omega)]
     exact hl k
-theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
+theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) (j : Nat) (hj : j < 576) :
     s.getMem (BitVec.ofNat 64 (VERIFY_DATA + 8 * j)) =
       bytesToWordLE ((Images.verifyPrefixData.drop (8 * j)).take 8) := by
@@ -98,7 +98,7 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (bytes m).length = 32 := length_bytes m
   have lp : (bytes pk).length = 16 := length_bytes pk
-  have lw : (bytes w).length = 24264 := length_bytes w
+  have lw : (bytes w).length = 25240 := length_bytes w
   have lD := verifyData_length
   have eD := dataBase_verify
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
@@ -126,7 +126,7 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
     intro A hA
     rw [getMem_writeBytesAsWords _ s1 0xA0 A (by rw [lp]; omega) hA, lp]
   have g3 : ∀ A, A < 2 ^ 64 → s3.getMem (BitVec.ofNat 64 A) =
-      if 0x800 ≤ A ∧ A < 0x800 + 8 * ((24264 + 7) / 8) ∧ (A - 0x800) % 8 = 0 then
+      if 0x800 ≤ A ∧ A < 0x800 + 8 * ((25240 + 7) / 8) ∧ (A - 0x800) % 8 = 0 then
         bytesToWordLE (((bytes w).drop (A - 0x800)).take 8) else s2.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [getMem_writeBytesAsWords _ s2 0x800 A (by rw [lw]; omega) hA, lw]
@@ -138,7 +138,7 @@ theorem init_word (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : By
   show bytesToWordLE ((Images.verifyData.drop (8 * j)).take 8) = _
   rw [Images.verifyData, List.drop_append_of_le_length (by rw [Images.verifyPrefixData_length]; omega),
     List.take_append_of_le_length (by rw [List.length_drop, Images.verifyPrefixData_length]; omega)]
-theorem init_bank (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
+theorem init_bank (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : Bank s := by
   intro index hi
   have hB := List.all_eq_true.mp bankOK_eq
@@ -422,6 +422,7 @@ namespace W9Fin
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput)
+open ClaudeWCT.W9.Machine.ExpandLink (I0)
 theorem goodQ_frozen (hbridge : W9Machine.Frozen.image = Images.verifyImage) {s : MachineState} {N C A : Nat}
     {Q : Prop} {X : OracleComp HashSpec Obs} :
     W9Machine.GoodQFor W9Machine.Frozen.image s N C Q A X ↔ GoodQ s N C Q A X := by
@@ -444,24 +445,24 @@ theorem verifyP_eq (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) 
 theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) :
-    GoodQ u (8050 + 2023 + 2) (8050 + 2023 + 2) True (5742 + 2023 + 2) (ccM (afterDigest pk w a) Kb) := by
+    GoodQ u (8057 + 2023 + 2) (8057 + 2023 + 2) True (5736 + 2023 + 2) (ccM (afterDigest pk w a) Kb) := by
   obtain ⟨hst, hpre⟩ := gatePre_of_hook m pk w a u hu
-  have h := fts pk w a _ 8050 8050 5742 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
+  have h := fts pk w a _ 8057 8057 5736 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
     (by simp only [afterFts, ccM_pure, Kb])
     (fun root t ht => (goodQ_frozen hbridge).mpr (after_good pk w True trivial a root t ht))
   have h2 := (goodQ_frozen hbridge).mp (h.steps hst)
   unfold afterDigest
   rw [ccM_bind]
   exact h2
-def fuelBound : Nat := 17 + (8050 + 2023 + 2)
-def cycleBoundAll : Nat := 24 + (8050 + 2023 + 2)
-def cycleBound : Nat := 24 + (5742 + 2023 + 2)
-theorem fuelBound_eq : fuelBound = 10092 := rfl
-theorem cycleBoundAll_eq : cycleBoundAll = 10099 := rfl
-theorem cycleBound_eq' : cycleBound = 7791 := rfl
+def fuelBound : Nat := 17 + (8057 + 2023 + 2)
+def cycleBoundAll : Nat := 24 + (8057 + 2023 + 2)
+def cycleBound : Nat := 24 + (5736 + 2023 + 2)
+theorem cycleBound_actual : cycleBound = 7785 := rfl
+theorem fuelBound_eq : fuelBound = 10099 := rfl
+theorem cycleBoundAll_eq : cycleBoundAll = 10106 := rfl
 theorem cycleBound_eq : cycleBound = ClaudeWCT.W9.T3M.Final.verifyCycleBound := rfl
 theorem verify_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
-    (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
+    (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
     (hs : initialState submission .verify (m, pk, w) = some s) :
     GoodQ s fuelBound cycleBoundAll True cycleBound (ccM (ClaudeWCT.W9.T3M.verifyP m pk w) Kb) := by
   rw [verifyP_eq, ccM_bind]
@@ -470,30 +471,21 @@ theorem verify_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts
       | some N => afterDigest pk w N
       | none => pure false) Kb) (by simp only [ccM_pure, Kb])
     (fun a u hu => afterDigest_good hbridge fts m pk w a u hu)
-def I0 : ClaudeWCT.W9.T3M.Images := ⟨Images.signImage, Images.expandImage, Images.verifyImage⟩
-theorem I0_verify : I0.verify = Images.verifyImage := rfl
-theorem init_mk (sI eI : Riscv.Image) (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) :
-    initialState (ClaudeWCT.W9.T3M.submission ⟨sI, eI, Images.verifyImage⟩) .verify (m, pk, w) =
-      initialState submission .verify (m, pk, w) :=
+theorem init_I0 (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) :
+    initialState (ClaudeWCT.W9.T3M.submission I0) .verify (m, pk, w) = initialState submission .verify (m, pk, w) :=
   rfl
-theorem mk_verify (sI eI : Riscv.Image) :
-    (⟨sI, eI, Images.verifyImage⟩ : ClaudeWCT.W9.T3M.Images).verify = Images.verifyImage := rfl
-theorem init_exists (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) :
+theorem I0_verify : I0.verify = Images.verifyImage := rfl
+theorem init_exists (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 25240) :
     ∃ s, initialState submission .verify (m, pk, w) = some s := by
   unfold initialState
   simp only [submission_admissible.2 .verify, if_true]
   exact ⟨_, rfl⟩
 theorem fuelBound_le : fuelBound ≤ CYCLE_LIMIT := by rw [fuelBound_eq]; unfold CYCLE_LIMIT; norm_num
-theorem verify_refines_of (I : ClaudeWCT.W9.T3M.Images) (hI : I.verify = Images.verifyImage)
-    (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood) :
-    ClaudeWCT.W9.T3M.Final.VerifyRefines I := by
-  obtain ⟨sI, eI, vI⟩ := I
-  change vI = Images.verifyImage at hI
-  subst hI
+theorem verify_refines (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood) :
+    ClaudeWCT.W9.T3M.Final.VerifyRefines I0 := by
   intro m pk w
   obtain ⟨s, hs⟩ := init_exists m pk w
-  have hs' : initialState (ClaudeWCT.W9.T3M.submission ⟨sI, eI, Images.verifyImage⟩) .verify (m, pk, w) = some s :=
-    (init_mk sI eI m pk w).trans hs
+  have hs' : initialState (ClaudeWCT.W9.T3M.submission I0) .verify (m, pk, w) = some s := (init_I0 m pk w).trans hs
   have hg := (verify_good hbridge fts m pk w s hs CYCLE_LIMIT fuelBound_le).1
   rw [ccM_Kb] at hg
   rw [run_eq _ .verify _ s hs', ClaudeWCT.W9.T3M.submission_verify, Functor.map_map]
@@ -505,33 +497,23 @@ theorem verify_refines_of (I : ClaudeWCT.W9.T3M.Images) (hI : I.verify = Images.
   by_cases h : e.exit = .success
   · simp only [h, decide_true, if_true]; rfl
   · simp only [h, decide_false, if_false, Bool.false_eq_true]; rfl
-theorem verify_terminates_of (I : ClaudeWCT.W9.T3M.Images) (hI : I.verify = Images.verifyImage)
-    (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood) :
-    ClaudeWCT.W9.T3M.Final.VerifyTerminates I := by
-  obtain ⟨sI, eI, vI⟩ := I
-  change vI = Images.verifyImage at hI
-  subst hI
+theorem verify_terminates (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood) :
+    ClaudeWCT.W9.T3M.Final.VerifyTerminates I0 := by
   intro hash m pk w
   obtain ⟨s, hs⟩ := init_exists m pk w
-  have hs' : initialState (ClaudeWCT.W9.T3M.submission ⟨sI, eI, Images.verifyImage⟩) .verify (m, pk, w) = some s :=
-    (init_mk sI eI m pk w).trans hs
+  have hs' : initialState (ClaudeWCT.W9.T3M.submission I0) .verify (m, pk, w) = some s := (init_I0 m pk w).trans hs
   have hg := (verify_good hbridge fts m pk w s hs CYCLE_LIMIT fuelBound_le).2 hash
-  rw [runWith_eq _ hash .verify _ s hs', ClaudeWCT.W9.T3M.submission_verify, mk_verify]
+  rw [runWith_eq _ hash .verify _ s hs', ClaudeWCT.W9.T3M.submission_verify, I0_verify]
   simp only [toRunResult]
   refine ⟨?_, lt_of_le_of_lt hg.2.1 (by rw [cycleBoundAll_eq]; unfold CYCLE_LIMIT; norm_num)⟩
   simpa using hg.1
-theorem verify_accept_cycles_of (I : ClaudeWCT.W9.T3M.Images) (hI : I.verify = Images.verifyImage)
-    (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood) :
-    ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I := by
-  obtain ⟨sI, eI, vI⟩ := I
-  change vI = Images.verifyImage at hI
-  subst hI
+theorem verify_accept_cycles (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood) :
+    ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I0 := by
   intro hash m pk w h
   obtain ⟨s, hs⟩ := init_exists m pk w
-  have hs' : initialState (ClaudeWCT.W9.T3M.submission ⟨sI, eI, Images.verifyImage⟩) .verify (m, pk, w) = some s :=
-    (init_mk sI eI m pk w).trans hs
+  have hs' : initialState (ClaudeWCT.W9.T3M.submission I0) .verify (m, pk, w) = some s := (init_I0 m pk w).trans hs
   have hg := (verify_good hbridge fts m pk w s hs CYCLE_LIMIT fuelBound_le).2 hash
-  rw [runWith_eq _ hash .verify _ s hs', ClaudeWCT.W9.T3M.submission_verify, mk_verify] at h ⊢
+  rw [runWith_eq _ hash .verify _ s hs', ClaudeWCT.W9.T3M.submission_verify, I0_verify] at h ⊢
   simp only [toRunResult] at h ⊢
   have hsucc : (evalWithAnswerFn hash (Riscv.execute CYCLE_LIMIT Images.verifyImage s)).exit = .success := by
     by_contra hne
@@ -540,20 +522,12 @@ theorem verify_accept_cycles_of (I : ClaudeWCT.W9.T3M.Images) (hI : I.verify = I
   have := (hg.2.2 hsucc).2
   rw [cycleBound_eq] at this
   exact this
-theorem verify_inputs_of (I : ClaudeWCT.W9.T3M.Images) (hI : I.verify = Images.verifyImage)
-    (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage)
-    (fts : W9Drv.FtsGood) :
-    ClaudeWCT.W9.T3M.Final.VerifyRefines I ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I ∧
-      ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I :=
-  ⟨verify_refines_of I hI hbridge fts, verify_terminates_of I hI hbridge fts,
-    verify_accept_cycles_of I hI hbridge fts⟩
 theorem verify_inputs
     (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage)
     (fts : W9Drv.FtsGood) :
     ClaudeWCT.W9.T3M.Final.VerifyRefines I0 ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I0 ∧
       ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I0 :=
-  verify_inputs_of I0 I0_verify hbridge fts
+  ⟨verify_refines hbridge fts, verify_terminates hbridge fts, verify_accept_cycles hbridge fts⟩
 end W9Fin
-#print axioms W9Fin.verify_inputs_of
 #print axioms W9Fin.verify_inputs
 end

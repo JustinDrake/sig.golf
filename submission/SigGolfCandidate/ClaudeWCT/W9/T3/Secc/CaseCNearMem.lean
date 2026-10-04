@@ -16,7 +16,7 @@ open SphincsSecurity.Concrete (uniformWordAverage binomialAverage uniformWordAve
 open SigGolfResearch.Gate6.Moments (finiteAverage)
 open SigGolfCandidate.T3.BPORS.History (atIndex)
 open SigGolfCandidate.T3 (HashOutput)
-open ClaudeWCT.Bank.WCT (WProposal proposal outIdx SlotCoveredP)
+open ClaudeWCT.Bank.WCT (WProposal proposal outIdx SlotCoveredP sum_admissible)
 open ClaudeWCT.WCT9 (digit)
 open ClaudeWCT.Guess (nearScore nearPrice NearCoveredAt)
 set_option maxHeartbeats 1000000
@@ -44,10 +44,9 @@ theorem nearCoveredAt_iff (X : List HashOutput) (N : HashOutput) (k : Fin 9) (t 
   refine forall_congr' fun k' => forall_congr' fun t' => imp_congr_right fun _ => ?_
   rw [guess_slotCovered_iff, ClaudeWCT.Bank.WCT.slotCovered_iff, slotCoveredP_iff_atIndex]
 noncomputable def nearPriceP (W : List WProposal) : ENNReal :=
-  ((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7 *
+  ((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5 *
     ∑ index : Fin (2 ^ 31), ∑ k : Fin 9, ∑ t : Fin 7, wctNearEnv k t (atIndex index W)
-theorem nearPrice_eq_nearPriceP (X : List HashOutput) :
-    nearPrice X = nearPriceP (X.map proposal) := by
+theorem nearPrice_eq_nearPriceP (X : List HashOutput) : nearPrice X = nearPriceP (X.map proposal) := by
   classical
   set W : List WProposal := X.map proposal with hW
   set g : WProposal → ENNReal := fun p => ∑ k : Fin 9, ∑ t : Fin 7,
@@ -74,11 +73,11 @@ theorem nearPrice_eq_nearPriceP (X : List HashOutput) :
     rw [hT, ENNReal.mul_div_cancel (by simp [Q]) (by simp)]
   unfold nearPrice nearPriceP finiteAverage
   simp_rw [hs]
-  rw [admissibleFibre g, hsum, Fintype.card_bitVec, ← price_scale]
+  rw [sum_admissible g, hsum, Fintype.card_bitVec, ← price_scale]
   simp only [div_eq_mul_inv]
   ring
 theorem scale_eq_A :
-    ((5 * 1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 7 * ((2 ^ 31 : ℕ) : ENNReal) = 5 / 4 * (A : ENNReal) := by
+    ((1001 ^ 9 : ℕ) : ENNReal) / 2 ^ 5 * ((2 ^ 31 : ℕ) : ENNReal) = (A : ENNReal) := by
   apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
   norm_num [A, ENNReal.toReal_mul, ENNReal.toReal_div]
 theorem near_summand_le_one (r : ℕ) :
@@ -86,16 +85,13 @@ theorem near_summand_le_one (r : ℕ) :
   (wctNearEnv_moment 0 0 r).symm.le.trans (wctNearEnv_moment_le_one 0 0 r)
 theorem nearPriceP_mean (steps : ℕ) :
     uniformWordAverage steps nearPriceP =
-      5 / 4 * (63 * (A : ENNReal) * binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
-        (fun r => ((xNum r ^ 8 * xfNum r : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal))) := by
+      63 * (A : ENNReal) * binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
+        (fun r => ((xNum r ^ 8 * xfNum r : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal)) := by
   unfold nearPriceP
   rw [uniformWordAverage_mul_left, uniformWordAverage_sum]
   simp_rw [uniformWordAverage_sum, wct_near_index_mean]
   simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-  set B := binomialAverage (2 ^ 31 : ENNReal)⁻¹ steps
-    (fun r => ((xNum r ^ 8 * xfNum r : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal))
-  rw [show (5 / 4 : ENNReal) * (63 * (A : ENNReal) * B) = 5 / 4 * (A : ENNReal) * (63 * B) by ring,
-    ← scale_eq_A]
+  rw [← scale_eq_A]
   push_cast
   ring
 theorem near_bound_check_W (Mn Md : ℕ) (hMd : 0 < Md)
@@ -109,6 +105,10 @@ theorem near_bound_check_W (Mn Md : ℕ) (hMd : 0 < Md)
     (by decide) (by norm_num) hMd hT1 hT2 g
     (fun r hr => (hpay r hr).trans_eq (nearPay_eq r)) htail
   simpa only [Nat.cast_one, div_one, Nat.cast_mul, Nat.cast_ofNat] using h
+def nearCheckW6463 : Bool :=
+  poissonCheckG 271 2000 513 256 (fun r => xNum r ^ 8 * xfNum r) (fun r => xOk r && xfOk r)
+    (Nn ^ 9) (63 * A) 1 6463 16 80
+theorem nearW6463_ok : nearCheckW6463 = true := by decide +kernel
 def nearCheckW32 : Bool :=
   poissonCheckG 271 2000 513 256 (fun r => xNum r ^ 8 * xfNum r) (fun r => xOk r && xfOk r)
     (Nn ^ 9) (63 * A) 1 32 1 80
@@ -116,21 +116,18 @@ theorem nearW32_ok : nearCheckW32 = true := by decide +kernel
 section Window3
 variable {T : ℕ} (hT1 : 2 ^ 32 ≤ T) (hT2 : T ≤ 2 ^ 32 + 2 ^ 23)
 include hT1 hT2
-theorem wct_near_bound_tight_window : uniformWordAverage T nearPriceP ≤ 40 := by
+theorem wct_near_bound_window : uniformWordAverage T nearPriceP ≤ 6463 / 16 := by
+  rw [nearPriceP_mean]
+  have h := near_bound_check_W 6463 16 (by norm_num) nearW6463_ok hT1 hT2
+    (fun r => ((xNum r ^ 8 * xfNum r : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal))
+    (fun r _ => (nearPay_eq r).ge) (fun r _ => near_summand_le_one r)
+  simpa only [Nat.cast_ofNat] using h
+theorem wct_near_bound_tight_window : uniformWordAverage T nearPriceP ≤ 32 := by
   rw [nearPriceP_mean]
   have h := near_bound_check_W 32 1 (by norm_num) nearW32_ok hT1 hT2
     (fun r => ((xNum r ^ 8 * xfNum r : ℕ) : ENNReal) / ((Nn ^ 9 * Q ^ (9 * r) : ℕ) : ENNReal))
     (fun r _ => (nearPay_eq r).ge) (fun r _ => near_summand_le_one r)
-  simp only [Nat.cast_ofNat, Nat.cast_one, div_one] at h
-  calc
-    _ ≤ (5 / 4 : ENNReal) * 32 := mul_le_mul' le_rfl h
-    _ = 40 := by
-      apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
-      norm_num [ENNReal.toReal_mul, ENNReal.toReal_div]
-theorem wct_near_bound_window : uniformWordAverage T nearPriceP ≤ 6463 / 16 := by
-  refine (wct_near_bound_tight_window hT1 hT2).trans ?_
-  apply (ENNReal.toReal_le_toReal (by finiteness) (by finiteness)).mp
-  norm_num [ENNReal.toReal_div]
+  simpa only [Nat.cast_ofNat, Nat.cast_one, div_one] using h
 end Window3
 theorem near_bound_add_charge : (6463 / 16 : ENNReal) + 1 / 16 = 404 := by
   apply (ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness)).mp
@@ -141,22 +138,22 @@ theorem near_bound_eq_sub : (6463 / 16 : ENNReal) = 404 - 1 / 16 := by
   exact (ENNReal.add_sub_cancel_right (by finiteness)).symm
 theorem wct_near_bound : uniformWordAverage wctHorizon nearPriceP ≤ 6463 / 16 :=
   wct_near_bound_window wctHorizon_ge wctHorizon_le
-theorem wct_near_bound_tight : uniformWordAverage wctHorizon nearPriceP ≤ 40 :=
+theorem wct_near_bound_tight : uniformWordAverage wctHorizon nearPriceP ≤ 32 :=
   wct_near_bound_tight_window wctHorizon_ge wctHorizon_le
 theorem wct_near_bound_sub : uniformWordAverage wctHorizon nearPriceP ≤ 404 - 1 / 16 := by
   rw [← near_bound_eq_sub]
   exact wct_near_bound
 theorem wctSpecFinal_nearPrice (X : List HashOutput) :
-    nearPrice X = nearPriceP ((wctSpecFinal).proposals X) := nearPrice_eq_nearPriceP X
+    nearPrice X = nearPriceP (wctSpecFinal.proposals X) := nearPrice_eq_nearPriceP X
 theorem wct_near_bound_2_32 : uniformWordAverage (2 ^ 32) nearPriceP ≤ 6463 / 16 :=
   wct_near_bound_window le_rfl (by norm_num)
-theorem wct_near_bound_tight_2_32 : uniformWordAverage (2 ^ 32) nearPriceP ≤ 40 :=
+theorem wct_near_bound_tight_2_32 : uniformWordAverage (2 ^ 32) nearPriceP ≤ 32 :=
   wct_near_bound_tight_window le_rfl (by norm_num)
 theorem wct_near_bound_sub_2_32 : uniformWordAverage (2 ^ 32) nearPriceP ≤ 404 - 1 / 16 := by
   rw [← near_bound_eq_sub]
   exact wct_near_bound_2_32
 theorem wctSpecFinal32_nearPrice (X : List HashOutput) :
-    nearPrice X = nearPriceP ((wctSpecFinal32).proposals X) := nearPrice_eq_nearPriceP X
+    nearPrice X = nearPriceP (wctSpecFinal32.proposals X) := nearPrice_eq_nearPriceP X
 end ClaudeWCT.Numerics.WCTPrice
 end
 

@@ -10,7 +10,7 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def fPrepWords : List (BitVec 32) :=
   [4535,0xf0118193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x7a003823,0x7a003c23,0x70000513,0xc000593,268437011,115]
-def fTailWords : List (BitVec 32) := [6455,0xfff90913,659,0x5880006f]
+def fTailWords : List (BitVec 32) := [6455,0xfff90913,659,0x6980006f]
 def fPrep : Result :=
   ⟨⟨(((RegFile.init.set .x3 (.c (BitVec.ofNat 64 3841))).set .x10 (.c (BitVec.ofNat 64 1792))).set
       .x11 (.c (BitVec.ofNat 64 192))).set .x12 (.c (BitVec.ofNat 64 256)),
@@ -20,7 +20,7 @@ def fPrep : Result :=
     []⟩, .c (pcOf 230), .ecall, 11, 11⟩
 def fTail : Result :=
   ⟨⟨(RegFile.init.set .x5 (.c 0)).set .x18 (.c (BitVec.ofNat 64 4095)), [], []⟩,
-    .c (pcOf 588), .jump, 4, 4⟩
+    .c (pcOf 656), .jump, 4, 4⟩
 theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 219) 12) fPrep = true := by decide +kernel
 theorem fPrep_linked : sliceChecked 219 fPrepWords = true := by decide +kernel
 theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 231) 4) fTail = true := by decide +kernel
@@ -171,7 +171,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       h11 (by norm_num) (forest_words u (idxOf a) roots hu.length hi hu.index hu.roots)
   have g1 : Glob [] w pk s1 :=
     Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
-  have o1 : Orig w (fun o => o < 64 ∨ 10568 ≤ o) s1 :=
+  have o1 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) s1 :=
     hu.layer.frame (fun j hj _ => fPrep_frame u _ (by unfold WIT WX at *; omega)
       (by unfold WIT; omega))
   have hpost : ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash s1 ans) (N + 4) (C + 4) Q (A + 4)
@@ -188,7 +188,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have mt : t.mem = (writeHash s1 ans).mem := toState_mem_nil _ _ rfl
     have et : ∀ A, t.getMem A = (writeHash s1 ans).getMem A := fun A => congrFun mt A
     have hout : FtsOut ⟨pk, w, a⟩ (ans.extractLsb' 0 128) t := by
-      refine ⟨?_, ?_, rfl, ?_, ?_, ?_⟩
+      refine ⟨?_, ?_, rfl, ?_, ?_⟩
       · exact Glob_toState (Glob_writeHash g1 ans 0x100 h12 (by decide)) fTail.st
           (fTail.pc.eval (writeHash s1 ans)) (by decide) (by decide)
       · rw [ht, Result.toState_getReg]
@@ -197,13 +197,9 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       · obtain ⟨e0, e1⟩ := writeHash_lo s1 ans 0x100 h12 (by norm_num)
         exact ⟨(et _).trans e0, (et _).trans e1⟩
       · have o2 := Orig_writeHash o1 ans 0x100 h12 (by norm_num)
-        have o3 : Orig w (fun o => o < 64 ∨ 10568 ≤ o) (writeHash s1 ans) :=
+        have o3 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) (writeHash s1 ans) :=
           o2.mono (fun o ho => ⟨ho, Or.inr (by unfold WIT; omega)⟩)
         exact o3.frame (fun j _ _ => et _)
-      · rw [ht, Result.toState_getReg]
-        show (writeHash s1 ans).getReg .x12 = _
-        rw [writeHash_getReg]
-        exact h12
     exact (hnext _ t hout).steps st2'
   have hq := GoodQFor.shortHash_bind (f := fun d : Digest => (pure d : M Digest)) (K := K)
     hf h5 hv hin hpost

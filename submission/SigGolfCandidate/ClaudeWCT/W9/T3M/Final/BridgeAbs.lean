@@ -64,7 +64,7 @@ theorem expand_eq (P : Pending I) (m : Message) (pk : PublicKey) (s : Bytes 5456
   unfold SigGolfCandidate.Bridge.countCalls
   rw [countFrom_map]
 set_option maxRecDepth 100000 in
-theorem verify_eq (P : Pending I) (m : Message) (pk : PublicKey) (w : Bytes 24264) :
+theorem verify_eq (P : Pending I) (m : Message) (pk : PublicKey) (w : Bytes 25240) :
     (fun r => (r.value, r.hashCalls)) <$> (submission I).run .verify (m, pk, w) =
       (fun p => (if p.1 then some () else none, p.2)) <$>
         SigGolfCandidate.Bridge.countCalls (relabel toQ (hrealize 0 (verifyP m pk w))) := by

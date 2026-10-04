@@ -1,6 +1,5 @@
-import SigGolfCandidate.T3.Secc.PairGuessWorld
 import SigGolfCandidate.T3.PackedChain
-
+import SigGolfCandidate.T3.Secc.PairGuessWorld
 namespace SigGolfCandidate.T3.Security.BPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final SigGolfCandidate.T3M.SecurityInputs
@@ -148,7 +147,7 @@ theorem keygen_free : AllQueriesSatisfy keygen FtsFree := by
   apply bind_allowed FtsFree keygenPayload_free
   intro generated
   exact bind_allowed FtsFree (privateMac_free _) fun _ => pure_allowed _ _
-theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
+theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) FtsFree := by
   induction fuel generalizing counter with
   | zero => exact pure_allowed _ _
@@ -188,7 +187,7 @@ theorem signTop_free (cache : T3.Cache) (leaf : Nat) (digits : List Nat) :
   unfold signTop
   exact bind_allowed FtsFree (buildLeaf_free _ _ _ _ _) fun _ =>
     bind_allowed FtsFree (topPath_free _ _) fun _ => pure_allowed _ _
-theorem signLayers_free (cache : T3.Cache) (index n : Nat) (message : Digest) :
+theorem signLayers_free (cache : T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
     AllQueriesSatisfy (signLayers cache index n message) FtsFree := by
   induction n generalizing message with
   | zero => exact pure_allowed _ _
@@ -534,7 +533,7 @@ noncomputable def signerForest (output : HashOutput) : List Digest × List Diges
 noncomputable def signerLayers (request : Request) (output : HashOutput) : Option (List Pieces) :=
   evalWithAnswerFn (Omega.answers hU ω (fun _ => 0)) (signLayers request.cache (output.toNat % 2 ^ 31) 4
     (evalWithAnswerFn (Omega.answers hU ω (fun _ => 0))
-      (forestPk (output.toNat % 2 ^ 31) (signerForest hU ω output).2.2)))
+      (forestPk (output.toNat % 2 ^ 31) (signerForest hU ω output).2.2),0,0))
 noncomputable def signWith (published : T3.Cache) (request : Request) (opener : HashOutput → List Digest) :
     Option Signature :=
   if request.cache = published then
@@ -579,7 +578,7 @@ theorem sign_answers (fts : FtsCoord → Digest) (published : T3.Cache) (request
         cases evalWithAnswerFn (Omega.answers hU ω (fun _ => 0)) (signLayers request.cache (output.toNat % 2 ^ 31) 4
             (evalWithAnswerFn (Omega.answers hU ω (fun _ => 0)) (forestPk (output.toNat % 2 ^ 31)
               (evalWithAnswerFn (Omega.answers hU ω (fun _ => 0))
-                (Correctness.signForest (output.toNat % 2 ^ 31) (selections output))).2.2))) with
+                (Correctness.signForest (output.toNat % 2 ^ 31) (selections output))).2.2),0,0)) with
         | none => rfl
         | some pieces => rfl
   · rfl

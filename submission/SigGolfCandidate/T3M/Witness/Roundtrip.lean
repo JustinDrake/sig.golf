@@ -64,7 +64,7 @@ theorem headerBytes_length (w : Witness) : (headerBytes w).length = 64 := by
 theorem leafBytes_length (sig : Signature) : (leafBytes sig).length = 1024 := by
   simp [leafBytes, zeros, bytesLE_length, List.length_flatMap, List.sum_replicate]
 theorem streamBytes_length (chosen : List Selection) (proof : Fin 115 → Digest) :
-    (streamBytes chosen proof).length = 9480 := by
+    (streamBytes chosen proof).length = 10200 := by
   simp only [streamBytes, zeros, List.length_take, List.length_append, List.length_replicate]
   omega
 theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
@@ -79,9 +79,9 @@ theorem layerBytes_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
     List.length_reverse, List.length_finRange, List.sum_replicate, smul_eq_mul]
   ring
 theorem layerStorage_length (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) :
-    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) := by
-  simp only [layerStorage, layerBytes_length]
-theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length = 24264 := by
+    (layerStorage lay leaf ls).length = 64 * (height lay + chainCount lay) + (if lay = 0 then 256 else 0) := by
+  simp only [layerStorage, List.length_append, layerBytes_length, zeros, List.length_replicate]
+theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length = 25240 := by
   unfold witList
   rw [List.length_append, List.length_append, List.length_append, headerBytes_length, leafBytes_length,
     streamBytes_length, List.length_flatMap]
@@ -90,11 +90,11 @@ theorem witList_length_eq (N : HashOutput) (w : Witness) : (witList N w).length 
 theorem wdig_witEnc (N : HashOutput) (w : Witness) (off : Nat) :
     wdig (witEnc N w) off = readDigest (((witList N w).drop off).take 16) := by
   unfold wdig witEnc readDigest
-  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 16
+  exact extract_readLE (witList N w) 25240 (by rw [witList_length_eq]) off 16
 theorem wle32_witEnc (N : HashOutput) (w : Witness) (off : Nat) :
     wle32 (witEnc N w) off = BitVec.ofNat 32 (readLE (((witList N w).drop off).take 4)) := by
   unfold wle32 witEnc
-  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 4
+  exact extract_readLE (witList N w) 25240 (by rw [witList_length_eq]) off 4
 theorem take_one_drop (L : List UInt8) : ∀ i, readLE ((L.drop i).take 1) = (L.getD i 0).toNat := by
   induction L with
   | nil => intro i; simp [readLE]
@@ -105,11 +105,11 @@ theorem take_one_drop (L : List UInt8) : ∀ i, readLE ((L.drop i).take 1) = (L.
       | succ i => rw [List.drop_succ_cons, ih i]; simp
 theorem wbyte_witEnc (N : HashOutput) (w : Witness) (i : Nat) :
     (wbyte (witEnc N w) i).toNat = ((witList N w).getD i 0).toNat := by
-  have hlt : readLE (witList N w) < 2 ^ (8 * 24264) := by
+  have hlt : readLE (witList N w) < 2 ^ (8 * 25240) := by
     have := readLE_lt (witList N w)
     rw [witList_length_eq] at this
-    calc readLE (witList N w) < 256 ^ 24264 := this
-      _ = 2 ^ (8 * 24264) := by rw [pow_mul]; norm_num
+    calc readLE (witList N w) < 256 ^ 25240 := this
+      _ = 2 ^ (8 * 25240) := by rw [pow_mul]; norm_num
   unfold wbyte witEnc
   rw [UInt8.toNat_ofBitVec, BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt,
     Nat.shiftRight_eq_div_pow, show 2 ^ (8 * i) = 256 ^ i by rw [pow_mul]; norm_num, readLE_drop,
@@ -184,15 +184,15 @@ theorem win_leaf (off n : Nat) (h1 : 64 ≤ off) (h : off + n ≤ 1088) :
   rw [window_append_left _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega),
     window_append_left _ _ _ _ (by simp [headerBytes_length, leafBytes_length]; omega),
     window_append_right _ _ _ _ (by simp [headerBytes_length]; omega), headerBytes_length]
-theorem win_stream (off n : Nat) (h1 : 1088 ≤ off) (h : off + n ≤ 10568) :
+theorem win_stream (off n : Nat) (h1 : 1088 ≤ off) (h : off + n ≤ 11288) :
     window (witList N w) off n = window (streamBytes (selections N) w.signature.proof) (off - 1088) n := by
   unfold witList
   rw [window_append_left _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega),
     window_append_right _ _ _ _ (by simp [headerBytes_length, leafBytes_length]; omega)]
   simp [headerBytes_length, leafBytes_length]
-theorem win_layers (off n : Nat) (h1 : 10568 ≤ off) :
+theorem win_layers (off n : Nat) (h1 : 11288 ≤ off) :
     window (witList N w) off n = window ((List.finRange 4).flatMap fun lay =>
-      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) (off - 10568) n := by
+      layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) (off - 11288) n := by
   unfold witList
   rw [window_append_right _ _ _ _ (by simp [headerBytes_length, leafBytes_length, streamBytes_length]; omega)]
   simp [headerBytes_length, leafBytes_length, streamBytes_length]
@@ -325,20 +325,21 @@ theorem foldBytes_pad (E : Nat) (sib : Digest) : window (foldBytes E sib) 32 16 
       window_zeros _ _ _ (by omega)]
 theorem layer_prefix (N : HashOutput) (w : Witness) (lay : Layer) :
     (((List.finRange 4).take lay.val).map fun l =>
-        (layerStorage l (route (N.toNat % 2 ^ 31) l).1 (w.signature.layers l)).length).sum = layerBase lay - 10568 := by
+        (layerStorage l (route (N.toNat % 2 ^ 31) l).1 (w.signature.layers l)).length).sum = layerBase lay - 11288 := by
   simp only [layerStorage_length]
   fin_cases lay <;> simp [List.finRange, layerBase, height, chainCount]
 theorem win_layer (N : HashOutput) (w : Witness) (lay : Layer) (j m : Nat)
     (hjm : j + m ≤ 64 * (height lay + chainCount lay)) :
     window (witList N w) (layerBase lay + j) m =
       window (layerBytes lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)) j m := by
-  have hb : 10568 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
+  have hb : 11288 ≤ layerBase lay := by fin_cases lay <;> simp [layerBase]
   have hlen : ((List.finRange 4)[lay.val]'(by simp)) = lay := by simp
   have key := window_flatMap (List.finRange 4) (fun l => layerStorage l (route (N.toNat % 2 ^ 31) l).1
     (w.signature.layers l)) lay.val (by simp) j m (by rw [hlen, layerStorage_length]; omega)
   rw [layer_prefix N w lay, hlen] at key
-  rw [win_layers _ _ _ _ (by omega), show layerBase lay + j - 10568 = (layerBase lay - 10568) + j by omega, key]
-  rfl
+  rw [win_layers _ _ _ _ (by omega), show layerBase lay + j - 11288 = (layerBase lay - 11288) + j by omega, key]
+  unfold layerStorage
+  exact window_append_left _ _ _ _ (by rw [layerBytes_length]; exact hjm)
 theorem layerBytes_merkle (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) (j : Fin (height lay)) (o : Nat)
     (ho : o + 16 ≤ 64) :
     window (layerBytes lay leaf ls) (64 * (height lay - 1 - j.val) + o) 16 =

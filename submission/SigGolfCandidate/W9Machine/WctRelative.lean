@@ -2,7 +2,6 @@ import SigGolfCandidate.W9Machine.WctRuns
 
 namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
-def hLoad (i d : Nat) : E := .ld (addC (.reg .x28) (hOff i d))
 def headRHRel (rb : Reg) (off dst : Word) (p chain digit : Nat) : Result :=
   ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12 (addC (.reg rb) dst)).set
       .x25 (hLoad chain digit),

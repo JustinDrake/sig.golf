@@ -1,7 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.Transfer
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.Discharge
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.SourceDischarge
-
 namespace ClaudeWCT.W9.T3M.Final
 open ClaudeWCT.W9.T3M (Images submission)
 structure MachineFacts (I : Images) : Prop where
@@ -25,6 +24,6 @@ theorem pending_of_machine {I : Images} (M : MachineFacts I) : Pending I where
   verify_terminates := M.verify_terminates
   verify_accept_cycles := M.verify_accept_cycles
 theorem certificate_of_security {I : Images} (security : SecurityP) (M : MachineFacts I) :
-    SigGolf.Certificate (submissionNew I) 7886 :=
+    SigGolf.Certificate (submissionNew I) 7884 :=
   certificateNew_of (pending_of_machine M) (sourceFacts_of_securityP security)
 end ClaudeWCT.W9.T3M.Final

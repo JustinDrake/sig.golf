@@ -2,22 +2,34 @@ import SigGolfCandidate.T3M.Mem
 import SigGolfCandidate.T3M.Witness.VerifyP
 import SigGolfCandidate.T3.PackedChain
 
+
+/-! Packed chain words shared by the lower and nonbinary machine refinements.
+The high word of the machine input is an arbitrary witness word, not the source
+route spill. No bound on the source tree population is imposed here. -/
+
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3
+
+/-- Bits 16..63 of the packed chain low word. -/
 def packedHi (lay : Layer) (tree leaf : Nat) : Nat :=
   (tree * 2 ^ height lay + leaf) % 2 ^ 32 + lay.val * 2 ^ 32 + 193 * 2 ^ 40
+
+/-- The route/layer/marker prefix, with the chain and rung bytes clear. -/
 def packedPrefix (lay : Layer) (tree leaf : Nat) : Nat := 128 + 2 ^ 16 * packedHi lay tree leaf
+
 theorem packedHi_lt (lay : Layer) (tree leaf : Nat) : packedHi lay tree leaf < 2 ^ 48 := by
   have hr := Nat.mod_lt (tree * 2 ^ height lay + leaf) (by norm_num : 0 < 2 ^ 32)
   have hl := lay.isLt
   unfold packedHi
   omega
+
 theorem packedWord_lt (lay : Layer) (tree leaf i m : Nat) (hi : i < 128) (hm : m < 256) :
     i + 256 * m + packedPrefix lay tree leaf < 2 ^ 64 := by
   have hh := packedHi_lt lay tree leaf
   unfold packedPrefix
   omega
+
 theorem extract64_of_eq (x : BitVec 128) (n : Nat) (h : x = BitVec.ofNat 128 n) :
     x.extractLsb' 0 64 = BitVec.ofNat 64 n := by
   rw [h]
@@ -25,6 +37,8 @@ theorem extract64_of_eq (x : BitVec 128) (n : Nat) (h : x = BitVec.ofNat 128 n) 
   simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow,
     Nat.pow_zero, Nat.div_one]
   exact Nat.mod_mod_of_dvd _ (by norm_num)
+
+/-- At actual routed coordinates the source-only spare fields vanish. -/
 theorem chainHeader_low_bounded (lay : Layer) (tree leaf i m : Nat) (hi : i < 64) (hm : m < 8)
     (ht : tree < 2 ^ (31 - height lay)) (hl : leaf < 2 ^ height lay) :
     (chainHeader lay tree leaf i m).extractLsb' 0 64 =
@@ -37,6 +51,8 @@ theorem chainHeader_low_bounded (lay : Layer) (tree leaf i m : Nat) (hi : i < 64
       unfold packedPrefix packedHi
       rw [Nat.mod_eq_of_lt (show tree * 2 ^ height lay + leaf < 2 ^ 32 by omega)]
       ring))
+
+/-- Exact eight words of the padded input, including the arbitrary high header pad. -/
 theorem wordsOf_chainInputP (lay : Layer) (tree leaf i step : Nat) (p0 p1 : Digest)
     (headerPad : Word) (v : Digest) :
     wordsOf (chainInputP lay tree leaf i step p0 p1 headerPad v) =
@@ -54,8 +70,10 @@ theorem wordsOf_chainInputP (lay : Layer) (tree leaf i step : Nat) (p0 p1 : Dige
     BitVec.extractLsb'_append_eq_left
   rw [hlo, hhi]
   rfl
+
 theorem chainInputP_length (lay : Layer) (tree leaf i step : Nat) (p0 p1 : Digest)
     (headerPad : Word) (v : Digest) :
     (chainInputP lay tree leaf i step p0 p1 headerPad v).length = 64 * (0 + 1) := by
   simp only [chainInputP, List.length_append, SphincsSecurity.bytesLE_length]
+
 end SigGolfCandidate.T3M

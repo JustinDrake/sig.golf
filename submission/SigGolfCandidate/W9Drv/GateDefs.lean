@@ -45,5 +45,5 @@ structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots 
   roots : ∀ i, i < n → DigAt u (W9Machine.forestSlot i) (roots.getD i 0)
   coords : ∀ k : Fin 9, n ≤ k.val → ∀ off, off < 1024 → off % 8 = 0 →
     OrigW w u (W9Machine.Chain.base k + off)
-  layer : Orig w (fun o => o < 64 ∨ 10568 ≤ o) u
+  layer : Orig w (fun o => o < 64 ∨ 11288 ≤ o) u
 end W9Drv

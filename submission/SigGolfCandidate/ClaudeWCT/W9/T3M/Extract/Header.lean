@@ -1,13 +1,12 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Basic
-import SigGolfCandidate.T3M.Extract.HeaderBytes
 
 namespace ClaudeWCT.W9.T3M.Extract
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open Correctness (Answers)
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
-open SigGolfCandidate.T3M.Extract (canonicalHeader_high_zero canonicalHeader_marker_ne)
 set_option maxHeartbeats 1000000
+set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 private theorem hdrBlock_prefix' (a h : Digest) (rest : HashInput) :
     hdrBlock (bytesLE 16 a ++ bytesLE 16 h ++ rest) = bytesLE 16 h := by
@@ -50,8 +49,8 @@ theorem hdrBlock_nodeInputP (tag lay tree heap : Nat) (left pad right : Digest) 
     hdrBlock (pad64 (nodeInputP tag lay tree heap left pad right)) = bytesLE 16 (header tag lay tree 0 heap) := by
   rw [pad64_nodeInputP, nodeInputP, hdrBlock_block4']
 theorem hdrBlock_wotsChainInput (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
-    hdrBlock (chainInput lay tree leaf i step value) = bytesLE 16 (chainHeader lay tree leaf i step) :=
-  chainInput_header lay tree leaf i step value
+    hdrBlock (chainInput lay tree leaf i step value) = bytesLE 16 (chainHeader lay tree leaf i step) := by
+  exact chainInput_header _ _ _ _ _ _
 theorem hdrBlock_leafInput (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
     hdrBlock (pad64 (leafInput lay tree leaf ends)) = bytesLE 16 (header 2 lay.val tree 0 leaf) :=
   hdrBlock_listInput' _ _ _
@@ -62,7 +61,8 @@ theorem hdrBlock_honestInput (answers : Answers) (p : Pos) :
     hdrBlock (honestInput answers p) = bytesLE 16 p.hdr := by
   cases p with
   | chain lay tree lf i step =>
-      simp only [honestInput, Pos.hdr, chainInput_padded, hdrBlock, chainInput_header]
+      simp only [honestInput, Pos.hdr]
+      rw [chainInput_padded, hdrBlock_wotsChainInput]
   | leaf lay tree lf => simp only [honestInput, Pos.hdr, leafInput]; rw [hdrBlock_listInput']
   | node lay tree level nd =>
       simp only [honestInput, Pos.hdr]; rw [hdrBlock_nodeInputP]
@@ -199,11 +199,6 @@ theorem Pos.hdr_injective {p p' : Pos} (hb : p.Bounded) (hb' : p'.Bounded)
       rw [Pos.hdr_eq p hn] at h
       exact False.elim (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ h.symm)
     · exact Pos.hdr_injective_nonchain hb hb' hn hn' h
-theorem Pos.hdr_firstByte_nonchain (p : Pos) (hn : p.fields.1 ≠ 1) : p.hdr.toNat % 256 = 1 := by
-  rw [Pos.hdr_eq p hn, header_firstByte]
-theorem Pos.hdr_firstByte_chain (lay : Layer) (tree leaf i step : Nat) :
-    128 ≤ (Pos.chain lay tree leaf i step).hdr.toNat % 256 :=
-  chainHeader_firstByte lay tree leaf i step
 theorem Pos.canonicalHeader_eq {p : Pos} (hb : p.Bounded) :
     canonicalHeader (bytesLE 16 p.hdr) = bytesLE 16 p.hdr := by
   cases p with

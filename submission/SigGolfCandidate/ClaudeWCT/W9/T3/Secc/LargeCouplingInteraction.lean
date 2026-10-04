@@ -5,11 +5,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.LargeCouplingSplit
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsTransportTable
 import SigGolfCandidate.T3.Secc.LargeCouplingVerdict
 import SigGolfCandidate.T3.Secc.LargeCouplingInteraction
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -407,7 +403,7 @@ theorem Rel.afterSign (hrel : Rel U T vals nv τ a q mon st ws) (published : Sig
     exact known_signed published request _ (hrel.seenCells X hX hXU N hN cs hcs)
   · intro X hX hXU L ctr hL
     rw [hseen] at hX
-    exact known_signed published request _ (hrel.seenEnc X hX hXU L ctr hL)
+    exact fun c hc => known_signed published request _ (hrel.seenEnc X hX hXU L ctr hL c hc)
 theorem disclosedState_props (s : LargeResidual.State WCoord (Cell U)) (c : WCoord) (v : Digest) :
     (disclosedState q s c v .none).candidates = Function.update s.candidates c {v} ∧
       (disclosedState q s c v .none).counters = s.counters ∧ (disclosedState q s c v .none).rows = s.rows :=
@@ -538,10 +534,7 @@ theorem routeSign_observed (hcoh : Coherent U T vals nv τ a) (hUpub : SeccLaw.p
 end SignMain
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -661,10 +654,7 @@ theorem taggedFixed_untag (program : OracleComp LazyPrivate.Interaction α) (sta
 end Fixed
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -780,11 +770,7 @@ theorem routeVerdict_observed (hcoh : Coherent U T vals nv τ a) (hq : q ≤ 2 ^
 end Verdict
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

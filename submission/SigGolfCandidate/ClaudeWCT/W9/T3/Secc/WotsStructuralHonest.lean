@@ -5,7 +5,6 @@ import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layer
 import SigGolfCandidate.ClaudeWCT.WCT9.Honest
 import SigGolfCandidate.T3.Secc.WotsStructuralHonest
-
 namespace ClaudeWCT.W9.T3.Security.Wots.Structural
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -69,9 +68,9 @@ theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ 
   intro p _ he
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega),
     Extract.hdrBlock_prefix,
-    SigGolfCandidate.T3M.Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
+    Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
   exact header_ne_hdr ht l tr pos ix p (bytesLE_injective he)
-theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) :
+theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) :
     Extract.posOf (pad64 (encodingInput lay tree leaf message counter)) = none := by
   unfold encodingInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
@@ -79,7 +78,7 @@ theorem posOf_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
     Extract.posOf (pad64 (digestInput rho message counter)) = none := by
   unfold digestInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
-theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter, QueriesSat T (HonestQuery T) (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with
@@ -101,8 +100,8 @@ private theorem canonicalHeader_low (hdr : Digest) :
     (Extract.canonicalHeader (bytesLE 16 hdr)).take 8 = bytesLE 8 (hdr.extractLsb' 0 64) := by
   have he : hdr = hdr.extractLsb' 64 64 ++ hdr.extractLsb' 0 64 :=
     (BitVec.extractLsb'_append_extractLsb' (w := 64) (len := 64) (x := hdr)).symm
-  conv_lhs => rw [he, SigGolfCandidate.T3M.Extract.bytesLE_header_words]
-  unfold SigGolfCandidate.T3M.Extract.canonicalHeader
+  conv_lhs => rw [he, Extract.bytesLE_header_words]
+  unfold Extract.canonicalHeader
   split_ifs <;> simp [List.take_append, bytesLE_length]
 private theorem low_ne_of_firstByte (x y : BitVec 128)
     (hc : 128 ≤ x.toNat % 256) (hr : y.toNat % 256 = 1) :
