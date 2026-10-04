@@ -20,7 +20,7 @@ noncomputable def referenceSearch (answers : Answers) (L : LeafAddr) : Option (B
   evalWithAnswerFn answers (counterSearch L.lay L.tree L.leaf (leafMsg answers L) 0 counterLimit)
 def dummyDigits (lay : Layer) : List Nat :=
   if lay.val = 0 then List.replicate 31 4 ++ [2] ++ List.replicate 22 0
-  else List.replicate 22 5 ++ List.replicate 20 4 ++ [6]
+  else List.replicate 22 5 ++ List.replicate 20 4 ++ [if lay=3 then 4 else 5]
 noncomputable def referenceDigits (answers : Answers) (L : LeafAddr) : List Nat :=
   ((referenceSearch answers L).map Prod.snd).getD (dummyDigits L.lay)
 noncomputable def depth (answers : Answers) (a : ChainAddr) : Nat :=

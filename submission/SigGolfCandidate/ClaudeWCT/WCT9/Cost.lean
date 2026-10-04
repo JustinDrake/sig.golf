@@ -88,7 +88,7 @@ theorem bound_verifyWith (limit : Nat) (message : Message) (pk : Digest) (w : Wi
     · exact .pure _ _ trivial
     · refine (bound_recoverFts w.signature _ output).bind' (l := 488) (fun root _ => ?_) (by decide)
       refine (bound_verifyLayers (toT3Witness w) _ 4 (root, 0, 0)).bind' (l := 0) (fun r _ => ?_)
-        (by rw [recoveryLayersCost_four]; omega)
+        (by rw [recoveryLayersCost_four])
       cases r <;> exact .pure _ 0 trivial
 theorem bound_expandWith (limit : Nat) (message : Message) (pk : Digest) (sig : Signature) :
     CBound (fun _ => True) (limit + 4 * counterLimit + 622) (expandWith limit message pk sig) := by
@@ -103,7 +103,7 @@ theorem bound_expandWith (limit : Nat) (message : Message) (pk : Digest) (sig : 
       refine (bound_recoverFts sig _ output).bind' (l := 4 * counterLimit + 484)
         (fun root _ => ?_) (by omega)
       refine (bound_expandLayers (toT3Signature sig) _ 4 (root, 0, 0)).bind' (l := 0)
-        (fun layers _ => ?_) (by rw [recoveryLayersCost_four]; omega)
+        (fun layers _ => ?_) (by rw [recoveryLayersCost_four])
       cases layers with
       | none => exact .pure _ 0 trivial
       | some pair =>
