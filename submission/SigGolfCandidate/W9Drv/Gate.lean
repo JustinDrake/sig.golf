@@ -170,7 +170,7 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
         glob := glob_congr hu.glob m3 h5 h18,
         digest := ?_, bank := ?_, index := ?_, heaps := ?_,
         stepOne := rfl, stepTwo := rfl, hashLen := rfl, coordStep := rfl,
-        prefixReg := ?_, nodeIndex := ?_, cached := fun h => False.elim (h rfl),
+        prefixReg := ?_, nodeHeader := fun h => False.elim (h rfl), nodeIndex := ?_, cached := fun h => False.elim (h rfl),
         mask := rfl, jt := rfl, childBlock := rfl, baseReg := rfl, headerReg := rfl,
         pairs := fun i hi => absurd hi (Nat.not_lt_zero _), coords := ?_, layer := ?_ }
       · intro k hk; rw [e3]; exact hu.digest k hk

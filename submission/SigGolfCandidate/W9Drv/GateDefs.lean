@@ -23,7 +23,7 @@ structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
   digest : DigestAt a u
   bank : HeaderBank u
   wit : WitAll w u
-def dispatchPc (n : Nat) : Nat := [57,73,91,109,127,145,163,181,199,217].getD n 217
+def dispatchPc (n : Nat) : Nat := [57,73,90,107,124,141,158,175,192,209].getD n 209
 def cachedWord (n : Nat) : Nat := [0,0,1,1,1,2,2,2,3,3].getD n 3
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)
     (pairs : List (Digest × Digest)) (u : MachineState) : Prop where
@@ -40,6 +40,7 @@ structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)
   hashLen : u.getReg .x11 = 64
   coordStep : u.getReg .x6 = 65536
   prefixReg : u.getReg .x15 = BitVec.ofNat 64 (idxOf a * 2^27 + 65536 * (n-1))
+  nodeHeader : n ≠ 0 → u.getReg .x27 = BitVec.ofNat 64 (V3.nodeLow (n-1) (idxOf a))
   nodeIndex : u.getReg .x17 = BitVec.ofNat 64 (idxOf a * 2^32)
   cached : n ≠ 0 → u.getReg .x16 = a.extractLsb' (64 * cachedWord n) 64
   mask : u.getReg .x2 = BitVec.ofNat 64 0xfffc

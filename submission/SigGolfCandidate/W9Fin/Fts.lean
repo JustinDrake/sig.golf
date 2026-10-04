@@ -25,7 +25,7 @@ def FtsGood : Prop :=
     K none = pure (false, 0) →
     (∀ root t, FtsOut ⟨pk, w, a⟩ root t →
       GoodQFor Frozen.image t N C Q A (K (some root))) →
-    GoodQFor Frozen.image u (N + 2023) (C + 2023) Q (A + 1896)
+    GoodQFor Frozen.image u (N + 2015) (C + 2015) Q (A + 1888)
       (ccM (if ClaudeWCT.W9.T3M.gateOk a then ClaudeWCT.W9.T3M.wctP w a
         else pure none) K)
 end W9Drv
@@ -401,16 +401,16 @@ open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64 W9Machine
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def fPrepWords : List (BitVec 32) := [4535,0xf0118193,0x40303823,0x41603c23,0x40003023,0x40003423,0x40000513,335545747,268437011,115]
-def fTailWords : List (BitVec 32) := [0x5a40006f]
+def fTailWords : List (BitVec 32) := [0x5c40006f]
 def fPrep : Result :=
   ⟨⟨(((RegFile.init.set .x3 (.c 3841)).set .x10 (.c 1024)).set .x11 (.c 320)).set .x12 (.c 256),
     [(⟨none, 1032⟩, .c 0), (⟨none, 1024⟩, .c 0), (⟨none, 1048⟩, .reg .x22),
-      (⟨none, 1040⟩, .c 3841)], []⟩, .c (pcOf 226), .ecall, 9, 9⟩
+      (⟨none, 1040⟩, .c 3841)], []⟩, .c (pcOf 218), .ecall, 9, 9⟩
 def fTail : Result := ⟨SymState.init, .c (pcOf 588), .jump, 1, 1⟩
-theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 217) 10) fPrep = true := by decide +kernel
-theorem fPrep_linked : sliceChecked 217 fPrepWords = true := by decide +kernel
-theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 227) 1) fTail = true := by decide +kernel
-theorem fTail_linked : sliceChecked 227 fTailWords = true := by decide +kernel
+theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 209) 10) fPrep = true := by decide +kernel
+theorem fPrep_linked : sliceChecked 209 fPrepWords = true := by decide +kernel
+theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 219) 1) fTail = true := by decide +kernel
+theorem fTail_linked : sliceChecked 219 fTailWords = true := by decide +kernel
 end W9Drv
 end
 
@@ -557,10 +557,10 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       (ccM (pure (ans.extractLsb' 0 128) : M Digest) K) := by
     intro ans
     rw [ccM_pure]
-    have hpc : (writeHash s1 ans).pc = pcOf 227 := by
+    have hpc : (writeHash s1 ans).pc = pcOf 219 := by
       rw [writeHash_pc]
-      show pcOf 226 + 4 = pcOf 227
-      exact SigGolfCandidate.T3M.pcOf_add4 226
+      show pcOf 218 + 4 = pcOf 219
+      exact SigGolfCandidate.T3M.pcOf_add4 218
     have st2 := block_steps fTail_checked fTail_linked rfl (writeHash s1 ans) hpc
     have st2' : Steps Frozen.image (writeHash s1 ans) 1 1 (fTail.toState (writeHash s1 ans)) := st2
     set t := fTail.toState (writeHash s1 ans) with ht
@@ -638,7 +638,7 @@ theorem verifyP_eq (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) 
 theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) :
-    GoodQ u (8050 + 2023 + 2) (8050 + 2023 + 2) True (5706 + 1896 + 2) (ccM (afterDigest pk w a) Kb) := by
+    GoodQ u (8050 + 2015 + 2) (8050 + 2015 + 2) True (5706 + 1888 + 2) (ccM (afterDigest pk w a) Kb) := by
   obtain ⟨hst, hpre⟩ := gatePre_of_hook m pk w a u hu
   have h := fts pk w a _ 8050 8050 5706 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
     (by simp only [afterFts, ccM_pure, Kb])
@@ -647,12 +647,12 @@ theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage)
   unfold afterDigest
   rw [ccM_bind]
   exact h2
-def fuelBound : Nat := 17 + (8050 + 2023 + 2)
-def cycleBoundAll : Nat := 24 + (8050 + 2023 + 2)
-def cycleBound : Nat := 24 + (5706 + 1896 + 2)
-theorem fuelBound_eq : fuelBound = 10092 := rfl
-theorem cycleBoundAll_eq : cycleBoundAll = 10099 := rfl
-theorem cycleBound_eq' : cycleBound = 7628 := rfl
+def fuelBound : Nat := 17 + (8050 + 2015 + 2)
+def cycleBoundAll : Nat := 24 + (8050 + 2015 + 2)
+def cycleBound : Nat := 24 + (5706 + 1888 + 2)
+theorem fuelBound_eq : fuelBound = 10084 := rfl
+theorem cycleBoundAll_eq : cycleBoundAll = 10091 := rfl
+theorem cycleBound_eq' : cycleBound = 7620 := rfl
 theorem cycleBound_eq : cycleBound = ClaudeWCT.W9.T3M.Final.verifyCycleBound := rfl
 theorem verify_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
@@ -766,9 +766,9 @@ def finishFts (a : HashOutput) (state : Option (List (Digest × Digest))) : M (O
   | none => pure none
   | some roots => some <$> ClaudeWCT.WCT9.forestPk (idxOf a) roots
 def coordsCost (ks : List (Fin 9)) : Nat :=
-  (ks.map (fun k => if k.val = 0 then 205 else 207)).sum
+  (ks.map (fun k => if k.val = 0 then 205 else 206)).sum
 def coordsAccept (ks : List (Fin 9)) : Nat :=
-  (ks.map (fun k => if k.val = 0 then 200 else 202)).sum
+  (ks.map (fun k => if k.val = 0 then 200 else 201)).sum
 theorem fold_none (w : WBytes) (a : HashOutput) (ks : List (Fin 9)) :
     ks.foldlM (ClaudeWCT.W9.T3M.wctStep w a) none = pure none := by
   induction ks with
@@ -811,14 +811,14 @@ theorem fts_good (chains : Chain.AllGood Frozen.layout) : FtsGood := by
   intro pk w a u N C A Q K hu hnone hnext
   let KG : Bool → OracleComp HashSpec Obs := fun b =>
     if b then ccM (ClaudeWCT.W9.T3M.wctP w a) K else K none
-  have hg := gate_good pk w a u (N + 1911) (C + 1911) (A + 1866) Q KG hu
+  have hg := gate_good pk w a u (N + 1903) (C + 1903) (A + 1858) Q KG hu
     (by simpa only [KG, Bool.false_eq_true, ↓reduceIte] using hnone)
     (fun t ht => by
       have hc := coordinates_good chains pk w a (List.finRange 9) 0 [] t N C A Q K
         (by decide)
         (by simp) ht hnone hnext
-      rw [show coordsCost (List.finRange 9) + 50 = 1911 by decide,
-        show coordsAccept (List.finRange 9) + 50 = 1866 by decide] at hc
+      rw [show coordsCost (List.finRange 9) + 50 = 1903 by decide,
+        show coordsAccept (List.finRange 9) + 50 = 1858 by decide] at hc
       apply hc.congr
       change ccM (_ >>= finishFts a) K = ccM (ClaudeWCT.W9.T3M.wctP w a) K
       apply congrArg (fun p : M (Option Digest) => ccM p K)
@@ -827,7 +827,7 @@ theorem fts_good (chains : Chain.AllGood Frozen.layout) : FtsGood := by
         (List.finRange 9).foldlM (ClaudeWCT.W9.T3M.wctStep w a) (some []) >>= f)
       funext state
       cases state <;> rfl)
-  change GoodQFor Frozen.image u (N + 1941) (C + 1941) Q (A + 1896)
+  change GoodQFor Frozen.image u (N + 1933) (C + 1933) Q (A + 1888)
     (KG (ClaudeWCT.W9.T3M.gateOk a)) at hg
   apply (hg.mono (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)).congr
   cases ClaudeWCT.W9.T3M.gateOk a <;> simp [KG, ccM_pure]
