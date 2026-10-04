@@ -28,7 +28,7 @@ def stepsA (lay : Nat) : Nat := if lay = 3 then 23 else if lay = 0 then 15 else 
 def retOff (lay : Nat) : Nat := if lay = 0 then 19 else if lay = 3 then 52 else 43
 def s6v (lay : Nat) : Nat := [15064,19288,22424,25560].getD lay 0
 def s3v : Nat := 15768
-def tgtL (lay : Nat) : Nat := [126,196,196,196].getD lay 0
+def tgtL (lay : Nat) : Nat := [126,195,195,194].getD lay 0
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
 def encB (lay : Nat) : Nat := [17816, 21016, 24152, 256].getD lay 0
 def copyAllow (lay : Nat) : List Nat := [encB lay + 16, encB lay + 24, encB lay + 32]
