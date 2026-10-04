@@ -24,6 +24,6 @@ theorem pending_of_machine {I : Images} (M : MachineFacts I) : Pending I where
   verify_terminates := M.verify_terminates
   verify_accept_cycles := M.verify_accept_cycles
 theorem certificate_of_security {I : Images} (security : SecurityP) (M : MachineFacts I) :
-    SigGolf.Certificate (submissionNew I) 7840 :=
+    SigGolf.Certificate (submissionNew I) 7839 :=
   certificateNew_of (pending_of_machine M) (sourceFacts_of_securityP security)
 end ClaudeWCT.W9.T3M.Final

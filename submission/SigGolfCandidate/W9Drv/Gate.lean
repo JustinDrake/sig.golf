@@ -10,7 +10,7 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def gJumpWords : List (BitVec 32) := [16777327]
 def gCheckWords : List (BitVec 32) :=
-  [0x06003803,0x01f85193,0x0121f1b3,0x06018863]
+  [0x06003803,0x01f85193,0x0121f1b3,0x06018a63]
 def gSetupWords : List (BitVec 32) :=
   [0x00080b1b,0x100313,0x200393,0x2031b93,0x17b04b3,0x17486b3,0x17689b3,0x1798a33,0x17a0ab3,0x17a8d33,0x17d0f33,0x84190413,0xfefe37,0xe00e0e13,0x10137,0xffc10113,0xcfeb7,0x800e8e93,0xd7c37,0x800c0c13]
 def gRejectWords : List (BitVec 32) := [1049235,1049875,115]
@@ -22,7 +22,7 @@ def gJump : Result := ⟨SymState.init, .c (pcOf 27), .jump, 1, 1⟩
 def gCheck : Result :=
   ⟨⟨(RegFile.init.set .x3 gateE).set .x16
       (.ld (.c (BitVec.ofNat 64 96))), [], []⟩,
-    .ite .eq gateE (.c 0) (.c (pcOf 48)) (.c (pcOf 21)), .branch, 4, 4⟩
+    .ite .eq gateE (.c 0) (.c (pcOf 48)) (.c (pcOf 20)), .branch, 4, 4⟩
 def gSetup : Result :=
   ⟨⟨{ RegFile.init with
       r2 := .c (BitVec.ofNat 64 0xfffc),
@@ -42,18 +42,18 @@ def gSetup : Result :=
       r26 := heapE 6,
       r30 := heapE 7 }, [], []⟩,
     .c (pcOf 68), .fuel, 20, 20⟩
-def gRejectJumpWords : List (BitVec 32) := [0x00c0006f]
+def gRejectJumpWords : List (BitVec 32) := [0x0100006f]
 def gRejectJump : Result := ⟨SymState.init, .c (pcOf 24), .jump, 1, 1⟩
 def gReject : Result :=
   ⟨⟨(RegFile.init.set .x5 (.c 1)).set .x10 (.c 1), [], []⟩, .c (pcOf 26), .ecall, 2, 2⟩
 theorem gJump_checked : rOK (symRun {} gJumpWords (pcOf 23) 1) gJump = true := by decide +kernel
 theorem gJump_linked : sliceChecked 23 gJumpWords = true := by decide +kernel
-theorem gCheck_checked : rOK (symRun {} gCheckWords (pcOf 17) 4) gCheck = true := by decide +kernel
-theorem gCheck_linked : sliceChecked 17 gCheckWords = true := by decide +kernel
+theorem gCheck_checked : rOK (symRun {} gCheckWords (pcOf 16) 4) gCheck = true := by decide +kernel
+theorem gCheck_linked : sliceChecked 16 gCheckWords = true := by decide +kernel
 theorem gSetup_checked : rOK (symRun {} gSetupWords (pcOf 48) 20) gSetup = true := by decide +kernel
 theorem gSetup_linked : sliceChecked 48 gSetupWords = true := by decide +kernel
-theorem gRejectJump_checked : rOK (symRun {} gRejectJumpWords (pcOf 21) 1) gRejectJump = true := by decide +kernel
-theorem gRejectJump_linked : sliceChecked 21 gRejectJumpWords = true := by decide +kernel
+theorem gRejectJump_checked : rOK (symRun {} gRejectJumpWords (pcOf 20) 1) gRejectJump = true := by decide +kernel
+theorem gRejectJump_linked : sliceChecked 20 gRejectJumpWords = true := by decide +kernel
 theorem gReject_checked : rOK (symRun {} gRejectWords (pcOf 24) 3) gReject = true := by decide +kernel
 theorem gReject_linked : sliceChecked 24 gRejectWords = true := by decide +kernel
 end W9Drv
@@ -159,19 +159,18 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     (hnext : ∀ t, CoordPre pk w a 0 [] t →
       GoodQFor Frozen.image t N C Q A (K true)) :
     GoodQFor Frozen.image u (N + 24) (C + 24) Q (A + 24) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
-  -- The hook enters the gate check directly; no jump or state mutation is needed.
   let s1 := u
   have m1 : s1.mem = u.mem := rfl
   have r1 : ∀ x, s1.getReg x = u.getReg x := fun _ => rfl
-  have pc1 : s1.pc = pcOf 17 := hu.pc
+  have pc1 : s1.pc = pcOf 16 := hu.pc
   have st2 := block_steps gCheck_checked gCheck_linked rfl s1 pc1
   set s2 := gCheck.toState s1 with hs2
   have m2 : s2.mem = u.mem := (toState_mem_nil _ _ rfl).trans m1
   have hw0 : s1.getMem (BitVec.ofNat 64 96) = a.extractLsb' 0 64 := by
     have := hu.digest 0 (by decide)
     simpa [MachineState.getMem, m1] using this
-  have pc2 : s2.pc = if gateE.eval s1 == 0 then pcOf 48 else pcOf 21 := by
-    show (E.ite .eq gateE (.c 0) (.c (pcOf 48)) (.c (pcOf 21))).eval s1 = _
+  have pc2 : s2.pc = if gateE.eval s1 == 0 then pcOf 48 else pcOf 20 := by
+    show (E.ite .eq gateE (.c 0) (.c (pcOf 48)) (.c (pcOf 20))).eval s1 = _
     rfl
   have hg : gateE.eval s1 = (a.extractLsb' 0 64 >>> 31) &&& BitVec.ofNat 64 4095 := by
     rw [gateE_eval s1 (hu.glob.1 (.x18, 0xFFF) (by simp [baseK])), hw0]
@@ -262,7 +261,7 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have hok' : ClaudeWCT.W9.T3M.gateOk a = false := by simpa using hok
     rw [hok', hnone]
     have hnz : gateE.eval s1 ≠ 0 := fun h => hok ((gate_iff a).mp (hg.symm.trans h))
-    have pc2' : s2.pc = pcOf 21 := by
+    have pc2' : s2.pc = pcOf 20 := by
       rw [pc2, if_neg (by simpa only [beq_iff_eq] using hnz)]
     have stJ := block_steps gRejectJump_checked gRejectJump_linked rfl s2 pc2'
     set sj := gRejectJump.toState s2

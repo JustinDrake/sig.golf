@@ -158,7 +158,6 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
   have r1 : ∀ x, x ≠ .x3 → x ≠ .x10 → x ≠ .x11 → x ≠ .x12 → s1.getReg x = u.getReg x := by
     intro x h3 h10 h11 h12
     rw [hs1, Result.toState_getReg]
-    -- Discharge clobbered-register cases before reducing the symbolic state.
     cases x <;> first | exact absurd rfl ‹_› | rfl
   have h5 : s1.getReg .x5 = 0 :=
     (r1 .x5 (by decide) (by decide) (by decide) (by decide)).trans (hu.glob.1 (.x5, 0) (by simp [baseK]))
