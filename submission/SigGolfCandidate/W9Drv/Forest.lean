@@ -9,22 +9,21 @@ open W9Machine
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def fPrepWords : List (BitVec 32) :=
-  [0xf0290193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x7a003823,0x7a003c23,0x70000513,0xc000593,268437011,115]
-def fTailWords : List (BitVec 32) := [1786773615]
+  [0xf0290193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x70000513,0xc000593,268437011,115]
+def fTailWords : List (BitVec 32) := [0x6f80006f]
 def fHeader : E := addC (.reg .x18) (-254)
 def fPrep : Result :=
   ⟨⟨(((RegFile.init.set .x3 fHeader).set .x10 (.c (BitVec.ofNat 64 1792))).set
       .x11 (.c (BitVec.ofNat 64 192))).set .x12 (.c (BitVec.ofNat 64 256)),
-    [(⟨none, BitVec.ofNat 64 1976⟩, .c 0), (⟨none, BitVec.ofNat 64 1968⟩, .c 0),
-      (⟨none, BitVec.ofNat 64 1960⟩, .c 0), (⟨none, BitVec.ofNat 64 1952⟩, .c 0),
+    [(⟨none, BitVec.ofNat 64 1960⟩, .c 0), (⟨none, BitVec.ofNat 64 1952⟩, .c 0),
       (⟨none, BitVec.ofNat 64 1816⟩, .reg .x22), (⟨none, BitVec.ofNat 64 1808⟩, fHeader)],
-    []⟩, .c (pcOf 229), .ecall, 10, 10⟩
+    []⟩, .c (pcOf 209), .ecall, 8, 8⟩
 def fTail : Result :=
   ⟨SymState.init, .c (pcOf 656), .jump, 1, 1⟩
-theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 219) 11) fPrep = true := by decide +kernel
-theorem fPrep_linked : sliceChecked 219 fPrepWords = true := by decide +kernel
-theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 230) 1) fTail = true := by decide +kernel
-theorem fTail_linked : sliceChecked 230 fTailWords = true := by decide +kernel
+theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 201) 9) fPrep = true := by decide +kernel
+theorem fPrep_linked : sliceChecked 201 fPrepWords = true := by decide +kernel
+theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 210) 1) fTail = true := by decide +kernel
+theorem fTail_linked : sliceChecked 210 fTailWords = true := by decide +kernel
 end W9Drv
 end
 
@@ -77,28 +76,27 @@ theorem hdr1_forest15 (idx : Nat) (hi : idx < 2 ^ 32) : hdr1 idx 0 = idx := by
   unfold hdr1; rw [Nat.mod_eq_of_lt hi]; simp
 theorem fPrep_mem (u : MachineState) (B : Nat) (hB : B < 2 ^ 64) :
     (fPrep.toState u).getMem (BitVec.ofNat 64 B) =
-      if B = 1976 then 0 else if B = 1968 then 0 else if B = 1960 then 0 else if B = 1952 then 0
+      if B = 1960 then 0 else if B = 1952 then 0
       else if B = 1816 then u.getReg .x22 else if B = 1808 then fHeader.eval u
       else u.getMem (BitVec.ofNat 64 B) := by
   rw [Result.toState_getMem]
-  show memEval u [(⟨none, BitVec.ofNat 64 1976⟩, .c 0), (⟨none, BitVec.ofNat 64 1968⟩, .c 0),
-      (⟨none, BitVec.ofNat 64 1960⟩, .c 0), (⟨none, BitVec.ofNat 64 1952⟩, .c 0),
+  show memEval u [(⟨none, BitVec.ofNat 64 1960⟩, .c 0), (⟨none, BitVec.ofNat 64 1952⟩, .c 0),
       (⟨none, BitVec.ofNat 64 1816⟩, .reg .x22), (⟨none, BitVec.ofNat 64 1808⟩, fHeader)]
     (BitVec.ofNat 64 B) = _
   rw [memEval_cons_ofNat _ _ _ _ _ hB (by norm_num), memEval_cons_ofNat _ _ _ _ _ hB (by norm_num),
     memEval_cons_ofNat _ _ _ _ _ hB (by norm_num), memEval_cons_ofNat _ _ _ _ _ hB (by norm_num),
-    memEval_cons_ofNat _ _ _ _ _ hB (by norm_num), memEval_cons_ofNat _ _ _ _ _ hB (by norm_num),
     memEval_nil]
   rfl
 theorem fPrep_frame (u : MachineState) (B : Nat) (hB : B < 2 ^ 64)
-    (h : B ≠ 1976 ∧ B ≠ 1968 ∧ B ≠ 1960 ∧ B ≠ 1952 ∧ B ≠ 1816 ∧ B ≠ 1808) :
+    (h : B ≠ 1960 ∧ B ≠ 1952 ∧ B ≠ 1816 ∧ B ≠ 1808) :
     (fPrep.toState u).getMem (BitVec.ofNat 64 B) = u.getMem (BitVec.ofNat 64 B) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
-  rw [fPrep_mem u B hB, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_neg h5, if_neg h6]
+  obtain ⟨h3, h4, h5, h6⟩ := h
+  rw [fPrep_mem u B hB, if_neg h3, if_neg h4, if_neg h5, if_neg h6]
 theorem forest_words (u : MachineState) (idx : Nat) (roots : List Digest) (hlen : roots.length = 9)
     (hi : idx < 2 ^ 31) (h22 : u.getReg .x22 = BitVec.ofNat 64 idx)
     (h18 : u.getReg .x18 = BitVec.ofNat 64 4095)
-    (hr : ∀ i, i < 9 → DigAt u (W9Machine.forestSlot i) (roots.getD i 0)) :
+    (hr : ∀ i, i < 9 → DigAt u (W9Machine.forestSlot i) (roots.getD i 0))
+    (hz : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0) :
     (fPrep.toState u).readWords (BitVec.ofNat 64 0x700) 24 = wordsOf (pad64 (forestIn idx roots)) := by
   have hroot : ∀ i, i < 9 → DigAt (fPrep.toState u) (W9Machine.forestSlot i) (roots.getD i 0) := by
     intro i hi9
@@ -136,10 +134,10 @@ theorem forest_words (u : MachineState) (idx : Nat) (roots : List Digest) (hlen 
       rw [fPrep_mem u _ (by norm_num)]; rfl
     have z1 : (fPrep.toState u).getMem (BitVec.ofNat 64 1960) = 0 := by
       rw [fPrep_mem u _ (by norm_num)]; rfl
-    have z2 : (fPrep.toState u).getMem (BitVec.ofNat 64 1968) = 0 := by
-      rw [fPrep_mem u _ (by norm_num)]; rfl
-    have z3 : (fPrep.toState u).getMem (BitVec.ofNat 64 1976) = 0 := by
-      rw [fPrep_mem u _ (by norm_num)]; rfl
+    have z2 : (fPrep.toState u).getMem (BitVec.ofNat 64 1968) = 0 :=
+      (fPrep_frame u _ (by decide) (by omega)).trans (hz _ (Or.inl rfl))
+    have z3 : (fPrep.toState u).getMem (BitVec.ofNat 64 1976) = 0 :=
+      (fPrep_frame u _ (by decide) (by omega)).trans (hz _ (Or.inr rfl))
     simp only [List.map_cons, List.map_nil, Nat.reduceMul, Nat.reduceAdd, d0.1, d0.2, d1.1, d1.2,
       d2.1, d2.2, d3.1, d3.2, d4.1, d4.2, d5.1, d5.2, d6.1, d6.2, d7.1, d7.2, d8.1, d8.2, h16, h24,
       z0, z1, z2, z3, List.getD_cons_zero, List.drop_succ_cons, List.drop_zero, List.flatMap_cons,
@@ -150,11 +148,11 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
     (hu : CoordPre pk w a 9 roots u)
     (hnext : ∀ root t, FtsOut ⟨pk, w, a⟩ root t →
       GoodQFor Frozen.image t N C Q A (K root)) :
-    GoodQFor Frozen.image u (N + 12) (C + 35) Q (A + 35)
+    GoodQFor Frozen.image u (N + 10) (C + 33) Q (A + 33)
       (ccM (ClaudeWCT.WCT9.forestPk (a.toNat % 2 ^ 31) roots) K) := by
   have hi : idxOf a < 2 ^ 31 := Nat.mod_lt _ (by decide)
   have st1 := block_steps fPrep_checked fPrep_linked rfl u hu.pc
-  have st1' : Steps Frozen.image u 10 10 (fPrep.toState u) := st1
+  have st1' : Steps Frozen.image u 8 8 (fPrep.toState u) := st1
   set s1 := fPrep.toState u with hs1
   have hf := block_ecall fPrep_checked fPrep_linked rfl u rfl
   have r1 : ∀ x, x ≠ .x3 → x ≠ .x10 → x ≠ .x11 → x ≠ .x12 → s1.getReg x = u.getReg x := by
@@ -175,7 +173,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
   have hin : hashInput s1 = toQ (pad64 (forestIn (idxOf a) roots)) :=
     hashInput_toQ s1 _ 2 0x700 (pad64_forestIn_length _ _ hu.length) h10 (by decide) (by norm_num)
       h11 (by norm_num) (forest_words u (idxOf a) roots hu.length hi hu.index
-        (hu.glob.1 (.x18, 4095) (by simp [baseK])) hu.roots)
+        (hu.glob.1 (.x18, 4095) (by simp [baseK])) hu.roots hu.forestZero)
   have g1 : Glob baseK w pk s1 := by
     have g : Glob [] w pk s1 :=
       Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
@@ -194,10 +192,10 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       (ccM (pure (ans.extractLsb' 0 128) : M Digest) K) := by
     intro ans
     rw [ccM_pure]
-    have hpc : (writeHash s1 ans).pc = pcOf 230 := by
+    have hpc : (writeHash s1 ans).pc = pcOf 210 := by
       rw [writeHash_pc]
-      show pcOf 229 + 4 = pcOf 230
-      exact SigGolfCandidate.T3M.pcOf_add4 229
+      show pcOf 209 + 4 = pcOf 210
+      exact SigGolfCandidate.T3M.pcOf_add4 209
     have st2 := block_steps fTail_checked fTail_linked rfl (writeHash s1 ans) hpc
     have st2' : Steps Frozen.image (writeHash s1 ans) 1 1 (fTail.toState (writeHash s1 ans)) := st2
     set t := fTail.toState (writeHash s1 ans) with ht
