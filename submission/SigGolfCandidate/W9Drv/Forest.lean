@@ -10,7 +10,7 @@ set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 def fPrepWords : List (BitVec 32) :=
   [4535,0xf0118193,0x70303823,0x71603c23,0x7a003023,0x7a003423,0x7a003823,0x7a003c23,0x70000513,0xc000593,268437011,115]
-def fTailWords : List (BitVec 32) := [6455,0xfff90913,659,0x6980006f]
+def fTailWords : List (BitVec 32) := [1782579311]
 def fPrep : Result :=
   ⟨⟨(((RegFile.init.set .x3 (.c (BitVec.ofNat 64 3841))).set .x10 (.c (BitVec.ofNat 64 1792))).set
       .x11 (.c (BitVec.ofNat 64 192))).set .x12 (.c (BitVec.ofNat 64 256)),
@@ -19,11 +19,10 @@ def fPrep : Result :=
       (⟨none, BitVec.ofNat 64 1816⟩, .reg .x22), (⟨none, BitVec.ofNat 64 1808⟩, .c (BitVec.ofNat 64 3841))],
     []⟩, .c (pcOf 230), .ecall, 11, 11⟩
 def fTail : Result :=
-  ⟨⟨(RegFile.init.set .x5 (.c 0)).set .x18 (.c (BitVec.ofNat 64 4095)), [], []⟩,
-    .c (pcOf 656), .jump, 4, 4⟩
+  ⟨SymState.init, .c (pcOf 656), .jump, 1, 1⟩
 theorem fPrep_checked : rOK (symRun {} fPrepWords (pcOf 219) 12) fPrep = true := by decide +kernel
 theorem fPrep_linked : sliceChecked 219 fPrepWords = true := by decide +kernel
-theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 231) 4) fTail = true := by decide +kernel
+theorem fTail_checked : rOK (symRun {} fTailWords (pcOf 231) 1) fTail = true := by decide +kernel
 theorem fTail_linked : sliceChecked 231 fTailWords = true := by decide +kernel
 end W9Drv
 end
@@ -145,7 +144,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
     (hu : CoordPre pk w a 9 roots u)
     (hnext : ∀ root t, FtsOut ⟨pk, w, a⟩ root t →
       GoodQFor Frozen.image t N C Q A (K root)) :
-    GoodQFor Frozen.image u (N + 16) (C + 39) Q (A + 39)
+    GoodQFor Frozen.image u (N + 13) (C + 36) Q (A + 36)
       (ccM (ClaudeWCT.WCT9.forestPk (a.toNat % 2 ^ 31) roots) K) := by
   have hi : idxOf a < 2 ^ 31 := Nat.mod_lt _ (by decide)
   have st1 := block_steps fPrep_checked fPrep_linked rfl u hu.pc
@@ -169,12 +168,21 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
   have hin : hashInput s1 = toQ (pad64 (forestIn (idxOf a) roots)) :=
     hashInput_toQ s1 _ 2 0x700 (pad64_forestIn_length _ _ hu.length) h10 (by decide) (by norm_num)
       h11 (by norm_num) (forest_words u (idxOf a) roots hu.length hi hu.index hu.roots)
-  have g1 : Glob [] w pk s1 :=
-    Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
+  have g1 : Glob baseK w pk s1 := by
+    have g : Glob [] w pk s1 :=
+      Glob_toState hu.glob fPrep.st (fPrep.pc.eval u) (by decide) rfl
+    refine ⟨?_, g.2⟩
+    intro p hp
+    simp only [baseK, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl
+    · exact (r1 .x5 (by decide) (by decide) (by decide) (by decide)).trans
+        (hu.glob.1 (.x5, 0) (by simp [baseK]))
+    · exact (r1 .x18 (by decide) (by decide) (by decide) (by decide)).trans
+        (hu.glob.1 (.x18, 4095) (by simp [baseK]))
   have o1 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) s1 :=
     hu.layer.frame (fun j hj _ => fPrep_frame u _ (by unfold WIT WX at *; omega)
       (by unfold WIT; omega))
-  have hpost : ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash s1 ans) (N + 4) (C + 4) Q (A + 4)
+  have hpost : ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash s1 ans) (N + 1) (C + 1) Q (A + 1)
       (ccM (pure (ans.extractLsb' 0 128) : M Digest) K) := by
     intro ans
     rw [ccM_pure]
@@ -183,14 +191,21 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
       show pcOf 230 + 4 = pcOf 231
       exact SigGolfCandidate.T3M.pcOf_add4 230
     have st2 := block_steps fTail_checked fTail_linked rfl (writeHash s1 ans) hpc
-    have st2' : Steps Frozen.image (writeHash s1 ans) 4 4 (fTail.toState (writeHash s1 ans)) := st2
+    have st2' : Steps Frozen.image (writeHash s1 ans) 1 1 (fTail.toState (writeHash s1 ans)) := st2
     set t := fTail.toState (writeHash s1 ans) with ht
     have mt : t.mem = (writeHash s1 ans).mem := toState_mem_nil _ _ rfl
     have et : ∀ A, t.getMem A = (writeHash s1 ans).getMem A := fun A => congrFun mt A
     have hout : FtsOut ⟨pk, w, a⟩ (ans.extractLsb' 0 128) t := by
       refine ⟨?_, ?_, rfl, ?_, ?_⟩
-      · exact Glob_toState (Glob_writeHash g1 ans 0x100 h12 (by decide)) fTail.st
+      · have g2 := Glob_writeHash g1 ans 0x100 h12 (by decide)
+        have g : Glob [] w pk t := Glob_toState g2 fTail.st
           (fTail.pc.eval (writeHash s1 ans)) (by decide) (by decide)
+        refine ⟨?_, g.2⟩
+        intro p hp
+        rw [ht, Result.toState_getReg]
+        change (RegFile.init.get p.1).eval (writeHash s1 ans) = p.2
+        rw [init_getReg]
+        exact g2.1 p hp
       · rw [ht, Result.toState_getReg]
         show (writeHash s1 ans).getReg .x22 = _
         rw [writeHash_getReg]; exact h22
