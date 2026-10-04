@@ -22,7 +22,7 @@ def coordDispatch (p bit coord : Nat) (advance reload : Bool) : Result :=
   let key := norm (addC hb (-1600))
   let field := mkAdd (mkBin .and
     (mkBin .srl dig (.c (BitVec.ofNat 64 (bit % 64 + 5)))) (.reg .x2)) (.reg .x24)
-  let n := if advance then 18 else 16
+  let n := if advance then 18 else 15
   let regs := if reload then RegFile.init.set .x16 dig else RegFile.init
   let regs := (regs.set .x3 child).set .x4 route
   let regs := if advance then regs.set .x15 pre else regs
@@ -137,9 +137,9 @@ namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.Rv
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
-def dispatchWords0 : List (BitVec 32) := [0x6003803,45633939,0x7f1f193,33657363,23224883,21077907,0xffefb3,8493971,31165363,0x9c0e3d83,18738611,50878227,2586419,25626419,0x42000493,458983]
-theorem dispatch0_checked : rOK (symRun {} dispatchWords0 (pcOf 57) 16) (coordDispatch 57 43 0 false true) = true := by decide +kernel
-theorem dispatch0_linked : sliceChecked 57 dispatchWords0 = true := by decide +kernel
+def dispatchWords0 : List (BitVec 32) := [45633939,0x7f1f193,33657363,23224883,21077907,0xffefb3,8493971,31165363,0x9c0e3d83,18738611,50878227,2586419,25626419,0x42000493,458983]
+theorem dispatch0_checked : rOK (symRun {} dispatchWords0 (pcOf 58) 15) (coordDispatch 58 43 0 false false) = true := by decide +kernel
+theorem dispatch0_linked : sliceChecked 58 dispatchWords0 = true := by decide +kernel
 end W9Machine
 end
 
@@ -159,10 +159,10 @@ def dispatchCode (k : Fin 9) : List (BitVec 32) :=
   [dispatchWords0, dispatchWords1, dispatchWords2, dispatchWords3, dispatchWords4,
     dispatchWords5, dispatchWords6, dispatchWords7, dispatchWords8].getD k.val []
 def dispatchBit (k : Fin 9) : Nat := [43,64,85,106,128,149,170,192,213].getD k.val 0
-def dispatchLen (k : Fin 9) : Nat := if k.val = 0 then 16 else 18
+def dispatchLen (k : Fin 9) : Nat := if k.val = 0 then 15 else 18
 def dispatchResult (k : Fin 9) : Result :=
   coordDispatch (dispatchPc k.val) (dispatchBit k) k.val (decide (k.val ≠ 0))
-    (decide (k.val = 0 ∨ k.val = 1 ∨ k.val = 4 ∨ k.val = 7))
+    (decide (k.val = 1 ∨ k.val = 4 ∨ k.val = 7))
 theorem dispatch_checked (k : Fin 9) :
     rOK (symRun {} (dispatchCode k) (pcOf (dispatchPc k.val)) (dispatchLen k))
       (dispatchResult k) = true := by
@@ -236,13 +236,13 @@ theorem dispatch_child (a : HashOutput) (k : Fin 9) :
   fin_cases k <;> simp [dispatchBit, ClaudeWCT.WCT9.child, ClaudeWCT.WCT9.coordBase,
     BitVec.toNat_ofNat] <;> omega
 def dispatchDig (k : Fin 9) : E :=
-  if decide (k.val = 0 ∨ k.val = 1 ∨ k.val = 4 ∨ k.val = 7) then
+  if decide (k.val = 1 ∨ k.val = 4 ∨ k.val = 7) then
     .ld (.c (BitVec.ofNat 64 (96 + 8*(dispatchBit k/64)))) else .reg .x16
 theorem dispatchDig_eval (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     (pairs : List (Digest × Digest)) (u : MachineState) (hu : CoordPre pk w a k.val pairs u) :
     (dispatchDig k).eval u = a.extractLsb' (64*(dispatchBit k/64)) 64 := by
   have hd := hu.digest (dispatchBit k/64) (by fin_cases k <;> decide)
-  fin_cases k <;> first | exact hd | exact hu.cached (by decide)
+  fin_cases k <;> first | exact hd | exact hu.cached
 def dispatchChild (k : Fin 9) : E := mkBin .and
   (if dispatchBit k % 64 = 0 then dispatchDig k else
     mkBin .srl (dispatchDig k) (.c (BitVec.ofNat 64 (dispatchBit k % 64)))) (.c 127)
@@ -760,8 +760,7 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     fin_cases k <;> simp [dispatchResult, coordDispatch, Result.toState_getReg,
       RegFile.get, RegFile.set, RegFile.init, mkAdd_eval, E.eval, hu.prefixReg, hu.coordStep,
       ← BitVec.ofNat_add, Nat.add_assoc]
-  · intro _
-    rw [hr .x16 (by decide)]
+  · rw [hr .x16 (by decide)]
     have he : (chainEntryState a k u).getReg .x16 = (dispatchDig k).eval u := by
       fin_cases k <;> rfl
     rw [he, dispatchDig_eval pk w a k pairs u hu]
@@ -790,8 +789,8 @@ theorem coord_good (chains : Chain.AllGood Frozen.layout) (pk : Digest) (w : WBy
     (hu : CoordPre pk w a k.val roots u) (hnone : K none = pure (false, 0))
     (hnext : ∀ root t, CoordPre pk w a (k.val + 1) (roots ++ [root]) t →
       GoodQFor Frozen.image t N C Q A (K (some (roots ++ [root])))) :
-    GoodQFor Frozen.image u (N + (if k.val = 0 then 205 else 207))
-      (C + (if k.val = 0 then 205 else 207)) Q (A + (if k.val = 0 then 200 else 202))
+    GoodQFor Frozen.image u (N + (if k.val = 0 then 204 else 207))
+      (C + (if k.val = 0 then 204 else 207)) Q (A + (if k.val = 0 then 199 else 202))
       (ccM (ClaudeWCT.W9.T3M.wctStep w a (some roots) k) K) := by
   have ds := dispatch_steps pk w a k roots u hu
   let f : Fin 16384 := ⟨ClaudeWCT.WCT9.field a k, Nat.mod_lt _ (by decide)⟩

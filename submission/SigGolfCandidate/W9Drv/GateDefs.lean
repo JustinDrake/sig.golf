@@ -18,12 +18,14 @@ structure HeaderBank (u : MachineState) : Prop where
     u.getMem (BitVec.ofNat 64 (0xfee600 + 512 * k.val + 456)) =
       BitVec.ofNat 64 (1 + 6 * 256 + k.val * 65536)
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 27
+  pc : u.pc = pcOf 18
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank u
   wit : WitAll w u
-def dispatchPc (n : Nat) : Nat := [57,73,91,109,127,145,163,181,199,217].getD n 217
+  cached : u.getReg .x16 = a.extractLsb' 0 64
+  hashLen : u.getReg .x11 = 64
+def dispatchPc (n : Nat) : Nat := [58,73,91,109,127,145,163,181,199,217].getD n 217
 def cachedWord (n : Nat) : Nat := [0,0,1,1,1,2,2,2,3,3].getD n 3
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)
     (pairs : List (Digest × Digest)) (u : MachineState) : Prop where
@@ -41,7 +43,7 @@ structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat)
   coordStep : u.getReg .x6 = 65536
   prefixReg : u.getReg .x15 = BitVec.ofNat 64 (idxOf a * 2^27 + 65536 * (n-1))
   nodeIndex : u.getReg .x17 = BitVec.ofNat 64 (idxOf a * 2^32)
-  cached : n ≠ 0 → u.getReg .x16 = a.extractLsb' (64 * cachedWord n) 64
+  cached : u.getReg .x16 = a.extractLsb' (64 * cachedWord n) 64
   mask : u.getReg .x2 = BitVec.ofNat 64 0xfffc
   jt : u.getReg .x24 = BitVec.ofNat 64 0xd6800
   childBlock : u.getReg .x29 = BitVec.ofNat 64 0xce800
