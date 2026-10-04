@@ -293,7 +293,7 @@ def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (14104 ≤ A
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
-    (hp : s.pc = pcOf (trPc 0 c + 69))
+    (hp : s.pc = pcOf (trPc 0 c + 68))
     (hr : RegsExcept s0 s topChainRegs) (hf : Frame s0 s topChainWrites)
     (hlen : ends.length = 54) (hend : ∀j<54, DigAt s (slotT j) (ends.getD j 0)) :
     TopLeafReady w pk index c ends s := by
@@ -303,8 +303,8 @@ theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : Mac
     rcases hp with rfl | rfl | rfl
     all_goals rw [hr.get (by simp [topChainRegs]), he.regs.get (by simp [topEntryRegs]),writeHash_getReg]
     all_goals exact ht.glob.1 _ (by simp [bK,layK,baseK,hw])
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_,_) (by simp [bK])
-  have hg := Glob_writeHash ht.glob a 320 h12 (by decide)
+  have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_,_) (by simp [bK])
+  have hg := Glob_writeHash ht.glob a 256 h12 (by decide)
   have hfr : Frame (writeHash t a) s topChainWrites :=
     (he.frame.trans hf).mono (by intro A h; simpa using h)
   have hglob : Glob (leafK 0) w pk s := glob_frame hg hfr (by
@@ -421,9 +421,9 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 16 + 1 + 124 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 16 + 8 + 76 + 13 + 1086 := by decide
-  have hsA : stepsA (0 : Layer).val = 16 := rfl
+  have hfuel : layerFuel 0 = 15 + 1 + 124 + 2321 + 13 := by decide
+  have hcost : layerCost 0 0 = 15 + 8 + 76 + 13 + 1086 := by decide
+  have hsA : stepsA (0 : Layer).val = 15 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
@@ -455,8 +455,8 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : Digest)
         let L := nctxOf w index (a.extractLsb' 0 128) (trPc 0 c)
         have hLok : L.ok := nctx_ok w index _ c hidx
         have hkn : KnownOK L.known s0 := nctx_known w pk index c t s0 a hidx hpre he
-        have h12 : t.getReg .x12 = 320#64 := hpre.glob.1 (_, _) (by simp [bK])
-        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 320 h12 (by decide)).2.2.2.2.2.congr
+        have h12 : t.getReg .x12 = 256#64 := hpre.glob.1 (_, _) (by simp [bK])
+        have hDs0 : DataOK s0 := (Glob_writeHash hpre.glob a 256 h12 (by decide)).2.2.2.2.2.congr
           (fun A _ hA => he.frame.get (by omega) (by simp))
         have hO := nctx_orig w index (a.extractLsb' 0 128) (trPc 0 c) s0
           (topEntry_orig w pk index c t s0 a hpre he) hDs0

@@ -647,21 +647,21 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxRecDepth 8192
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
-def headCode : List (BitVec 32) := [335558659,343947395,64542483,268899939]
+def headCode : List (BitVec 32) := [0x10003803,0x10803883,64542483,268899939]
 sym_block headBase := symRun { noAlias := true } headCode (pcOf 96160) 200
 theorem head_at : CodeAt Verify.image (pcOf 96160) headCode := by
   have h := codeAt_from 96160 (by decide)
   have hp : headCode <+: codeFrom 96160 := by decide +kernel
   exact ⟨by decide, by decide, by decide +kernel, hp.trans h.2.2.2⟩
 theorem head_spec (s : MachineState) (v : Digest)
-    (hpc : s.pc = pcOf 96160) (hv : DigAt s 320 v) :
+    (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) :
     ∃ t, Steps Verify.image s 4 4 t ∧
       t.pc = (if v.toNat < 2 ^ 125 then pcOf 96164 else pcOf 96230) ∧
       t.getReg .x16 = v.extractLsb' 0 64 ∧ t.getReg .x17 = v.extractLsb' 64 64 ∧
       RegsExcept s t [.x16,.x17,.x14] ∧ Frame s t (fun _ => False) := by
   refine ⟨_, symRun_sound headBase head_at s hpc (by simp [headBase.res, rv_simp]), ?_, ?_, ?_, ?_, ?_⟩
   · simp only [Result.toState_pc, headBase.res, E.eval, CmpOp.eval, BinOp.eval,
-      show BitVec.ofNat 64 (320 + 8) = 328#64 from rfl, hv.2,
+      show BitVec.ofNat 64 (256 + 8) = 264#64 from rfl, hv.2,
       BitVec.toNat_ofNat, Nat.reduceMod, bne_iff_ne, ne_eq,
       ext64_shr_eq_zero v 61 (by decide), show (64 + 61 : Nat) = 125 from rfl]
     split_ifs <;> first | rfl | omega
@@ -681,7 +681,7 @@ theorem compressedSum_le (v : Digest) : compressedSum (topRank v) ≤ 4335 := by
   have h8 := pairWeight_le (topRank v 15) (topRank v 16)
   unfold compressedSum; omega
 theorem decode_ok (s : MachineState) (v : Digest)
-    (hpc : s.pc = pcOf 96160) (hv : DigAt s 320 v) (ht : PackedTables s)
+    (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) (ht : PackedTables s)
     (hvalid : T3.decode 0 v = some (topDigits v)) :
     ∃ t, Steps Verify.image s 58 58 t ∧ t.pc = pcOf 96220 ∧
       t.getReg .x16 = v.extractLsb' 0 64 ∧ t.getReg .x17 = v.extractLsb' 63 64 ∧
@@ -714,7 +714,7 @@ open SigGolfCandidate.T3 (Digest)
 set_option maxHeartbeats 600000
 set_option linter.unusedSimpArgs false
 theorem decode_reject (s : MachineState) (v : Digest)
-    (hpc : s.pc = pcOf 96160) (hv : DigAt s 320 v) (ht : PackedTables s)
+    (hpc : s.pc = pcOf 96160) (hv : DigAt s 256 v) (ht : PackedTables s)
     (hbad : T3.decode 0 v = none) :
     ∃ k t, Steps Verify.image s k k t ∧ k ≤ 60 ∧ t.pc = pcOf 96230 ∧
       RegsExcept s t [.x16,.x17,.x14,.x25,.x29,.x19,.x24] ∧ Frame s t (fun _ => False) := by
@@ -867,7 +867,7 @@ set_option linter.unusedSimpArgs false
 def topEntryRegs : List Reg := [.x1,.x3,.x16,.x17,.x14,.x25,.x29,.x19,.x22,.x24,.x15,.x28]
 structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) : Prop where
   pc : s.pc = pcOf (176744 + 256 * (v.toNat % 128))
-  ra : s.getReg .x1 = pcOf (p + 69)
+  ra : s.getReg .x1 = pcOf (p + 68)
   lo : s.getReg .x16 = v.extractLsb' 0 64
   hi : s.getReg .x17 = (v.extractLsb' 64 64 <<< (1 : Word)) ||| (v.extractLsb' 0 64 >>> (63 : Word))
   tail : s.getReg .x29 = Search.topWindow v 17
@@ -879,13 +879,13 @@ structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) 
   regs : RegsExcept u s topEntryRegs
   frame : Frame u s (fun _ => False)
 theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 17)) (hk : KnownOK (bK 0) u) :
-    ∃ s, Steps image u 2 2 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 69) ∧
+    (hpc : u.pc = pcOf (trPc 0 c + 16)) (hk : KnownOK (bK 0) u) :
+    ∃ s, Steps image u 2 2 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 68) ∧
       RegsExcept u s [.x1] ∧ Frame u s (fun _ => False) := by
   have hcc := (copy_parts 0 (trPc 0 c) (copyCheck_at 0 c (by decide) hc)).2.2.1 rfl
   obtain ⟨s, hs⟩ := spec_run hcc u hpc (by simp [KnownOK]) (by simp [specTopCall]) (by simp)
   refine ⟨s, hs.steps, hs.pc rfl, ?_, ?_, ?_⟩
-  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 69))) (by simp [specTopCall])
+  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 68))) (by simp [specTopCall])
   · intro r hr
     cases r
     case x0 => simp [MachineState.getReg]
@@ -895,9 +895,9 @@ theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
     rw [hs.mem]
     rfl
 theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
-    (hpc : u.pc = pcOf (trPc 0 c + 17)) (hk : KnownOK (bK 0) u)
+    (hpc : u.pc = pcOf (trPc 0 c + 16)) (hk : KnownOK (bK 0) u)
     (hmem : u.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56)) :
-    ∃ s, Steps image u 8 8 s ∧ s.pc = pcOf 96160 ∧ s.getReg .x1 = pcOf (trPc 0 c + 69) ∧
+    ∃ s, Steps image u 8 8 s ∧ s.pc = pcOf 96160 ∧ s.getReg .x1 = pcOf (trPc 0 c + 68) ∧
       s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x4) ∧
       RegsExcept u s [.x1,.x3,.x28] ∧ Frame u s (fun _ => False) := by
   obtain ⟨r, er, pr, ra, rr, fr⟩ := topCall_jumps c hc u hpc hk
@@ -913,16 +913,16 @@ theorem topTransition_reject (w : WBytes) (pk : Digest) (index c : Nat) (hc : c 
     (hbad : T3.decode 0 (a.extractLsb' 0 128) = none) :
     ∃ k s, Steps image (writeHash t a) k k s ∧ k ≤ 71 ∧
       fetch image s = some (.base .ECALL) ∧ s.getReg .x5 = 1 ∧ s.getReg .x10 = 1 := by
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
+  have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_, _) (by simp [bK])
   have hk : KnownOK (bK 0) (writeHash t a) := fun p hp => by rw [writeHash_getReg]; exact ht.glob.1 p hp
-  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 17) := by
+  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 16) := by
     rw [writeHash_pc, ht.pc]
-    change pcOf (trPc 0 c + 16) + 4 = pcOf (trPc 0 c + 17)
-    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 16)
-  have hglob := Glob_writeHash ht.glob a 320 h12 (by decide)
+    change pcOf (trPc 0 c + 15) + 4 = pcOf (trPc 0 c + 16)
+    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 15)
+  have hglob := Glob_writeHash ht.glob a 256 h12 (by decide)
   obtain ⟨s, e, ps, ra, hp, rs, fs⟩ := topCall_step c hc _ hpc hk
     (hglob.2.2.2.2.2.prefix 0 (by decide))
-  have hv := (DigAt.writeHash_lo t a 320 h12 (by decide)).frame fs (by decide) (by simp) (by simp)
+  have hv := (DigAt.writeHash_lo t a 256 h12 (by decide)).frame fs (by decide) (by simp) (by simp)
   have hd := hglob.2.2.2.2.2.packed.frame fs
   obtain ⟨k, r, er, hk, pr, rr, fr⟩ := Verify.Nonbinary.decode_reject s _ ps hv hd hbad
   obtain ⟨z, ez, hz, h5, h10⟩ := Verify.Nonbinary.reject_halt r pr
@@ -932,16 +932,16 @@ theorem topTransition_ok (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nC
     (hgood : T3.decode 0 (a.extractLsb' 0 128) = some (Search.topDigits (a.extractLsb' 0 128))) :
     ∃ s, Steps image (writeHash t a) 76 76 s ∧
       TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s := by
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
+  have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_, _) (by simp [bK])
   have hk : KnownOK (bK 0) (writeHash t a) := fun p hp => by rw [writeHash_getReg]; exact ht.glob.1 p hp
-  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 17) := by
+  have hpc : (writeHash t a).pc = pcOf (trPc 0 c + 16) := by
     rw [writeHash_pc, ht.pc]
-    change pcOf (trPc 0 c + 16) + 4 = pcOf (trPc 0 c + 17)
-    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 16)
-  have hglob := Glob_writeHash ht.glob a 320 h12 (by decide)
+    change pcOf (trPc 0 c + 15) + 4 = pcOf (trPc 0 c + 16)
+    simpa only [Nat.add_assoc] using pcOf_add4 (trPc 0 c + 15)
+  have hglob := Glob_writeHash ht.glob a 256 h12 (by decide)
   obtain ⟨s, e, ps, ra, hp, rs, fs⟩ := topCall_step c hc _ hpc hk
     (hglob.2.2.2.2.2.prefix 0 (by decide))
-  have hv := (DigAt.writeHash_lo t a 320 h12 (by decide)).frame fs (by decide) (by simp) (by simp)
+  have hv := (DigAt.writeHash_lo t a 256 h12 (by decide)).frame fs (by decide) (by simp) (by simp)
   have hd := hglob.2.2.2.2.2.packed.frame fs
   obtain ⟨r, er, pr, h16, h17, h29, rr, fr⟩ := Verify.Nonbinary.decode_ok s _ ps hv hd hgood
   obtain ⟨z, ez, pz, lo, hi, s6, s3, mask, tab, rz, fz⟩ := Verify.Nonbinary.prologue_spec r _ pr h16 h17
@@ -968,7 +968,7 @@ open Nonbinary (NCtx)
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def nctxOf (w : WBytes) (index : Nat) (v : Digest) (p : Nat) : NCtx :=
-  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 69⟩
+  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 68⟩
 theorem nctx_ok (w : WBytes) (index : Nat) (v : Digest) (c : Nat) (hidx : index < 2 ^ 31) :
     (nctxOf w index v (trPc 0 c)).ok := by
   have hp := trPc_lt 0 c
@@ -1002,8 +1002,8 @@ theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineS
     (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s) :
     Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s := by
-  have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
-  have ho := Orig_writeHash ht.orig a 320 h12 (by norm_num)
+  have h12 : t.getReg .x12 = 256#64 := ht.glob.1 (_, _) (by simp [bK])
+  have ho := Orig_writeHash ht.orig a 256 h12 (by norm_num)
   have hu : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
     ho.mono (fun o h => ⟨h, Or.inr (by unfold WIT; omega)⟩)
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))

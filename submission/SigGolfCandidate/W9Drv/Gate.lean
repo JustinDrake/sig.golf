@@ -127,13 +127,12 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     (hu : GatePre pk w a u) (hnone : K false = pure (false, 0))
     (hnext : ∀ t, CoordPre pk w a 0 [] t →
       GoodQFor Frozen.image t N C Q A (K true)) :
-    GoodQFor Frozen.image u (N + 42) (C + 42) Q (A + 42) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
-  have st1 := block_steps gJump_checked gJump_linked rfl u hu.pc
-  set s1 := gJump.toState u with hs1
-  have m1 : s1.mem = u.mem := toState_mem_nil _ _ rfl
-  have r1 : ∀ x, s1.getReg x = u.getReg x := fun x => by
-    rw [hs1, Result.toState_getReg]; exact init_getReg u x
-  have pc1 : s1.pc = pcOf 27 := rfl
+    GoodQFor Frozen.image u (N + 41) (C + 41) Q (A + 41) (K (ClaudeWCT.W9.T3M.gateOk a)) := by
+  -- The hook enters the gate check directly; no jump or state mutation is needed.
+  let s1 := u
+  have m1 : s1.mem = u.mem := rfl
+  have r1 : ∀ x, s1.getReg x = u.getReg x := fun _ => rfl
+  have pc1 : s1.pc = pcOf 27 := hu.pc
   have st2 := block_steps gCheck_checked gCheck_linked rfl s1 pc1
   set s2 := gCheck.toState s1 with hs2
   have m2 : s2.mem = u.mem := (toState_mem_nil _ _ rfl).trans m1
@@ -145,7 +144,6 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     rfl
   have hg : gateE.eval s1 = (a.extractLsb' 0 64 >>> 31) &&& BitVec.ofNat 64 4095 := by
     rw [gateE_eval, hw0]
-  have st1' : Steps Frozen.image u 1 1 s1 := st1
   have st2' : Steps Frozen.image s1 6 6 s2 := st2
   by_cases hok : ClaudeWCT.W9.T3M.gateOk a = true
   ·
@@ -202,7 +200,7 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
           unfold Chain.base; omega
         rw [hw, wword, e]
       · exact (hu.wit.orig _).frame (fun j _ _ => e3 _)
-    have := ((((hnext s3 hpre).steps st3').steps st2').steps st1')
+    have := (((hnext s3 hpre).steps st3').steps st2')
     exact this.mono (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
   ·
     have hok' : ClaudeWCT.W9.T3M.gateOk a = false := by simpa using hok
@@ -215,7 +213,7 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have hf := block_ecall gReject_checked gReject_linked rfl s2 rfl
     have hr : GoodQFor Frozen.image (gReject.toState s2) 1 1 Q A (pure (false, 0)) :=
       GoodQFor.reject hf (by rw [Result.toState_getReg]; rfl) (by rw [Result.toState_getReg]; rfl)
-    have := ((hr.steps st3').steps st2').steps st1'
+    have := (hr.steps st3').steps st2'
     exact this.mono (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
 end W9Drv
 end
