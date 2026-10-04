@@ -6,7 +6,7 @@ open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.
 open SigGolfCandidate.Rv SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput M)
 open ClaudeWCT.W9.Machine.Merkle
-def dispatchPc (n : Nat) : Nat := [68,83,100,117,134,151,168,185,202,219].getD n 219
+def dispatchPc (n : Nat) : Nat := [68,82,97,112,127,142,157,172,187,202].getD n 202
 abbrev idxOf (a : HashOutput) : Nat := a.toNat % 2 ^ 31
 def DigestAt (a : HashOutput) (u : MachineState) : Prop :=
   ∀ k, k < 4 → u.getMem (BitVec.ofNat 64 (0x60 + 8 * k)) = a.extractLsb' (64 * k) 64
@@ -20,11 +20,13 @@ structure HeaderBank (index : Nat) (u : MachineState) : Prop where
     u.getMem (BitVec.ofNat 64 (W9Machine.Chain.table k + 456)) =
       BitVec.ofNat 64 (hdr0 6 k.val index 0)
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 23
+  pc : u.pc = pcOf 17
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank (idxOf a) u
   wit : WitAll w u
+  forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
+  hashLen : u.getReg .x11 = 64
 structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots : List Digest)
     (u : MachineState) : Prop where
   le : n ≤ 9
@@ -34,6 +36,7 @@ structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots 
   digest : DigestAt a u
   bank : HeaderBank (idxOf a) u
   index : u.getReg .x22 = BitVec.ofNat 64 (idxOf a)
+  digestWord : 0 < n → u.getReg .x16 = a.extractLsb' (64 * ((n + 1) / 3)) 64
   heaps : ∀ h, 1 ≤ h → h ≤ 7 → u.getReg (heapReg h) = BitVec.ofNat 64 (idxOf a + 2 ^ 32 * h)
   stepOne : u.getReg .x6 = 1
   stepTwo : u.getReg .x7 = 2
@@ -46,4 +49,6 @@ structure CoordPre (pk : Digest) (w : WBytes) (a : HashOutput) (n : Nat) (roots 
   coords : ∀ k : Fin 9, n ≤ k.val → ∀ off, off < 1024 → off % 8 = 0 →
     OrigW w u (W9Machine.Chain.base k + off)
   layer : Orig w (fun o => o < 64 ∨ 11288 ≤ o) u
+  forestZero : ∀ A, A = 1968 ∨ A = 1976 → u.getMem (BitVec.ofNat 64 A) = 0
+  hashLen : u.getReg .x11 = 64
 end W9Drv
