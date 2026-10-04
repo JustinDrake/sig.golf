@@ -281,7 +281,7 @@ def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (14104 ≤ A
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
-    (hp : s.pc = pcOf (trPc 0 c + 18))
+    (hp : s.pc = pcOf (trPc 0 c + 15))
     (hr : RegsExcept s0 s topChainRegs) (hf : Frame s0 s topChainWrites)
     (hlen : ends.length = 54) (hend : ∀j<54, DigAt s (slotT j) (ends.getD j 0)) :
     TopLeafReady w pk index c ends s := by
@@ -401,14 +401,14 @@ theorem layer_good_top (w : WBytes) (pk : Digest) (index : Nat) (M : T3.LayerMes
     GoodQ s (N + layerFuel 0) (C + layerCost 0 0) Q (A + layerCost 0 0) (ccM (layerHead w index 0 M R) K) := by
   have hidx := hs.idx
   have hA := encA_step w pk index 0 M s hs
-  have hfuel : layerFuel 0 = 14 + 1 + 124 + 2321 + 13 := by decide
-  have hcost : layerCost 0 0 = 14 + 8 + 73 + 13 + 1086 := by decide
-  have hsA : stepsA (0 : Layer).val = 14 := rfl
+  have hfuel : layerFuel 0 = 11 + 1 + 124 + 2321 + 13 := by decide
+  have hcost : layerCost 0 0 = 11 + 8 + 73 + 13 + 1086 := by decide
+  have hsA : stepsA (0 : Layer).val = 11 := rfl
   unfold layerHead
   by_cases hctr : (wctr w 0).toNat ≥ counterLimit
   · rw [if_pos hctr, ccM_pure, hK0]
     obtain ⟨u, hst, hf, h5, h10⟩ := hA.1 hctr
-    rw [show rejSt (0 : Layer).val = 16 from rfl] at hst
+    rw [show rejSt (0 : Layer).val = 13 from rfl] at hst
     exact GoodQ.steps' hst (GoodQ.reject (Q := Q) (A := 0) hf h5 h10) (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
   · rw [if_neg hctr]
     obtain ⟨t, hst, hf, h5, hv, hin, c, hc, hpre⟩ := hA.2 (by omega)
