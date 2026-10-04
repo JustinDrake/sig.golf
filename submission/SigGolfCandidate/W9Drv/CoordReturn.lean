@@ -724,7 +724,7 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
   · rw [writeHash_pc]
     change pcOf (rootPc k + 1) + 4 = _
     fin_cases k <;> rfl
-  · refine ⟨?_, ?_, ?_⟩
+  · refine ⟨?_, ?_, ?_, ?_⟩
     · intro l t ht d hd
       exact (hm _ (by have := l.isLt; unfold Chain.table; omega)
         (Or.inr (Or.inr (by unfold Chain.table; omega)))).trans (hu.bank.chain l t ht d hd)
@@ -734,6 +734,9 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     · intro l
       exact (hm _ (by have := l.isLt; unfold Chain.table; omega)
         (Or.inr (Or.inr (by unfold Chain.table; omega)))).trans (hu.bank.leaf l)
+    · intro i hi
+      exact (hm _ (by unfold TOPLOAD; omega)
+        (Or.inr (Or.inr (by unfold TOPLOAD; omega)))).trans (hu.bank.top i hi)
   · intro h h1 h7
     exact (hr (heapReg h) (by interval_cases h <;> decide)).trans (hc.heaps h h1 h7)
   · intro i hi
