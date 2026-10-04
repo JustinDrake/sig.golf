@@ -1,8 +1,8 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Final.Conditional
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.Final
+import SigGolfCandidate.ClaudeWCT.W9.New.Machine.ExpandLink.Link
 import SigGolfCandidate.W9Machine.WctImage
 import SigGolfCandidate.T3M.Verify.Code
-import SigGolfCandidate.ClaudeWCT.W9.New.Machine.ExpandLink.Link
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CaseCNearFinal
 import SigGolfCandidate.ClaudeWCT.W9.New.G6.PairFinal
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.LargeCouplingCert
@@ -11,9 +11,9 @@ import SigGolfCandidate.W9Drv.FtsDefs
 import SigGolfCandidate.W9Drv.CoordReturn
 import SigGolfCandidate.W9Drv.Forest
 import SigGolfCandidate.W9Machine.WctChainSplit
+import SigGolfCandidate.W9Fin.Main
 import SigGolfCandidate.W9Machine.WctChainAllGood
 import SigGolfCandidate.W9ChS.SourceEquiv
-import SigGolfCandidate.W9Fin.Main
 
 section
 
@@ -22,7 +22,7 @@ namespace ClaudeWCT.W9.Final
 open ClaudeWCT.W9.T3M (Images)
 abbrev submission (I : Images) : SigGolf.Submission := ClaudeWCT.W9.T3M.Final.submissionNew I
 theorem signature_bytes (I : Images) : (submission I).sizes.signature = 5456 := rfl
-theorem witness_bytes (I : Images) : (submission I).sizes.witness = 25240 := rfl
+theorem witness_bytes (I : Images) : (submission I).sizes.witness = 24264 := rfl
 theorem cache_bytes (I : Images) : (submission I).sizes.cache = 131072 := rfl
 theorem layout_offsets (I : Images) : (submission I).layout =
     { message := 64, secretKey := 128, publicKey := 160,
@@ -55,36 +55,42 @@ theorem PendingInputs.machine {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.
   verify_accept_cycles := h.verify_accept_cycles
 theorem PendingInputs.securityP {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.T3M.Final.SecurityP :=
   ClaudeWCT.W9.T3.Secc.t3_securityP h.near_bound h.pair_bound h.large_route
-theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7893 :=
+theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7886 :=
   ClaudeWCT.W9.T3M.Final.certificate_of_security h.securityP h.machine
 end ClaudeWCT.W9.Final
 end
 
 section
 
-
-namespace SigGolfCandidate.Packaging
-set_option maxRecDepth 100000
-set_option maxHeartbeats 2000000
-theorem verify_code_eq : W9Machine.Frozen.image.code = T3M.Images.verifyImage.code := by
-  change W9Machine.Frozen.codeChunks.flatten = T3M.Images.verifyCode
-  rw [T3M.Verify.verifyCode_eq]
-  rfl
-theorem verify_data_eq : W9Machine.Frozen.image.data = T3M.Images.verifyImage.data := by
-  decide +kernel
-theorem verify_image_eq : W9Machine.Frozen.image = T3M.Images.verifyImage := by
-  cases h : W9Machine.Frozen.image
-  cases h' : T3M.Images.verifyImage
-  have hc := verify_code_eq
-  have hd := verify_data_eq
-  simp only [h, h'] at hc hd
-  cases hc
-  cases hd
-  rfl
-end SigGolfCandidate.Packaging
+namespace SigGolfCandidate.T3M.V2b
+abbrev images := Sign.Boundary.finalImages
+theorem sign_pending_v2b :
+    ClaudeWCT.W9.T3M.Final.SignRefines images ∧
+    ClaudeWCT.W9.T3M.Final.SignTerminates images :=
+  ClaudeWCT.W9.Machine.ExpandLink.sign_pending_v2a
+theorem expand_pending_v2b :
+    ClaudeWCT.W9.T3M.Final.ExpandRefines images ∧
+    ClaudeWCT.W9.T3M.Final.ExpandTerminates images :=
+  ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v2a
+end SigGolfCandidate.T3M.V2b
 end
 
 section
+
+
+set_option maxRecDepth 200000
+namespace W9Drv
+theorem verify_image_eq :
+    W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage := by
+  apply congrArg₂ SigGolfCandidate.Legacy.Riscv.Image.mk
+  · exact SigGolfCandidate.T3M.Verify.verifyCode_eq.symm
+  · exact List.append_nil _
+end W9Drv
+#print axioms W9Drv.verify_image_eq
+end
+
+section
+
 
 
 
@@ -103,7 +109,7 @@ theorem certificate_of_machine_inputs
     (er : ClaudeWCT.W9.T3M.Final.ExpandRefines finalImages)
     (et : ClaudeWCT.W9.T3M.Final.ExpandTerminates finalImages) :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7893 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7886 := by
   exact ClaudeWCT.W9.Final.certificate_of_pending (I := finalImages)
     { large_route := ClaudeWCT.W9.T3.Security.LargeCoupling.large_route_hlarge
       pair_bound := ClaudeWCT.W9.T3.Security.WPair.pair_guess_bound
@@ -112,25 +118,25 @@ theorem certificate_of_machine_inputs
       verify_refines := vr
       verify_terminates := vt
       verify_accept_cycles := vc
-      sign_refines := SigGolfCandidate.T3M.Sign.Boundary.wct_final_sign_refines
-      sign_terminates := SigGolfCandidate.T3M.Sign.Boundary.wct_final_sign_terminates
+      sign_refines := SigGolfCandidate.T3M.V2b.sign_pending_v2b.1
+      sign_terminates := SigGolfCandidate.T3M.V2b.sign_pending_v2b.2
       expand_refines := er
       expand_terminates := et }
 def verifyImages : ClaudeWCT.W9.T3M.Images :=
   ⟨T3M.Images.signImage, T3M.Images.expandImage, W9Machine.Frozen.image⟩
 theorem verifyImages_eq : verifyImages = finalImages := by
   exact congrArg (fun v => ClaudeWCT.W9.T3M.Images.mk
-    T3M.Images.signImage T3M.Images.expandImage v) verify_image_eq
+    T3M.Images.signImage T3M.Images.expandImage v) W9Drv.verify_image_eq
 theorem certificate_of_verify_inputs
     (vr : ClaudeWCT.W9.T3M.Final.VerifyRefines verifyImages)
     (vt : ClaudeWCT.W9.T3M.Final.VerifyTerminates verifyImages)
     (vc : ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles verifyImages) :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7893 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7886 := by
   rw [verifyImages_eq] at vr vt vc
   exact certificate_of_machine_inputs vr vt vc
-    ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.1
-    ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.2
+    SigGolfCandidate.T3M.V2b.expand_pending_v2b.1
+    SigGolfCandidate.T3M.V2b.expand_pending_v2b.2
 end SigGolfCandidate.Packaging
 end
 
@@ -279,6 +285,28 @@ end
 section
 
 
+namespace W9Fin
+theorem verify_inputs'_of (I : ClaudeWCT.W9.T3M.Images)
+    (hI : I.verify = SigGolfCandidate.T3M.Images.verifyImage)
+    (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage)
+    (chains : W9Machine.Chain.AllGood) :
+    ClaudeWCT.W9.T3M.Final.VerifyRefines I ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I ∧
+      ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I :=
+  verify_inputs_of I hI hbridge (W9Drv.fts_good chains)
+theorem verify_inputs'
+    (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage)
+    (chains : W9Machine.Chain.AllGood) :
+    ClaudeWCT.W9.T3M.Final.VerifyRefines I0 ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I0 ∧
+      ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I0 :=
+  verify_inputs hbridge (W9Drv.fts_good chains)
+end W9Fin
+#print axioms W9Fin.verify_inputs'_of
+#print axioms W9Fin.verify_inputs'
+end
+
+section
+
+
 
 namespace W9Machine.Chain
 theorem allGood : AllGood := by
@@ -289,22 +317,20 @@ end
 section
 
 
-
 namespace W9Fin
-open ClaudeWCT.W9.Machine.ExpandLink (I0)
-theorem verify_inputs'
-    (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage)
-    (chains : W9Machine.Chain.AllGood) :
-    ClaudeWCT.W9.T3M.Final.VerifyRefines I0 ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I0 ∧
-      ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I0 :=
-  verify_inputs hbridge (W9Drv.fts_good chains)
+theorem verify_final_of (I : ClaudeWCT.W9.T3M.Images)
+    (hI : I.verify = SigGolfCandidate.T3M.Images.verifyImage)
+    (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage) :
+    ClaudeWCT.W9.T3M.Final.VerifyRefines I ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I ∧
+      ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I :=
+  verify_inputs'_of I hI hbridge W9Machine.Chain.allGood
 theorem verify_final
     (hbridge : W9Machine.Frozen.image = SigGolfCandidate.T3M.Images.verifyImage) :
     ClaudeWCT.W9.T3M.Final.VerifyRefines I0 ∧ ClaudeWCT.W9.T3M.Final.VerifyTerminates I0 ∧
       ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles I0 :=
-  verify_inputs hbridge (W9Drv.fts_good W9Machine.Chain.allGood)
+  verify_inputs' hbridge W9Machine.Chain.allGood
 end W9Fin
-#print axioms W9Fin.verify_inputs'
+#print axioms W9Fin.verify_final_of
 #print axioms W9Fin.verify_final
 end
 
@@ -314,10 +340,10 @@ section
 namespace SigGolfCandidate.Packaging
 theorem certificate_ready :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7893 := by
-  obtain ⟨vr, vt, vc⟩ := W9Fin.verify_final verify_image_eq
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7886 := by
+  obtain ⟨vr, vt, vc⟩ := W9Fin.verify_final W9Drv.verify_image_eq
   exact certificate_of_machine_inputs vr vt vc
-    ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.1
-    ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.2
+    SigGolfCandidate.T3M.V2b.expand_pending_v2b.1
+    SigGolfCandidate.T3M.V2b.expand_pending_v2b.2
 end SigGolfCandidate.Packaging
 end

@@ -120,15 +120,15 @@ theorem dOff_succ (k : Nat) (hk : k < 9) : dOff (k + 1) = dOff k + dLen k + 2 :=
   interval_cases k <;> rfl
 theorem disp_spec {im : Image} (hc : NewCodeAt im) (k : Nat) (hk : k < 9) (N : HashOutput) (index : Nat)
     (hidx : index < 2 ^ 31) (s : MachineState) (hpc : s.pc = pcOf (base + dOff k))
-    (h22 : s.getReg .x22 = BitVec.ofNat 64 index) (h29 : s.getReg .x29 = BitVec.ofNat 64 17468)
-    (h24 : s.getReg .x24 = BitVec.ofNat 64 50236) (h2 : s.getReg .x2 = BitVec.ofNat 64 65532)
+    (h22 : s.getReg .x22 = BitVec.ofNat 64 index) (h29 : s.getReg .x29 = BitVec.ofNat 64 17600)
+    (h24 : s.getReg .x24 = BitVec.ofNat 64 50368) (h2 : s.getReg .x2 = BitVec.ofNat 64 65532)
     (h8 : s.getReg .x8 = BitVec.ofNat 64 (regBase (k - 1)))
     (h28 : s.getReg .x28 = BitVec.ofNat 64 (HB0 + 2048 + 512 * (k - 1))) (hN : OutAt s 0x60 N) :
     ∃ t, Steps im s (dLen k) (dLen k) t ∧ t.pc = pcOf (jt0 + WCT9.field N ⟨k, hk⟩) ∧
       t.getReg .x1 = pcOf (base + dOff k + dLen k) ∧ t.getReg .x8 = BitVec.ofNat 64 (regBase k) ∧
       t.getReg .x28 = BitVec.ofNat 64 (HB0 + 2048 + 512 * k) ∧
       t.getReg .x4 = BitVec.ofNat 64 (index + 2 ^ 32 * (WCT9.child N ⟨k, hk⟩).val) ∧
-      t.getReg .x23 = BitVec.ofNat 64 (17468 + 256 * (WCT9.child N ⟨k, hk⟩).val) ∧
+      t.getReg .x23 = BitVec.ofNat 64 (17600 + 256 * (WCT9.child N ⟨k, hk⟩).val) ∧
       t.getReg .x27 = s.getMem (BitVec.ofNat 64 (HB0 + 512 * k + 448)) ∧
       t.getReg .x11 = BitVec.ofNat 64 64 ∧
       (∀ r, r ≠ .x1 → r ≠ .x3 → r ≠ .x4 → r ≠ .x8 → r ≠ .x11 → r ≠ .x14 → r ≠ .x16 → r ≠ .x23 → r ≠ .x27 →
@@ -276,8 +276,8 @@ theorem leafHdr_digAt {w : MachineState} {B k index j : Nat} (hidx : index < 2 ^
   constructor
   · rw [h0, header_lo, if_neg (by decide), hdr0_index _ _ _ hidx]
   · rw [show B + 896 + 8 = B + 904 by omega, h1, header_hi, if_neg (by decide), hdr1_eq _ _ (by omega) (by omega)]
-theorem pc_child (j : Nat) : (BitVec.ofNat 64 (17468 + 256 * j)) &&& 18446744073709551614#64 = pcOf (cbE j) := by
-  have : BitVec.ofNat 64 (17468 + 256 * j) = pcOf (cbE j) := by
+theorem pc_child (j : Nat) : (BitVec.ofNat 64 (17600 + 256 * j)) &&& 18446744073709551614#64 = pcOf (cbE j) := by
+  have : BitVec.ofNat 64 (17600 + 256 * j) = pcOf (cbE j) := by
     unfold pcOf cbE cb0; congr 1; ring
   rw [this, not1_eq, pcOf_and_not1]
 theorem coord_tb {im : Image} (hc : NewCodeAt im) {sk : BitVec 256} {sig : WCT9.Signature} {N : HashOutput}
@@ -592,7 +592,7 @@ theorem forest_blk {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.
     rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
       if_neg (by omega)]
 theorem end_blk {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf (base + 208)) :
-    ∃ t, Steps im s 4 4 t ∧ t.pc = pcOf 39952 ∧ t.getReg .x5 = 0 ∧
+    ∃ t, Steps im s 4 4 t ∧ t.pc = pcOf 39985 ∧ t.getReg .x5 = 0 ∧
       (∀ r, r ≠ .x5 → r ≠ .x18 → t.getReg r = s.getReg r) ∧ (∀ A, t.getMem A = s.getMem A) := by
   have hs := symRun_sound blk_208 (codeAt_208 hc) s hpc (by simp [blk_208.res, rv_simp])
   refine ⟨_, hs, ?_, ?_, ?_, ?_⟩
@@ -611,9 +611,9 @@ theorem drvInv_zero {sig : WCT9.Signature} {N : HashOutput} {sF t : MachineState
 theorem fts_tb {im : Image} (hc : NewCodeAt im) {sk : BitVec 256} {sig : WCT9.Signature} {N : HashOutput}
     {sF : MachineState} (hin : FtsIn sig N sF) (hpc : sF.pc = pcOf base) (h5 : sF.getReg .x5 = 0) :
     TBSim im sk sF ftsCost (WCT9.recoverFts sig (N.toNat % 2 ^ 31) N)
-      (fun root t => t.pc = pcOf 39952 ∧ t.getReg .x5 = 0 ∧ DigAt t 0x100 root ∧ Frame sF t FtsW) := by
+      (fun root t => t.pc = pcOf 39985 ∧ t.getReg .x5 = 0 ∧ DigAt t 0x100 root ∧ Frame sF t FtsW) := by
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by positivity)
-  have hg : N.toNat / 2 ^ 31 % 2 ^ 12 = 0 := ((admissible_iff N).mp hin.adm).1
+  have hg : N.toNat / 2 ^ 234 % 2 ^ 14 < 5 := ((admissible_iff N).mp hin.adm).1
   obtain ⟨t0, s0, p0, r0, x8_0, x28_0, f0⟩ := drv_entry hc N sF hpc h5 hin.out hg
   have hI0 : DrvInv sig N sF 0 [] t0 := drvInv_zero (by rw [p0]) r0 x8_0 x28_0 f0
   unfold WCT9.recoverFts

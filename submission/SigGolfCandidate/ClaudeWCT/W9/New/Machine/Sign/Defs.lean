@@ -126,13 +126,13 @@ def LayPost (t : MachineState) : Option (List Pieces) → MachineState → Prop
 def layC : Nat := 26 + 2879687599
 def LayersSpec (im : Image) (sk : BitVec 256) (cache : Bytes 131072) (Inv : MachineState → Prop) : Prop :=
   ∀ (index : Nat) (root : Digest) (t : MachineState), LayPre index root t → Inv t →
-    TBSim im sk t layC (signLayers (cacheDec cache) index 4 (root, 0, 0)) (LayPost t)
+    TBSim im sk t layC (signLayers (cacheDec cache) index 4 root) (LayPost t)
 def newRegs : List Reg := [.x6, .x7, .x10, .x11, .x12, .x18, .x19, .x22, .x24, .x25, .x26, .x28, .x29]
 def NewW (A : Nat) : Prop := SearchW A ∨ FtsW A
 def InvStable (Inv : MachineState → Prop) : Prop :=
   ∀ t u, Inv t → Frame t u NewW → RegsExcept t u newRegs → Inv u
 def wsub (imgs : Phase → Image) : Submission :=
-  ⟨⟨5456, 25240, 131072⟩, ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩, imgs⟩
+  ⟨⟨5456, 24264, 131072⟩, ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩, imgs⟩
 structure Unchanged (imgs : Phase → Image) (Inv : BitVec 256 → Bytes 131072 → Message → MachineState → Prop) :
     Prop where
   front : ∀ sk cache m, ∃ s0, initialState (wsub imgs) .sign (sk, cache, m) = some s0 ∧

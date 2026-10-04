@@ -1,7 +1,10 @@
 import SigGolfCandidate.T3M.Witness.Layout
 import SigGolfCandidate.ClaudeWCT.WCT9.Limits
 import SigGolfCandidate.T3M.Witness.Basic
+
 section
+
+
 namespace ClaudeWCT.W9.T3M
 open SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig sibOff)
@@ -25,7 +28,10 @@ theorem wleaf_zero (w : WBytes) (k : Nat) : wleaf w k 0 = wopen w k 0 := by
   unfold wleaf wopen; rw [wctLeafSlot_zero]
 end ClaudeWCT.W9.T3M
 end
+
 section
+
+
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig wrho wdc wctr layersP nodeHashP verifyLayersP)
@@ -38,7 +44,7 @@ def wctChainP (index coord child t start count : Nat) (pad0 pad1 value : Digest)
     (fun value step => shortHash (wctChainInputP index coord child t step pad0 pad1 value)) value
 def digestP (m : Message) (w : WBytes) : M (Option HashOutput) :=
   if (wdc w).toNat ≥ WCT9.digestAttemptLimit then pure none else some <$> digest (wrho w) m (wdc w)
-def gateOk (N : HashOutput) : Bool := decide (N.toNat / 2 ^ 31 % 2 ^ 12 = 0)
+def gateOk (N : HashOutput) : Bool := decide (N.toNat / 2 ^ 234 % 2 ^ 14 < 5)
 def fieldOk (N : HashOutput) (coord : WCT9.Coord) : Bool := decide (WCT9.field N coord < WCT9.fieldLimit)
 def wctCoordP (w : WBytes) (index : Nat) (coord : WCT9.Coord) (child : WCT9.Child) (word : WCT9.Rank) :
     M Digest := do
@@ -65,7 +71,7 @@ def verifyP (m : Message) (pk : Digest) (w : WBytes) : M Bool := do
   if !gateOk N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← wctP w N | pure false
-  let some root ← layersP w index 4 (root, 0, 0) | pure false
+  let some root ← layersP w index 4 root | pure false
   pure (root == pk)
 structure Pads where
   wctChain : WCT9.Coord → Fin 7 → Digest × Digest
@@ -74,7 +80,8 @@ structure Pads where
   merkle : (lay : Layer) → Fin (height lay) → Digest
   chainHeader : (lay : Layer) → Fin (chainCount lay) → BitVec 64
 instance : Zero Pads := ⟨⟨fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => (0, 0), fun _ _ => 0, fun _ _ => 0⟩⟩
-def Pads.toT3 (pads : Pads) : SigGolfCandidate.T3M.Pads := ⟨fun _ => 0, fun _ => 0, pads.chain, pads.merkle, pads.chainHeader⟩
+def Pads.toT3 (pads : Pads) : SigGolfCandidate.T3M.Pads :=
+  ⟨fun _ => 0, fun _ => 0, pads.chain, pads.merkle, pads.chainHeader⟩
 def recoverCoordinateP (sig : WCT9.Signature) (pads : Pads) (index : Nat) (output : HashOutput)
     (coord : WCT9.Coord) : M Digest := do
   let selected := WCT9.child output coord
@@ -95,7 +102,7 @@ def verifyPadsTail (pk : Digest) (output : HashOutput) (w : WCT9.Witness) (pads 
   if !WCT9.admissible output then return false
   let index := output.toNat % 2 ^ 31
   let root ← recoverFtsP w.signature pads index output
-  let some root ← verifyLayersP (WCT9.toT3Witness w) pads.toT3 index 4 (root, 0, 0) | pure false
+  let some root ← verifyLayersP (WCT9.toT3Witness w) pads.toT3 index 4 root | pure false
   pure (root == pk)
 def verifyPads (m : Message) (pk : Digest) (w : WCT9.Witness) (pads : Pads) : M Bool := do
   if w.digestCounter.toNat ≥ WCT9.digestAttemptLimit then return false

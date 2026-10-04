@@ -1,6 +1,7 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskBase
 import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.T3.Secc.WotsMaskChain
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -136,10 +137,6 @@ theorem honestRoot_maskAt (lay : Layer) (tree : Nat) :
     Extract.honestRoot (maskAt answers a) lay tree = Extract.honestRoot answers lay tree := by
   unfold Extract.honestRoot
   rw [builtTree_maskAt]
-theorem honestPair_maskAt (lay : Layer) (tree : Nat) :
-    Extract.honestPair (maskAt answers a) lay tree = Extract.honestPair answers lay tree := by
-  unfold Extract.honestPair
-  rw [builtTree_maskAt]
 theorem honestForest_maskAt (index : Nat) :
     Extract.honestForest (maskAt answers a) index = Extract.honestForest answers index := by
   rw [Extract.honestForest_eq_wct9, Extract.honestForest_eq_wct9]
@@ -150,8 +147,8 @@ theorem leafMsg_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     leafMsg (maskAt answers a) L = leafMsg answers L := by
   unfold leafMsg
   split
-  · exact Mask.honestPair_maskAt answers a _ _
-  · rw [Mask.honestForest_maskAt answers a _]
+  · exact Mask.honestRoot_maskAt answers a _ _
+  · exact Mask.honestForest_maskAt answers a _
 theorem referenceSearch_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     referenceSearch (maskAt answers a) L = referenceSearch answers L := by
   unfold referenceSearch

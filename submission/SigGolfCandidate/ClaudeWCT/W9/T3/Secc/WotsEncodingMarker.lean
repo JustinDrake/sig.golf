@@ -19,6 +19,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGameSim
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGameBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskRest
 import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -35,7 +36,7 @@ namespace Enc
 open SigGolfCandidate.T3.Security.Wots.Enc
 def chainAt (p : CanonGraph.LeafPos × Fin 58) : ChainAddr := ⟨leafOf p.1, p.2.val⟩
 def MarkEntry (T : Answers) (a : ChainAddr) (entry : Entry) : Prop :=
-  ∃ (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) (digits : List Nat),
+  ∃ (message : Digest) (counter : BitVec 32) (digits : List Nat),
     entry.1 = encodingRow a.key message counter ∧
       referenceInput T a.key ≠ some (encodingRow a.key message counter) ∧
       decode a.key.lay (low entry.2) = some digits ∧

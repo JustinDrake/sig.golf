@@ -10,6 +10,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonEncoding
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraph
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -120,8 +121,7 @@ theorem respAt_signPayload (T : Answers) (cache : T3.Cache) (message : Message) 
     refine RespAt.bind (respAt_signLayers T cache _ (Nat.mod_lt _ (by decide)) 4 le_rfl _ (fun m hm => ?_)) ?_
     · obtain rfl : m = 3 := by omega
       rw [ClaudeWCT.WCT9.signForest_root]
-      exact (congrArg (fun x => ((x, 0, 0) : Digest × BitVec 96 × Digest))
-        (Extract.honestForest_eq_wct9 T _).symm).trans (Mask.signedMsg_top T _)
+      exact (Extract.honestForest_eq_wct9 T _).symm.trans (Mask.signedMsg_top T _)
     · generalize evalWithAnswerFn T (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
       rcases pieces with _ | pieces <;> exact RespAt.pure' _
 theorem respAt_sign (T : Answers) (published : T3.Cache) (request : Request) :
@@ -168,9 +168,9 @@ theorem leafMsg_congr_nonEnc {T T' : Answers} (h : ∀ q, Enc.NonEnc q → T' q 
     leafMsg T' L = leafMsg T L := by
   unfold leafMsg
   split
-  · unfold Extract.honestPair
+  · unfold Extract.honestRoot
     rw [builtTree_congr_nonEnc h]
-  · rw [honestForest_congr_nonEnc h _]
+  · exact honestForest_congr_nonEnc h _
 theorem nonEnc_of_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) : ∀ q, Enc.NonEnc q → T' q = T q :=
   fun q hq => h q (honestQ_of_nonEnc hq)
 theorem referenceSearch_congr_honest {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q)

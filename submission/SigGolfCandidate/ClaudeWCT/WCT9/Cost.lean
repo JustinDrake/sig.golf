@@ -65,7 +65,7 @@ theorem bound_signPayloadWith (limit : Nat) (cache : Cache) (message : Message) 
       dsimp only
       refine (bound_signForest _ output).bind' (l := 85922 + 4 * counterLimit)
         (fun forest _ => ?_) (by omega)
-      refine (bound_signLayers cache _ 4 (forest.2, 0, 0)).bind' (l := 0) (fun layers _ => ?_)
+      refine (bound_signLayers cache _ 4 forest.2).bind' (l := 0) (fun layers _ => ?_)
         (by rw [layerFixedCost_four]; omega)
       cases layers <;> exact .pure _ 0 trivial
 theorem bound_signWith (limit : Nat) (cache : Cache) (message : Message) :
@@ -87,7 +87,7 @@ theorem bound_verifyWith (limit : Nat) (message : Message) (pk : Digest) (w : Wi
     split
     · exact .pure _ _ trivial
     · refine (bound_recoverFts w.signature _ output).bind' (l := 488) (fun root _ => ?_) (by decide)
-      refine (bound_verifyLayers (toT3Witness w) _ 4 (root, 0, 0)).bind' (l := 0) (fun r _ => ?_)
+      refine (bound_verifyLayers (toT3Witness w) _ 4 root).bind' (l := 0) (fun r _ => ?_)
         (by rw [recoveryLayersCost_four]; omega)
       cases r <;> exact .pure _ 0 trivial
 theorem bound_expandWith (limit : Nat) (message : Message) (pk : Digest) (sig : Signature) :
@@ -102,7 +102,7 @@ theorem bound_expandWith (limit : Nat) (message : Message) (pk : Digest) (sig : 
       dsimp only
       refine (bound_recoverFts sig _ output).bind' (l := 4 * counterLimit + 484)
         (fun root _ => ?_) (by omega)
-      refine (bound_expandLayers (toT3Signature sig) _ 4 (root, 0, 0)).bind' (l := 0)
+      refine (bound_expandLayers (toT3Signature sig) _ 4 root).bind' (l := 0)
         (fun layers _ => ?_) (by rw [recoveryLayersCost_four]; omega)
       cases layers with
       | none => exact .pure _ 0 trivial

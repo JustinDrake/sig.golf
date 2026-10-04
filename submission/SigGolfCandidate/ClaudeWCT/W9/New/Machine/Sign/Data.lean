@@ -2,9 +2,9 @@ import SigGolfCandidate.T3M.Images.Sign
 
 set_option maxRecDepth 100000
 namespace ClaudeWCT.W9.Machine.Sign
-def signCodeSha256 : String := "5d635514a0bb8a830bbf21b184f05e22b254698959951ab1f5ab1feaa2bdcab5"
+def signCodeSha256 : String := "f579dc45a806ef6bb32541ce006614dd7fed270b6a680b0a7dcd710fe78927ab"
 def signDataSha256 : String := "5bb763a7e59018963b95937d9ecf488b9426022dd9c25bb33b42052ff8747a27"
-def signNewSha256 : String := "9c66eb74ae44631f23381a15b97ea0c06759fbb2b549e79ba15ac687dff68ad5"
+def signNewSha256 : String := "b5857045e1cd16482fb1e9cddd6c270a871231cd9e20e11c64a7494eba26c96a"
 def tblSha256 : String := "8a41931d7470a2bcf6fde78846540c4624e832490115743e3df43307fb6e5a75"
 def headCode_0 : List (BitVec 32) := ((SigGolfCandidate.T3M.Images.signCode_8).drop 26).take 152
 def headCode : List (BitVec 32) := headCode_0
@@ -53,7 +53,7 @@ def coordCode8_1 : List (BitVec 32) := [(SigGolfCandidate.T3M.Images.signCode_39
 def coordCode8_2 : List (BitVec 32) := [(SigGolfCandidate.T3M.Images.signCode_40).drop 223,(SigGolfCandidate.T3M.Images.signCode_41).take 223].flatten
 def coordCode8_3 : List (BitVec 32) := [(SigGolfCandidate.T3M.Images.signCode_41).drop 223,(SigGolfCandidate.T3M.Images.signCode_42).take 166].flatten
 def coordCode8 : List (BitVec 32) := coordCode8_0 ++ coordCode8_1 ++ coordCode8_2 ++ coordCode8_3
-def tailCode_0 : List (BitVec 32) := ((SigGolfCandidate.T3M.Images.signCode_42).drop 166).take 29
+def tailCode_0 : List (BitVec 32) := (SigGolfCandidate.T3M.Images.signCode_42).drop 166
 def tailCode : List (BitVec 32) := tailCode_0
 def fieldIdx : List Nat := [2226,3185,4151,5118,6085,7051,8018,8985,9951]
 def coordCodes : List (List (BitVec 32)) := [coordCode0, coordCode1, coordCode2, coordCode3, coordCode4, coordCode5, coordCode6, coordCode7, coordCode8]

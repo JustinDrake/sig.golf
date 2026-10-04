@@ -1,5 +1,6 @@
 import SigGolfCandidate.T3.Secc.WotsReference
 import SigGolfCandidate.T3.Secc.WotsExtractVerify
+
 namespace SigGolfCandidate.T3.Security.Wots.Ref
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -125,7 +126,7 @@ theorem forestPk_respects (index : Nat) (roots : List Digest) (hlen : roots.leng
   apply short_of_le
   simp only [List.length_append, bytesLE_length, digest_list_bytes_length, List.length_drop]
   omega
-theorem counterSearch_respects (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
+theorem counterSearch_respects (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
     ShortRespects (counterSearch lay tree leaf message counter fuel) := by
   induction fuel generalizing counter with
   | zero => exact ShortRespects.pure' _
@@ -168,9 +169,6 @@ theorem builtTree_short (lay : Layer) (tree : Nat) : builtTree A lay tree = buil
 theorem honestRoot_short (lay : Layer) (tree : Nat) : Extract.honestRoot A lay tree = Extract.honestRoot T lay tree := by
   unfold Extract.honestRoot
   rw [builtTree_short hAT]
-theorem honestPair_short (lay : Layer) (tree : Nat) : Extract.honestPair A lay tree = Extract.honestPair T lay tree := by
-  unfold Extract.honestPair
-  rw [builtTree_short hAT]
 theorem buildFts_short (index coord : Nat) :
     evalWithAnswerFn A (buildFts index coord) = evalWithAnswerFn T (buildFts index coord) :=
   buildFts_respects index coord A T hAT
@@ -207,8 +205,8 @@ theorem honInputL_short (index coord : Nat) (secret : Nat → Digest) (level nod
 theorem leafMsg_short (L : LeafAddr) : leafMsg A L = leafMsg T L := by
   unfold leafMsg
   split_ifs
-  · exact honestPair_short hAT _ _
-  · rw [honestForest_short hAT _]
+  · exact honestRoot_short hAT _ _
+  · exact honestForest_short hAT _
 theorem referenceSearch_short (L : LeafAddr) : referenceSearch A L = referenceSearch T L := by
   unfold referenceSearch
   rw [leafMsg_short hAT]

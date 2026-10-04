@@ -1,5 +1,6 @@
 import SigGolfCandidate.T3M.Witness.VerifyP
 import SigGolfCandidate.T3M.Witness.Schedule
+
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SphincsSecurity (bytesLE)
@@ -7,7 +8,7 @@ def expandN (message : Message) (pk : Digest) (sig : Signature) : M (Option (Has
   let some (counter, output) ← digestSearch sig.rho message 0 attemptLimit | pure none
   let index := output.toNat % 2 ^ 31
   let some root ← recoverFts sig index (selections output) | pure none
-  let some (root, counters) ← expandLayers sig index 4 (root, 0, 0) | pure none
+  let some (root, counters) ← expandLayers sig index 4 root | pure none
   if root ≠ pk then return none
   pure (some (output, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩))
 def zeros (n : Nat) : List UInt8 := List.replicate n 0
@@ -22,14 +23,14 @@ def segBytes (chosen : List Selection) (proof : Fin 115 → Digest) (seg : Segme
   [UInt8.ofNat seg.byte0] ++ zeros 7 ++ (List.range seg.a).flatMap fun r =>
     foldBytes (seg.heap r) (proof ⟨foldSlot chosen seg r % 115, Nat.mod_lt _ (by decide)⟩)
 def streamBytes (chosen : List Selection) (proof : Fin 115 → Digest) : List UInt8 :=
-  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 10200).take 10200
+  (((schedule chosen).flatMap (segBytes chosen proof)) ++ zeros 9480).take 9480
 def layerBytes (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
   (List.finRange (height lay)).reverse.flatMap (fun j =>
       if leaf / 2 ^ j.val % 2 = 1 then bytesLE 16 (ls.path j) ++ zeros 48
       else zeros 48 ++ bytesLE 16 (ls.path j)) ++
     (List.finRange (chainCount lay)).reverse.flatMap (fun i => zeros 48 ++ bytesLE 16 (ls.values i))
 def layerStorage (lay : Layer) (leaf : Nat) (ls : LayerSignature lay) : List UInt8 :=
-  layerBytes lay leaf ls ++ zeros (if lay = 0 then 256 else 0)
+  layerBytes lay leaf ls
 def witList (N : HashOutput) (w : Witness) : List UInt8 :=
   headerBytes w ++ leafBytes w.signature ++ streamBytes (selections N) w.signature.proof ++
     (List.finRange 4).flatMap fun lay =>

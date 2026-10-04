@@ -161,7 +161,7 @@ theorem rank_val (output : HashOutput) (coord : Coord) :
     (rank output coord).val = field output coord % 728 := rfl
 theorem admissible_iff (output : HashOutput) :
     admissible output = true ↔
-      output.toNat / 2 ^ 31 % 2 ^ 12 = 0 ∧ ∀ coord : Coord, field output coord < 16016 := by
+      output.toNat / 2 ^ 234 % 2 ^ 14 < 5 ∧ ∀ coord : Coord, field output coord < 16016 := by
   unfold admissible field
   simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range]
   constructor
@@ -203,7 +203,7 @@ def digestLayout : List (Nat × Nat) :=
   [(0, 31), (31, 12),
    (43, 7), (50, 14), (64, 7), (71, 14), (85, 7), (92, 14), (106, 7), (113, 14), (127, 1),
    (128, 7), (135, 14), (149, 7), (156, 14), (170, 7), (177, 14), (191, 1),
-   (192, 7), (199, 14), (213, 7), (220, 14), (234, 22)]
+   (192, 7), (199, 14), (213, 7), (220, 14), (234, 14), (248, 8)]
 theorem coordBase_values :
     List.ofFn (fun k : Coord => coordBase k.val) = [43, 64, 85, 106, 128, 149, 170, 192, 213] := by
   decide

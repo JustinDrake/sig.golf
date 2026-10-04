@@ -1,4 +1,6 @@
-import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.PlaceDefs
+import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.Defs
+import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.Base
+import SigGolfCandidate.T3M.Verify.Post
 import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.DrvBits
 import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.SearchCode
 import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.Region
@@ -6,10 +8,156 @@ import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Expand.Fts
 
 section
 
+
+
+namespace ClaudeWCT.W9.Machine.Expand
+open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
+open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
+def cMem : List (Nat × Option Nat) → SymMem
+  | [] => []
+  | (d, some a) :: L => (⟨none, BitVec.ofNat 64 d⟩, .ld (.c (BitVec.ofNat 64 a))) :: cMem L
+  | (d, none) :: L => (⟨none, BitVec.ofNat 64 d⟩, .c 0) :: cMem L
+def lookW : List (Nat × Option Nat) → Nat → Option (Option Nat)
+  | [], _ => none
+  | (d, a) :: L, A => if d = A then some a else lookW L A
+def effMem (s : MachineState) (L : List (Nat × Option Nat)) (A : Nat) : Word :=
+  match lookW L A with
+  | none => s.getMem (BitVec.ofNat 64 A)
+  | some none => 0
+  | some (some a) => s.getMem (BitVec.ofNat 64 a)
+theorem lookW_cons (d : Nat) (a : Option Nat) (L : List (Nat × Option Nat)) (A : Nat) :
+    lookW ((d, a) :: L) A = if d = A then some a else lookW L A := rfl
+theorem memEval_cMem (s : MachineState) :
+    ∀ (L : List (Nat × Option Nat)), (L.all fun p => decide (p.1 < 2 ^ 64)) = true →
+      ∀ A, A < 2 ^ 64 → memEval s (cMem L) (BitVec.ofNat 64 A) = effMem s L A
+  | [], _, A, _ => rfl
+  | (d, a) :: L, hL, A, hA => by
+    simp only [List.all_cons, Bool.and_eq_true, decide_eq_true_eq] at hL
+    have ih := memEval_cMem s L hL.2 A hA
+    rcases a with _ | a
+    · simp only [cMem]
+      rw [memEval_cons_ofNat s d A _ _ hA hL.1, ih]
+      by_cases h : A = d
+      · subst h; simp [effMem, lookW_cons, E.eval]
+      · rw [if_neg h]; unfold effMem; rw [lookW_cons, if_neg (Ne.symm h)]
+    · simp only [cMem]
+      rw [memEval_cons_ofNat s d A _ _ hA hL.1, ih]
+      by_cases h : A = d
+      · subst h; simp [effMem, lookW_cons, E.eval]
+      · rw [if_neg h]; unfold effMem; rw [lookW_cons, if_neg (Ne.symm h)]
+theorem effMem_none {s : MachineState} {L : List (Nat × Option Nat)} {A : Nat} (h : lookW L A = none) :
+    effMem s L A = s.getMem (BitVec.ofNat 64 A) := by
+  unfold effMem; rw [h]
+theorem effMem_some {s : MachineState} {L : List (Nat × Option Nat)} {A a : Nat} (h : lookW L A = some (some a)) :
+    effMem s L A = s.getMem (BitVec.ofNat 64 a) := by
+  unfold effMem; rw [h]
+theorem effMem_zero {s : MachineState} {L : List (Nat × Option Nat)} {A : Nat} (h : lookW L A = some none) :
+    effMem s L A = 0 := by
+  unfold effMem; rw [h]
+theorem lookW_none_of {L : List (Nat × Option Nat)} {A : Nat} (h : ∀ p ∈ L, p.1 ≠ A) : lookW L A = none := by
+  induction L with
+  | nil => rfl
+  | cons p L ih =>
+    obtain ⟨d, a⟩ := p
+    simp only [lookW]
+    rw [if_neg (h _ (List.mem_cons_self ..)), ih (fun q hq => h q (List.mem_cons_of_mem _ hq))]
+def pcfg : Config := {}
+def allRegs : List Reg :=
+  [.x1, .x2, .x3, .x4, .x5, .x6, .x7, .x8, .x9, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17, .x18, .x19,
+    .x20, .x21, .x22, .x23, .x24, .x25, .x26, .x27, .x28, .x29, .x30, .x31]
+theorem mem_allRegs (x : Reg) (h : x ≠ .x0) : x ∈ allRegs := by
+  cases x <;> simp_all [allRegs]
+def runB (r : PRes) (stop : Nat) (L : List (Nat × Option Nat)) (chg : List Reg) : Bool :=
+  listBeq pairBeq r.st.mem (cMem L) && r.st.obl.isEmpty && !r.ecall && r.spc.isNone &&
+    r.pc.toNat == (pcOf stop).toNat && keepB (allRegs.filter fun x => !chg.contains x) r &&
+    (L.all fun p => decide (p.1 < 2 ^ 64))
+def regIsB (r : PRes) (x : Reg) (v : Word) : Bool := E.beq (r.st.regs.get x) (.c v)
+theorem regIsB_ok {r : PRes} {x : Reg} {v : Word} (h : regIsB r x v = true) (s : MachineState) :
+    (r.toState s).getReg x = v := by
+  rw [PRes.toState_getReg, E.beq_eq h]; rfl
+theorem getReg_x0_eq (s t : MachineState) : t.getReg .x0 = s.getReg .x0 := by
+  simp [MachineState.getReg]
+theorem runB_spec {im : Image} (hc : NewCodeAt im) {stops : List Word} {fuel P : Nat} {dirs : List Dir}
+    {known : List (Reg × Word)} {r : PRes} {stop : Nat} {L : List (Nat × Option Nat)} {chg : List Reg}
+    (h : pathAux pcfg expLook stops fuel (pcOf P) dirs (σK known) [] = some r) (hb : runB r stop L chg = true)
+    (s : MachineState) (hpc : s.pc = pcOf P) (hk : ∀ p ∈ known, s.getReg p.1 = p.2)
+    (hbr : ∀ b ∈ r.brs, b.holds s) :
+    Steps im s r.steps r.cycles (r.toState s) ∧ (r.toState s).pc = pcOf stop ∧
+      RegsExcept s (r.toState s) chg ∧
+      (∀ A, A < 2 ^ 64 → (r.toState s).getMem (BitVec.ofNat 64 A) = effMem s L A) := by
+  simp only [runB, Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_iff, Option.isNone_iff_eq_none,
+    beq_iff_eq] at hb
+  obtain ⟨⟨⟨⟨⟨⟨hm, ho⟩, -⟩, hspc⟩, hpcr⟩, hkeep⟩, hL⟩ := hb
+  obtain ⟨h1, -⟩ := pathRun_sound h (expLook_ok hc) s hpc hk (by rw [ho]; simp) hbr
+  refine ⟨h1, ?_, ?_, ?_⟩
+  · rw [PRes.toState_pc r s hspc]; exact BitVec.eq_of_toNat_eq hpcr
+  · intro x hx
+    by_cases h0 : x = .x0
+    · subst h0; exact getReg_x0_eq _ _
+    · exact keepB_ok hkeep s x (List.mem_filter.mpr ⟨mem_allRegs x h0, by simpa using hx⟩)
+  · intro A hA
+    rw [PRes.toState_getMem, listBeq_eq (fun _ _ => pairBeq_eq) hm]
+    exact memEval_cMem s L hL A hA
+theorem check_some {o : Option PRes} {f : PRes → Bool}
+    (h : (match o with | some r => f r | none => false) = true) : ∃ r, o = some r ∧ f r = true := by
+  cases o with
+  | none => simp at h
+  | some r => exact ⟨r, rfl, h⟩
+def fW (c : Nat) : Nat := WCT9.coordBase c / 64
+def fSh (c : Nat) : Nat := WCT9.coordBase c % 64
+def fLen (c : Nat) : Nat := if fSh c = 0 then 8 else 9
+def cOff : Nat → Nat
+  | 0 => 0
+  | c + 1 => cOff c + fLen c + 182
+def lOff (c l : Nat) : Nat := cOff c + fLen c + 98 + 12 * l
+def sigBlk (c : Nat) : Nat := 0x7010 + 224 * c
+def fcWrites (c : Nat) : List (Nat × Option Nat) :=
+  (List.range 7).flatMap fun t =>
+    [(regBase c + 880 - 64 * t, some (sigBlk c + 16 * t)), (regBase c + 880 - 64 * t + 8, some (sigBlk c + 16 * t + 8)),
+      (regBase c + (if t = 0 then 880 else 896 + 16 * t), some (sigBlk c + 16 * t)),
+      (regBase c + (if t = 0 then 880 else 896 + 16 * t) + 8, some (sigBlk c + 16 * t + 8))]
+def pushW (L : List (Nat × Option Nat)) (p : Nat × Option Nat) : List (Nat × Option Nat) :=
+  p :: L.filter fun q => q.1 != p.1
+def fcList (c : Nat) : List (Nat × Option Nat) := (fcWrites c).foldl pushW []
+def sibOff (l : Nat) (d : Bool) : Nat := 64 * (6 - l) + (if d then 0 else 48)
+def levList (c l : Nat) (d : Bool) : List (Nat × Option Nat) :=
+  [(regBase c + sibOff l d + 8, some (sigBlk c + 112 + 16 * l + 8)), (regBase c + sibOff l d, some (sigBlk c + 112 + 16 * l))]
+def childE (c : Nat) : E :=
+  if fSh c = 0 then .bin .and (.ld (.c (BitVec.ofNat 64 (0x20160 + 8 * fW c)))) (.c 127)
+  else .bin .and (.bin .srl (.ld (.c (BitVec.ofNat 64 (0x20160 + 8 * fW c)))) (.c (BitVec.ofNat 64 (fSh c)))) (.c 127)
+def bitE (l : Nat) : E := .bin .and (.bin .srl (.reg .x24) (.c (BitVec.ofNat 64 l))) (.c 1)
+def fcCheck (P c : Nat) : Bool :=
+  match pathAux pcfg expLook [pcOf (P + lOff c 0)] 300 (pcOf (P + cOff c)) [] (σK []) [] with
+  | some r => runB r (P + lOff c 0) (fcList c) [.x6, .x7, .x24, .x25, .x28, .x29] &&
+      E.beq (r.st.regs.get .x24) (childE c) && r.brs.isEmpty && decide (r.cycles ≤ 120)
+  | none => false
+def levCheck (P c l : Nat) (d : Bool) : Bool :=
+  match pathAux pcfg expLook [pcOf (P + lOff c l + 12)] 30 (pcOf (P + lOff c l)) [.br d] (σK []) [] with
+  | some r => runB r (P + lOff c l + 12) (levList c l d) [.x6, .x7, .x28, .x29] &&
+      listBeq Br.beq r.brs [⟨.ne, bitE l, .c 0, d⟩] && decide (r.cycles ≤ 12)
+  | none => false
+def placeOK (P : Nat) : Bool :=
+  (List.range 9).all fun c => fcCheck P c && (List.range 7).all fun l => levCheck P c l true && levCheck P c l false
+def wSrc (j i : Nat) : Option Nat :=
+  if i / 2 < 28 then
+    if (j / 2 ^ (6 - i / 8) % 2 = 1 ∧ i / 2 % 4 = 0) ∨ (j / 2 ^ (6 - i / 8) % 2 = 0 ∧ i / 2 % 4 = 3) then
+      some (112 + 16 * (6 - i / 8) + 8 * (i % 2))
+    else none
+  else if i / 2 < 52 then
+    if (i / 2 - 28) % 4 = 3 then some (16 * (6 - (i / 2 - 28) / 4) + 8 * (i % 2)) else none
+  else if i / 2 = 55 then some (8 * (i % 2))
+  else if 57 ≤ i / 2 ∧ i / 2 < 63 then some (16 * (i / 2 - 56) + 8 * (i % 2))
+  else none
+def plSt (j L i : Nat) : Option Nat := if 56 ≤ i ∨ 6 - i / 8 < L then wSrc j i else none
+end ClaudeWCT.W9.Machine.Expand
+end
+
+section
+
 namespace ClaudeWCT.W9.Machine.Expand
 set_option maxRecDepth 100000
-theorem placeOK_init : placeOK 1402 = true := by decide +kernel
-theorem placeOK_rest : placeOK 39966 = true := by decide +kernel
+theorem placeOK_init : placeOK 1435 = true := by decide +kernel
+theorem placeOK_rest : placeOK 39999 = true := by decide +kernel
 theorem cOff_nine : cOff 9 = 1716 := by decide +kernel
 def fcLookB : Bool :=
   (List.range 9).all fun c =>
@@ -359,38 +507,38 @@ def srchdM : SymMem :=
   cMem [(120, some 131448), (112, some 131440), (104, some 131432), (96, some 131424)] ++
     [(⟨none, BitVec.ofNat 64 2064⟩, .bin (.st .w 0) (.ld (.c (BitVec.ofNat 64 2064))) (.reg .x19))]
 def srchdCheck : Bool :=
-  optCheck (pathAux pcfg expLook [pcOf 1402] 30 (pcOf 1388) [] (σK []) []) fun r =>
-    runM r 1402 srchdM [.x6, .x7, .x28, .x29] && r.brs.isEmpty && decide (r.cycles ≤ 14)
+  optCheck (pathAux pcfg expLook [pcOf 1435] 30 (pcOf 1421) [] (σK []) []) fun r =>
+    runM r 1435 srchdM [.x6, .x7, .x28, .x29] && r.brs.isEmpty && decide (r.cycles ≤ 14)
 def mvA (k : Nat) : Nat := 0x8540 - 16 * k
 def mvB (k : Nat) : Nat := 0x85e0 - 16 * k
 def mvInitCheck : Bool :=
-  optCheck (pathAux pcfg expLook [pcOf 3124] 10 (pcOf 3118) [] (σK []) []) fun r =>
-    runB r 3124 [] [.x28, .x29, .x30] && regIsB r .x28 (BitVec.ofNat 64 (mvA 0)) &&
+  optCheck (pathAux pcfg expLook [pcOf 3157] 10 (pcOf 3151) [] (σK []) []) fun r =>
+    runB r 3157 [] [.x28, .x29, .x30] && regIsB r .x28 (BitVec.ofNat 64 (mvA 0)) &&
       regIsB r .x29 (BitVec.ofNat 64 (mvB 0)) && regIsB r .x30 (BitVec.ofNat 64 0x77f0) && r.brs.isEmpty &&
       decide (r.cycles ≤ 6)
 def mvCheck (k : Nat) : Bool :=
-  optCheck (pathAux pcfg expLook [pcOf 3124, pcOf 3131] 20 (pcOf 3124) []
+  optCheck (pathAux pcfg expLook [pcOf 3157, pcOf 3164] 20 (pcOf 3157) []
       (σK [(.x28, BitVec.ofNat 64 (mvA k)), (.x29, BitVec.ofNat 64 (mvB k)), (.x30, BitVec.ofNat 64 0x77f0)]) []) fun r =>
-    runB r (if k < 213 then 3124 else 3131) [(mvB k + 8, some (mvA k + 8)), (mvB k, some (mvA k))]
+    runB r (if k < 213 then 3157 else 3164) [(mvB k + 8, some (mvA k + 8)), (mvB k, some (mvA k))]
       [.x6, .x7, .x28, .x29, .x30] && regIsB r .x28 (BitVec.ofNat 64 (mvA (k + 1))) &&
       regIsB r .x29 (BitVec.ofNat 64 (mvB (k + 1))) && regIsB r .x30 (BitVec.ofNat 64 0x77f0) && r.brs.isEmpty &&
       decide (r.cycles ≤ 7)
 def mvOK : Bool := (List.range 214).all mvCheck
 def sufCheck : Bool :=
-  optCheck (pathAux pcfg expLook [pcOf 39963] 20 (pcOf 39952) [] (σK []) []) fun r =>
-    runB r 39963 [(0x20260 + 8, some 264), (0x20260, some 256)] [.x6, .x7, .x28, .x29] &&
-      regIsB r .x28 (BitVec.ofNat 64 0x840) && regIsB r .x29 (BitVec.ofNat 64 0x3418) && r.brs.isEmpty &&
+  optCheck (pathAux pcfg expLook [pcOf 39996] 20 (pcOf 39985) [] (σK []) []) fun r =>
+    runB r 39996 [(0x20260 + 8, some 264), (0x20260, some 256)] [.x6, .x7, .x28, .x29] &&
+      regIsB r .x28 (BitVec.ofNat 64 0x840) && regIsB r .x29 (BitVec.ofNat 64 0x3148) && r.brs.isEmpty &&
       decide (r.cycles ≤ 11)
 def clA (k : Nat) : Nat := 0x840 + 8 * k
 def clCheck (k : Nat) : Bool :=
-  optCheck (pathAux pcfg expLook [pcOf 39963, pcOf 39966] 10 (pcOf 39963) []
-      (σK [(.x28, BitVec.ofNat 64 (clA k)), (.x29, BitVec.ofNat 64 0x3418)]) []) fun r =>
-    runB r (if k < 1402 then 39963 else 39966) [(clA k, none)] [.x28, .x29] &&
-      regIsB r .x28 (BitVec.ofNat 64 (clA (k + 1))) && regIsB r .x29 (BitVec.ofNat 64 0x3418) && r.brs.isEmpty &&
+  optCheck (pathAux pcfg expLook [pcOf 39996, pcOf 39999] 10 (pcOf 39996) []
+      (σK [(.x28, BitVec.ofNat 64 (clA k)), (.x29, BitVec.ofNat 64 0x3148)]) []) fun r =>
+    runB r (if k < 1312 then 39996 else 39999) [(clA k, none)] [.x28, .x29] &&
+      regIsB r .x28 (BitVec.ofNat 64 (clA (k + 1))) && regIsB r .x29 (BitVec.ofNat 64 0x3148) && r.brs.isEmpty &&
       decide (r.cycles ≤ 3)
-def clOK : Bool := (List.range 1403).all clCheck
+def clOK : Bool := (List.range 1313).all clCheck
 def finCheck : Bool :=
-  optCheck (pathAux pcfg expLook [pcOf 249] 10 (pcOf 41682) [] (σK []) []) fun r =>
+  optCheck (pathAux pcfg expLook [pcOf 249] 10 (pcOf 41715) [] (σK []) []) fun r =>
     runB r 249 [] [.x2] && regIsB r .x2 (BitVec.ofNat 64 0x22000) && r.brs.isEmpty && decide (r.cycles ≤ 3)
 end ClaudeWCT.W9.Machine.Expand
 end
@@ -406,7 +554,7 @@ theorem mvOK_ok : mvOK = true := by decide +kernel
 theorem sufCheck_ok : sufCheck = true := by decide +kernel
 theorem clOK_ok : clOK = true := by decide +kernel
 theorem finCheck_ok : finCheck = true := by decide +kernel
-theorem searchWindow : windowOK 1247 SearchCode.code = true := by decide +kernel
+theorem searchWindow : windowOK 1280 SearchCode.code = true := by decide +kernel
 end ClaudeWCT.W9.Machine.Expand
 end
 
@@ -425,9 +573,9 @@ theorem frame_of_eff {s t : MachineState} {L : List (Nat × Option Nat)}
   intro A hA hn
   rw [h A hA]
   exact effMem_none (lookW_none_of fun p hp he => hn (he ▸ hW p hp))
-theorem srchd_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 1388) {N : HashOutput}
+theorem srchd_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 1421) {N : HashOutput}
     (hN : OutAt s NBUF N) {counter : BitVec 32} (h19 : s.getReg .x19 = BitVec.ofNat 64 counter.toNat) :
-    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 14 ∧ t.pc = pcOf 1402 ∧ RegsExcept s t [.x6, .x7, .x28, .x29] ∧
+    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 14 ∧ t.pc = pcOf 1435 ∧ RegsExcept s t [.x6, .x7, .x28, .x29] ∧
       OutAt t 0x60 N ∧ (t.getMem (BitVec.ofNat 64 0x810)).extractLsb' 0 32 = counter ∧
       Frame s t (fun A => (0x60 ≤ A ∧ A < 0x80) ∨ A = 0x810) := by
   obtain ⟨r, hr, hb⟩ := optCheck_some srchdCheck_ok
@@ -471,8 +619,8 @@ theorem srchd_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.
     rw [if_neg (fun h => hn (Or.inl (by omega))), if_neg (fun h => hn (Or.inl (by omega))),
       if_neg (fun h => hn (Or.inl (by omega))), if_neg (fun h => hn (Or.inl (by omega))),
       if_neg (fun h => hn (Or.inr (by omega)))]
-theorem mvInit_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 3118) :
-    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 6 ∧ t.pc = pcOf 3124 ∧ t.getReg .x28 = BitVec.ofNat 64 (mvA 0) ∧
+theorem mvInit_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 3151) :
+    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 6 ∧ t.pc = pcOf 3157 ∧ t.getReg .x28 = BitVec.ofNat 64 (mvA 0) ∧
       t.getReg .x29 = BitVec.ofNat 64 (mvB 0) ∧ t.getReg .x30 = BitVec.ofNat 64 0x77f0 ∧
       RegsExcept s t [.x28, .x29, .x30] ∧ Frame s t (fun _ => False) := by
   obtain ⟨r, hr, hb⟩ := optCheck_some mvInitCheck_ok
@@ -482,7 +630,7 @@ theorem mvInit_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s
   exact ⟨_, _, _, st, hcy, p, regIsB_ok h28 s, regIsB_ok h29 s, regIsB_ok h30 s, rg,
     frame_of_eff mm _ (by simp)⟩
 structure MvInv (s0 : MachineState) (k : Nat) (t : MachineState) : Prop where
-  pc : t.pc = pcOf (if k < 214 then 3124 else 3131)
+  pc : t.pc = pcOf (if k < 214 then 3157 else 3164)
   x28 : t.getReg .x28 = BitVec.ofNat 64 (mvA k)
   x29 : t.getReg .x29 = BitVec.ofNat 64 (mvB k)
   x30 : t.getReg .x30 = BitVec.ofNat 64 0x77f0
@@ -495,7 +643,7 @@ theorem mv_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (
   obtain ⟨r, hr, hb⟩ := optCheck_some (List.all_eq_true.mp mvOK_ok k (List.mem_range.mpr hk))
   simp only [Bool.and_eq_true, List.isEmpty_iff, decide_eq_true_eq] at hb
   obtain ⟨⟨⟨⟨⟨hrun, h28⟩, h29⟩, h30⟩, hbr⟩, hcy⟩ := hb
-  have hpc : t.pc = pcOf 3124 := by rw [hI.pc, if_pos hk]
+  have hpc : t.pc = pcOf 3157 := by rw [hI.pc, if_pos hk]
   obtain ⟨st, p, rg, mm⟩ := runB_spec hc hr hrun t hpc (by
     intro q hq
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hq
@@ -535,8 +683,8 @@ theorem mv_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (
     refine (hI.frame.trans F).mono (fun A _ h => ?_)
     rw [h1]
     rcases h with h | h <;> constructor <;> omega
-theorem mv_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 3118) :
-    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 6 + 214 * 7 ∧ t.pc = pcOf 3131 ∧ RegsExcept s t [.x6, .x7, .x28, .x29, .x30] ∧
+theorem mv_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 3151) :
+    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 6 + 214 * 7 ∧ t.pc = pcOf 3164 ∧ RegsExcept s t [.x6, .x7, .x28, .x29, .x30] ∧
       (∀ i, i < 214 → t.getMem (BitVec.ofNat 64 (mvB i)) = s.getMem (BitVec.ofNat 64 (mvA i)) ∧
         t.getMem (BitVec.ofNat 64 (mvB i + 8)) = s.getMem (BitVec.ofNat 64 (mvA i + 8))) ∧
       Frame s t (fun A => 0x7890 ≤ A ∧ A < 0x85f0) := by
@@ -564,9 +712,9 @@ theorem mv_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc 
     rcases h with h | h
     · exact h.elim
     · unfold mvB at h; constructor <;> omega
-theorem suf_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 39952) :
-    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 11 ∧ t.pc = pcOf 39963 ∧ t.getReg .x28 = BitVec.ofNat 64 (clA 0) ∧
-      t.getReg .x29 = BitVec.ofNat 64 0x3418 ∧ RegsExcept s t [.x6, .x7, .x28, .x29] ∧
+theorem suf_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 39985) :
+    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 11 ∧ t.pc = pcOf 39996 ∧ t.getReg .x28 = BitVec.ofNat 64 (clA 0) ∧
+      t.getReg .x29 = BitVec.ofNat 64 0x3148 ∧ RegsExcept s t [.x6, .x7, .x28, .x29] ∧
       t.getMem (BitVec.ofNat 64 0x20260) = s.getMem (BitVec.ofNat 64 0x100) ∧
       t.getMem (BitVec.ofNat 64 (0x20260 + 8)) = s.getMem (BitVec.ofNat 64 0x108) ∧
       Frame s t (fun A => A = 0x20260 ∨ A = 0x20260 + 8) := by
@@ -584,18 +732,18 @@ theorem suf_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc
       · right; rfl
       · left; rfl)
 structure ClInv (s0 : MachineState) (k : Nat) (t : MachineState) : Prop where
-  pc : t.pc = pcOf (if k < 1403 then 39963 else 39966)
+  pc : t.pc = pcOf (if k < 1313 then 39996 else 39999)
   x28 : t.getReg .x28 = BitVec.ofNat 64 (clA k)
-  x29 : t.getReg .x29 = BitVec.ofNat 64 0x3418
+  x29 : t.getReg .x29 = BitVec.ofNat 64 0x3148
   regs : RegsExcept s0 t [.x28, .x29]
   mem : ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
     if 0x840 ≤ A ∧ A < clA k ∧ A % 8 = 0 then 0 else s0.getMem (BitVec.ofNat 64 A)
-theorem cl_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (hk : k < 1403) (t : MachineState)
+theorem cl_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (hk : k < 1313) (t : MachineState)
     (hI : ClInv s0 k t) : ∃ u n cy, Steps im t n cy u ∧ cy ≤ 3 ∧ ClInv s0 (k + 1) u := by
   obtain ⟨r, hr, hb⟩ := optCheck_some (List.all_eq_true.mp clOK_ok k (List.mem_range.mpr hk))
   simp only [Bool.and_eq_true, List.isEmpty_iff, decide_eq_true_eq] at hb
   obtain ⟨⟨⟨⟨hrun, h28⟩, h29⟩, hbr⟩, hcy⟩ := hb
-  have hpc : t.pc = pcOf 39963 := by rw [hI.pc, if_pos hk]
+  have hpc : t.pc = pcOf 39996 := by rw [hI.pc, if_pos hk]
   obtain ⟨st, p, rg, mm⟩ := runB_spec hc hr hrun t hpc (by
     intro q hq
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hq
@@ -619,14 +767,14 @@ theorem cl_step {im : Image} (hc : NewCodeAt im) {s0 : MachineState} (k : Nat) (
       by_cases h1 : 0x840 ≤ A ∧ A < 0x840 + 8 * k ∧ A % 8 = 0
       · rw [if_pos h1, if_pos ⟨h1.1, by omega, h1.2.2⟩]
       · rw [if_neg h1, if_neg (fun h2 => h1 ⟨h2.1, by omega, h2.2.2⟩)]
-theorem cl_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 39963)
-    (h28 : s.getReg .x28 = BitVec.ofNat 64 (clA 0)) (h29 : s.getReg .x29 = BitVec.ofNat 64 0x3418) :
-    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 3 * 1403 ∧ t.pc = pcOf 39966 ∧ RegsExcept s t [.x28, .x29] ∧
+theorem cl_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 39996)
+    (h28 : s.getReg .x28 = BitVec.ofNat 64 (clA 0)) (h29 : s.getReg .x29 = BitVec.ofNat 64 0x3148) :
+    ∃ t k cy, Steps im s k cy t ∧ cy ≤ 3 * 1313 ∧ t.pc = pcOf 39999 ∧ RegsExcept s t [.x28, .x29] ∧
       ∀ A, A < 2 ^ 64 → t.getMem (BitVec.ofNat 64 A) =
-        if 0x840 ≤ A ∧ A < 0x3418 ∧ A % 8 = 0 then 0 else s.getMem (BitVec.ofNat 64 A) := by
+        if 0x840 ≤ A ∧ A < 0x3148 ∧ A % 8 = 0 then 0 else s.getMem (BitVec.ofNat 64 A) := by
   have I0 : ClInv s 0 s := ⟨by rw [hpc]; rfl, h28, h29, RegsExcept.refl _ _, fun A _ => by
     rw [if_neg (fun h => by unfold clA at h; omega)]⟩
-  have gen : ∀ k, k ≤ 1403 → ∃ u n cy, Steps im s n cy u ∧ cy ≤ 3 * k ∧ ClInv s k u := by
+  have gen : ∀ k, k ≤ 1313 → ∃ u n cy, Steps im s n cy u ∧ cy ≤ 3 * k ∧ ClInv s k u := by
     intro k
     induction k with
     | zero => intro _; exact ⟨s, 0, 0, Steps.refl _, le_refl _, I0⟩
@@ -635,9 +783,9 @@ theorem cl_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc 
       obtain ⟨u, n, cy, su, hcy, hu⟩ := ih (by omega)
       obtain ⟨v, n', cy', sv, hcy', hv⟩ := cl_step hc k (by omega) u hu
       exact ⟨v, _, _, su.trans sv, by rw [Nat.mul_succ]; omega, hv⟩
-  obtain ⟨u, n, cy, su, hcy, hu⟩ := gen 1403 le_rfl
+  obtain ⟨u, n, cy, su, hcy, hu⟩ := gen 1313 le_rfl
   exact ⟨u, n, cy, su, hcy, by rw [hu.pc]; rfl, hu.regs, fun A hA => by rw [hu.mem A hA]; rfl⟩
-theorem fin_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 41682) :
+theorem fin_spec {im : Image} (hc : NewCodeAt im) (s : MachineState) (hpc : s.pc = pcOf 41715) :
     ∃ t k cy, Steps im s k cy t ∧ cy ≤ 3 ∧ t.pc = pcOf 249 ∧ t.getReg .x2 = BitVec.ofNat 64 0x22000 ∧
       RegsExcept s t [.x2] ∧ Frame s t (fun _ => False) := by
   obtain ⟨r, hr, hb⟩ := optCheck_some finCheck_ok
@@ -839,20 +987,20 @@ theorem hdrBank_frame {s t : MachineState} {W : Nat → Prop} (h : HdrBankOK s) 
   · rw [g _ (by omega) (by unfold HB0; omega)]; exact h1 t' st ht hst
   · rw [g _ (by omega) (by unfold HB0; omega)]; exact h2
   · rw [g _ (by omega) (by unfold HB0; omega)]; exact h3
-theorem searchAt_new {im : Image} (hc : NewCodeAt im) : SearchAt im 1247 :=
+theorem searchAt_new {im : Image} (hc : NewCodeAt im) : SearchAt im 1280 :=
   codeAt_of_window hc (by decide +kernel) searchWindow
 theorem hook_step {im : Image} (hh : HookAt im) (s : MachineState) (hpc : s.pc = pcOf 30) :
-    Steps im s 1 1 (s.setPC (pcOf 1247)) := by
-  obtain ⟨imm, hd, hoff⟩ := jalTo_sound (show jalTo hookWord 30 = some 1247 by decide)
+    Steps im s 1 1 (s.setPC (pcOf 1280)) := by
+  obtain ⟨imm, hd, hoff⟩ := jalTo_sound (show jalTo hookWord 30 = some 1280 by decide)
   exact jal_x0_step hh hd hoff s hpc
 theorem newCost_split : 1 + (2 ^ 21 * 150 + 6 + 20000) ≤ newCost := by unfold newCost; norm_num
 theorem newCodeSpec_holds {im : Image} (hc : NewCodeAt im) (hh : HookAt im) : NewCodeSpec im := by
   intro sk m sig s hpre
   have s1 := hook_step hh s hpre.pc
-  set u1 := s.setPC (pcOf 1247) with hu1
+  set u1 := s.setPC (pcOf 1280) with hu1
   have g1 : ∀ A, u1.getMem A = s.getMem A := fun _ => rfl
   have r1 : ∀ x, u1.getReg x = s.getReg x := fun _ => rfl
-  have hS : SrchPre 1247 u1 sig.rho m :=
+  have hS : SrchPre 1280 u1 sig.rho m :=
     ⟨rfl, by rw [r1]; exact hpre.x5, by rw [r1]; exact hpre.x19, hpre.rho, hpre.msg⟩
   unfold newProg
   refine (TBSim.steps s1 (TBSim.bind (W₂ := 20000) (search_tbsim (sk := sk) (searchAt_new hc) hS)
@@ -878,7 +1026,7 @@ theorem newCodeSpec_holds {im : Image} (hc : NewCodeAt im) (hh : HookAt im) : Ne
       (by unfold regBase; omega) (by unfold regBase; omega) (by unfold regBase; omega)]
     exact hpre.zeroW _ (by unfold regBase; omega) (by unfold regBase; omega)
   obtain ⟨t4, k4, c4, st4, hc4, hI4⟩ := place_spec hc placeOK_init p3 nbuf3 hz3
-  have p4 : t4.pc = pcOf 3118 := by rw [hI4.pc, cOff_nine]
+  have p4 : t4.pc = pcOf 3151 := by rw [hI4.pc, cOff_nine]
   obtain ⟨t5, k5, c5, st5, hc5, p5, r5, mv5, f5⟩ := mv_spec hc t4 p4
   have x5_5 : t5.getReg .x5 = 0 := by
     rw [r5.get (by decide), hI4.regs.get (by decide), r3.get (by decide)]; exact x5_2
@@ -908,13 +1056,13 @@ theorem newCodeSpec_holds {im : Image} (hc : NewCodeAt im) (hh : HookAt im) : Ne
       · omega
       · unfold regBase at h; omega
       · omega
-  refine (TBSim.steps (st3.trans (st4.trans st5)) (TBSim.bind (W₂ := 11 + 3 * 1403 + 9 * 204 + 3)
+  refine (TBSim.steps (st3.trans (st4.trans st5)) (TBSim.bind (W₂ := 11 + 3 * 1313 + 9 * 204 + 3)
     (fts_tb hc hin p5 x5_5) (fun root t6 h6 => ?_))).mono
     (by unfold ftsCost coordCost; omega) (fun _ _ h => h)
   obtain ⟨p6, x5_6, root6, f6⟩ := h6
   obtain ⟨t7, k7, c7, st7, hc7, p7, x28_7, x29_7, r7, enc7lo, enc7hi, f7⟩ := suf_spec hc t6 p6
   obtain ⟨t8, k8, c8, st8, hc8, p8, r8, m8⟩ := cl_spec hc t7 p7 x28_7 x29_7
-  have g8 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x3418 ≤ A) → t8.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) :=
+  have g8 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x3148 ≤ A) → t8.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) :=
     fun A hA h => by rw [m8 A hA, if_neg (by omega)]
   have nF : ∀ A, (A < 0x840 ∨ 0x2c40 ≤ A) → (A < 0x700 ∨ 0x7c0 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → ¬ FtsW A := by
     intro A h1 h2 h3 h; unfold FtsW at h; omega
@@ -933,16 +1081,16 @@ theorem newCodeSpec_holds {im : Image} (hc : NewCodeAt im) (hh : HookAt im) : Ne
     intro k i hk hi
     rw [m8 _ (by unfold regBase; omega), if_pos (by unfold regBase; omega)]
   obtain ⟨t9, k9, c9, st9, hc9, hI9⟩ := place_spec hc placeOK_rest p8 nbuf8 hz8
-  have p9 : t9.pc = pcOf 41682 := by rw [hI9.pc, cOff_nine]
+  have p9 : t9.pc = pcOf 41715 := by rw [hI9.pc, cOff_nine]
   obtain ⟨t10, k10, c10, st10, hc10, p10, x2_10, r10, f10⟩ := fin_spec hc t9 p9
   refine (TBSim.steps (st7.trans (st8.trans (st9.trans st10))) (TBSim.pure (Q := NewPost sig s)
     (a := some (counter, N, root)) ?_)).mono (by omega) (fun _ _ h => h)
-  have g10 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x3418 ≤ A) →
+  have g10 : ∀ A, A < 2 ^ 64 → (A < 0x840 ∨ 0x3148 ≤ A) →
       t10.getMem (BitVec.ofNat 64 A) = t7.getMem (BitVec.ofNat 64 A) := by
     intro A hA h
     rw [f10 A hA (fun h => h), hI9.frame A hA (by unfold regBase; omega), g8 A hA h]
   have gall : ∀ A, A < 2 ^ 64 → (A < 0x60 ∨ 0x80 ≤ A) → A ≠ 0x810 → ¬ (A = 0x20130 ∨ A = 0x20138) →
-      (A < 0x20160 ∨ 0x20180 ≤ A) → A ≠ 0x20550 → (A < 0x840 ∨ 0x3418 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) →
+      (A < 0x20160 ∨ 0x20180 ≤ A) → A ≠ 0x20550 → (A < 0x840 ∨ 0x3148 ≤ A) → (A < 0x7890 ∨ 0x85f0 ≤ A) →
       (A < 0x700 ∨ 0x7c0 ≤ A) → (A < 0x100 ∨ 0x120 ≤ A) → A ≠ 0x20260 → A ≠ 0x20268 →
       t10.getMem (BitVec.ofNat 64 A) = s.getMem (BitVec.ofNat 64 A) := by
     intro A hA h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11

@@ -16,7 +16,19 @@ import SigGolfCandidate.T3.Secc.LargeContactEvents
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsTransport
 import SigGolfCandidate.T3.Secc.LargeContactInputs
 import SigGolfCandidate.T3.Secc.LargeContactCase
+
 section
+
+
+
+
+
+
+
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.WotsExtract
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3M.SecurityExtraction
@@ -271,7 +283,11 @@ theorem traced_wots_split (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127
   exact ⟨generated, hg, interaction, hi, hpk, forgery, hf, hfresh, hcase.imp_left VerifierWotsSrc.toVerifierWots⟩
 end ClaudeWCT.W9.T3.Security.Wots
 end
+
 section
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -590,14 +606,17 @@ theorem wctItem_mem_signItemsWith (digitsOf : Wots.LeafAddr → List Nat) (N : H
   · exact (layerItems_not_wct digitsOf _ a p h).elim
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
+
 section
+
+
 namespace ClaudeWCT.W9.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
 open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low encodingRow entriesOf word_cases)
 open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
-open SigGolfCandidate.T3M (wrho wdc wctr layerP layerNextP layersP)
+open SigGolfCandidate.T3M (wrho wdc wctr layerP layersP)
 open SigGolfCandidate.T3.Security.WotsExtract (SourceLeaf SourceChain entriesOf_mono mem_entriesOf routeLeaf
   routeLeaf_source)
 open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue)
@@ -618,17 +637,15 @@ theorem WotsPrimitiveRoute.mono {index : Nat} {answers : Answers} {trace trace' 
   · exact Or.inr (Or.inr (Or.inl ⟨a, ha, twoEdgeAt_mono h hsub⟩))
   · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, b, ha, hb, hab, contactAt_mono h1 hsub, contactAt_mono h2 hsub⟩)))
   · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, ha, markerAt_mono hm hsub, contactAt_mono hc hsub⟩)))
-theorem layer_wots_route (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4) (msg : Digest × BitVec 96 × Digest)
-    (digits : List Nat) (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index (Fin.ofNat 4 n) msg digits)
-    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index (Fin.ofNat 4 n) msg ∈ qs)
-    (hsub : ∀ q ∈ queried answers (layerNextP w index n (Fin.ofNat 4 n) digits), q ∈ qs)
-    (reaches : evalWithAnswerFn answers (layerNextP w index n (Fin.ofNat 4 n) digits) =
-      Extract.walkTarget answers index n) :
+theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : Digest)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hsub : ∀ q ∈ queried answers (layerP w index lay digits), q ∈ qs)
+    (reaches : evalWithAnswerFn answers (layerP w index lay digits) =
+      Extract.honestRoot answers lay (route index lay).2) :
     WotsPrimitiveRoute index answers (entriesOf answers qs) ∨
-      (msg = Extract.honestMsg answers index (Fin.ofNat 4 n) ∧ Extract.Good answers w index (Fin.ofNat 4 n)) := by
+      (msg = Extract.honestMsg answers index lay ∧ Extract.Good answers w index lay) := by
   classical
-  have hW := layerNextP_wots answers w index n hn digits hidx (Cost.validDigits_decode hframe.2) qs hsub reaches
-  set lay : Layer := Fin.ofNat 4 n with hlay
   have hdec : decode (routeLeaf index lay).lay
       (low (answers (.inl (.inr (encodingRow (routeLeaf index lay) msg (wctr w lay)))))) = some digits := hframe.2
   have hvalid := Cost.validDigits_decode hframe.2
@@ -638,11 +655,11 @@ theorem layer_wots_route (answers : Answers) (w : WBytes) (index n : Nat) (hn : 
     mem_entriesOf henc
   have hsrc : SourceLeaf (routeLeaf index lay) := routeLeaf_source index lay hidx
   have hsrcC : ∀ i, i < chainCount lay → SourceChain ⟨routeLeaf index lay, i⟩ := fun i hi => ⟨hsrc, hi⟩
-  rcases hW with hS | ⟨hmerkle, hchains⟩
-  · exact Or.inl (Or.inr (Or.inl hS))
+  rcases layerP_wots answers w index lay digits hidx hvalid reaches with hS | ⟨hmerkle, hchains⟩
+  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hS hmono)))
   have hcontact : ∀ i, i < chainCount lay → digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
       ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ := fun i hi hlt =>
-    ((hchains i hi).2 hlt).1
+    contactAt_mono ((hchains i hi).2 hlt).1 hmono
   obtain ⟨refDigest, hr⟩ := referenceDigits_decode answers (routeLeaf index lay)
   rcases word_cases hr hdec with heq | ⟨i, hu⟩ | ⟨i, h2⟩ | ⟨i, j, hij, hi, hj⟩
   · have hshape : Extract.LayerShaped answers w index lay digits := by
@@ -672,17 +689,16 @@ theorem layer_wots_route (answers : Answers) (w : WBytes) (index n : Nat) (hn : 
       have e1 : (decodedWord hdec i).val = digits.getD i.val 0 := rfl
       have e2 : (decodedWord hr i).val = depth answers ⟨routeLeaf index lay, i.val⟩ := rfl
       omega
-    exact ((hchains i.val i.isLt).2 hlt).2 h2
+    exact twoEdgeAt_mono (((hchains i.val i.isLt).2 hlt).2 h2) hmono
   · refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inl ⟨⟨routeLeaf index lay, i.val⟩, ⟨routeLeaf index lay, j.val⟩,
       hsrcC i.val i.isLt, hsrcC j.val j.isLt, ?_, hcontact i.val i.isLt hi, hcontact j.val j.isLt hj⟩))))
     intro he
     exact hij (Fin.ext (ChainAddr.mk.inj he).2)
 theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
-    ∀ n, n ≤ 4 → ∀ root : Digest × BitVec 96 × Digest,
-    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0).1 →
+    ∀ n, n ≤ 4 → ∀ root : Digest,
+    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0) →
     WotsPrimitiveRoute index answers (entriesOf answers (queried answers (layersP w index n root))) ∨
-    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧
-      (if n = 0 then root.1 = (Extract.walkTarget answers index 0).1 else root = Extract.walkTarget answers index n))
+    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧ root = Extract.walkTarget answers index n)
   | 0, _, root, h => by
       right
       refine ⟨fun l hl => absurd hl (Nat.not_lt_zero _), ?_⟩
@@ -693,15 +709,15 @@ theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (
       have hval : (Fin.ofNat 4 n : Layer).val = n := by simp; omega
       rcases layersP_wots_walk_route answers w index hidx n (by omega) _ hrest with hprim | ⟨hgood, hv⟩
       · exact Or.inl (hprim.mono (entriesOf_mono hqR))
-      · have hv' := Extract.next_target answers w index n digits hv
-        rcases layer_wots_route answers w index n (by omega) root digits hidx hframe
-            (queried answers (layersP w index (n + 1) root)) henc hqL hv' with hprim | ⟨hmsg, hgoodn⟩
+      · rw [Extract.walkTarget_root answers index n (by omega)] at hv
+        rcases layer_wots_route answers w index (Fin.ofNat 4 n) root digits hidx hframe
+            (queried answers (layersP w index (n + 1) root)) henc hqL hv with hprim | ⟨hmsg, hgoodn⟩
         · exact Or.inl hprim
         · right
           have hmsg' : Extract.honestMsg answers index (Fin.ofNat 4 n) = Extract.walkTarget answers index (n + 1) := by
             have hl : (Fin.ofNat 4 n : Layer) = ⟨n, by omega⟩ := Fin.ext hval
             simp only [Extract.walkTarget, dif_pos (show n < 4 by omega), hl]
-          refine ⟨fun l hl => ?_, by simpa only [Nat.succ_ne_zero, if_false] using hmsg.trans hmsg'⟩
+          refine ⟨fun l hl => ?_, hmsg.trans hmsg'⟩
           by_cases hle : l.val < n
           · exact hgood l hle
           · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
@@ -725,16 +741,15 @@ theorem verifyP_walk_wots_route (answers : Answers) (m : Message) (pk : Digest) 
   obtain ⟨N, hdc, hN, hdq, hS, hlay, hqF, hqL⟩ := WctExtract.verifyP_walk_wct answers m pk w hv
   refine ⟨N, hdc, hN, hdq, hS, ?_⟩
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by norm_num)
-  have htop : (Extract.walkTarget answers (N.toNat % 2 ^ 31) 0).1 = pk := by
+  have htop : Extract.walkTarget answers (N.toNat % 2 ^ 31) 0 = pk := by
     rw [hpk]; simp only [Extract.walkTarget, route_top_tree _ hidx]
   rcases layersP_wots_walk_route answers w (N.toNat % 2 ^ 31) hidx 4 le_rfl _ (by rw [hlay, htop]) with
     hprim | ⟨hgood, hroot⟩
   · exact Or.inl (hprim.mono (entriesOf_mono hqL))
   · right
     refine ⟨fun l => hgood l l.isLt, ?_, hqF⟩
-    have h4 := hroot
-    simp [Extract.walkTarget, Extract.honestMsg] at h4
-    exact h4
+    rw [hroot]
+    simp [Extract.walkTarget, Extract.honestMsg]
 theorem verifyP_wots_cases_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
     (hpk : pk = Extract.honestRoot answers 0 0)
     (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
@@ -756,7 +771,11 @@ theorem verifyP_wots_cases_route (answers : Answers) (m : Message) (pk : Digest)
   · exact Or.inr ⟨hgood, hshape, hqV⟩
 end ClaudeWCT.W9.T3.Security.WotsExtract
 end
+
 section
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -778,8 +797,7 @@ theorem posOf_chainRow (a : Wots.ChainAddr) (ha : WotsExtract.SourceChain a) (s 
     Extract.posOf (Wots.chainRow a s v) = some (CanonGraph.Node.chain (gAddr a ha, ⟨s, hs⟩)).toPos := by
   apply Extract.posOf_eq (CanonGraph.toPos_bounded _)
   unfold Wots.chainRow
-  rw [show Extract.hdrBlock (chainInput a.key.lay a.key.tree a.key.leaf a.chain s v) =
-    bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) from chainInput_header _ _ _ _ _ _]
+  rw [Extract.hdrBlock_wotsChainInput]
   rfl
 theorem honestInput_chainNode (A : Answers) (p : ChainGraph.Point) :
     Extract.honestInput A (CanonGraph.Node.chain p).toPos =
@@ -912,7 +930,12 @@ theorem slotValue_honest_wctChain (A : Answers) (a : CanonGraph.WctAddr) (s : Fi
   exact slotValue_block4_three _ _ _ _
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
+
 section
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -931,7 +954,13 @@ theorem trace_inputs (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (re
     (PaddedExtraction.traced_record_support adversary q hq result hr)
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
+
 section
+
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

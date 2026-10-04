@@ -2,6 +2,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.BPORS
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Header
 import SigGolfCandidate.ClaudeWCT.W9.New.G3a.PaddedWitness
 import SigGolfCandidate.T3.Secc.WotsEvents
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -9,9 +10,9 @@ open SigGolfCandidate.T3 SigGolfCandidate.T3.Security.Wots
 open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3M.Final
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue)
-noncomputable def leafMsg (answers : Answers) (L : LeafAddr) : (Digest × BitVec 96 × Digest) :=
-  if h : L.lay.val < 3 then Extract.honestPair answers ⟨L.lay.val + 1, by omega⟩ (L.tree * 2 ^ height L.lay + L.leaf)
-  else (Extract.honestForest answers (L.tree * 2 ^ height L.lay + L.leaf), 0, 0)
+noncomputable def leafMsg (answers : Answers) (L : LeafAddr) : Digest :=
+  if h : L.lay.val < 3 then Extract.honestRoot answers ⟨L.lay.val + 1, by omega⟩ (L.tree * 2 ^ height L.lay + L.leaf)
+  else Extract.honestForest answers (L.tree * 2 ^ height L.lay + L.leaf)
 noncomputable def referenceSearch (answers : Answers) (L : LeafAddr) : Option (BitVec 32 × List Nat) :=
   evalWithAnswerFn answers (counterSearch L.lay L.tree L.leaf (leafMsg answers L) 0 counterLimit)
 noncomputable def referenceDigits (answers : Answers) (L : LeafAddr) : List Nat :=
