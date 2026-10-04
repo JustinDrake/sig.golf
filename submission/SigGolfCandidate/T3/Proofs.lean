@@ -2589,7 +2589,7 @@ theorem bound_recoverNext (sig : Signature) (index n : Nat) (lay : Layer) (digit
 def recoveryLayersCost : Nat → Nat
   | 0 => 0
   | n+1 => recoverLayerCost (Fin.ofNat 4 n)+recoveryLayersCost n
-theorem recoveryLayersCost_four : recoveryLayersCost 4=480 := by decide +kernel
+theorem recoveryLayersCost_four : recoveryLayersCost 4=484 := by decide +kernel
 theorem bound_verifyLayers (w : Witness) (index : Nat) :
     ∀ n root,CBound (fun _ => True) (n+recoveryLayersCost n) (verifyLayers w index n root) := by
   intro n
@@ -2793,7 +2793,7 @@ theorem bound_expand (message : Message) (pk : Digest) (sig : Signature) :
       | none => exact .pure _ _ trivial
       | some forest =>
           refine (bound_expandLayers sig (output.toNat%2^31) 4 (forest,0,0)).bind' (l := 0)
-            (fun layers _ => ?_) (by rw [recoveryLayersCost_four]; omega)
+            (fun layers _ => ?_) (by rw [recoveryLayersCost_four])
           cases layers with
           | none => exact .pure _ 0 trivial
           | some pair =>

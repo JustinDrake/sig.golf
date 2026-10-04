@@ -522,9 +522,9 @@ open ClaudeWCT.WCT9.Rev3 (sign expand verify signPayload)
 open SigGolfCandidate.T3 hiding Signature Witness sign expand verify signPayload digestSearch admissible
 open SigGolfCandidate.T3.Sampling (RCache roRun V V_pure V_of_bound)
 open SigGolfCandidate.T3.Budgets (signingZ EncodingFreshBelow AllSearchesFresh allSearchesFresh_empty
-  signing_z_le V_bind_bounded post_of_roRun signingZ_pow)
-open SigGolfCandidate.T3.BaseAudit (zU)
-open ClaudeWCT.W9.T3.BaseAudit (b1 b2 b3 b4)
+  layerMomentBound layerMomentBound_ge_one layerMomentBound_four encodingEnvelope encodingEnvelope_ge_one
+  signing_z_le V_bind_bounded post_of_roRun V_signLayers_of_freshness signingZ_pow)
+open SigGolfCandidate.T3.BaseAudit (zU b1 b2 b3 b4)
 open SigGolfCandidate.T3.Cost (bound_privateNonce bound_privateMac)
 open ClaudeWCT.W9.T3.Sampling (digestDecode)
 set_option maxHeartbeats 1000000
@@ -927,8 +927,8 @@ open ClaudeWCT.WCT9 (Signature Witness)
 open ClaudeWCT.WCT9.Rev3 (sign expand verify)
 open SigGolfCandidate.T3M (mrealize countBoth countCalls cacheB cacheDec isHash)
 open ClaudeWCT.W9.T3M (Images submission)
-def verifyCycleBound : Nat := 7806
-def claimedC : Nat := 7905
+def verifyCycleBound : Nat := 7797
+def claimedC : Nat := 7896
 variable (I : Images)
 def KeygenRunCounts : Prop := ∀ sk : SecretKey,
   (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> (submission I).run .keygen sk =
