@@ -59,7 +59,7 @@ theorem submission_sign_valid :
   rw [submission_sign, submission_sizes, submission_layout]
   rw [Riscv.Image.Valid]
   rw [Riscv.Image.byteSize,
-    show Images.signImage.code.length = 10947 from Images.signCode_length,
+    show Images.signImage.code.length = 10952 from Images.signCode_length,
     show Images.signImage.data.length = 69632 from Images.signData_length]
   rw [layoutValid_of_data_length _ _ _ 69632 Images.signData_length]
   decide +kernel
@@ -68,7 +68,7 @@ theorem submission_expand_valid :
   rw [submission_expand, submission_sizes, submission_layout]
   rw [Riscv.Image.Valid]
   rw [Riscv.Image.byteSize,
-    show Images.expandImage.code.length = 41710 from Images.expandCode_length,
+    show Images.expandImage.code.length = 41715 from Images.expandCode_length,
     show Images.expandImage.data.length = 8704 from Images.expandData_length]
   rw [layoutValid_of_data_length _ _ _ 8704 Images.expandData_length]
   decide +kernel

@@ -6,10 +6,7 @@ import SigGolfCandidate.ClaudeWCT.WCT9.Basic
 import SigGolfCandidate.T3M.Witness.Roundtrip
 import SigGolfCandidate.T3M.Witness.Honest
 import SigGolfCandidate.ClaudeWCT.WCT9.Correctness
-
 section
-
-
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig wrho wdc wctr wvalue wpath wchainPads wchainHeaderPad wmerklePad zeros layerStorage)
@@ -19,7 +16,7 @@ def expandN (message : Message) (pk : Digest) (sig : WCT9.Signature) :
   let some (counter, output) ← WCT9.digestSearch sig.rho message 0 WCT9.digestAttemptLimit | pure none
   let index := output.toNat % 2 ^ 31
   let root ← WCT9.recoverFts sig index output
-  let some (root, counters) ← expandLayers (WCT9.toT3Signature sig) index 4 root | pure none
+  let some (root, counters) ← expandLayers (WCT9.toT3Signature sig) index 4 (root, 0, 0) | pure none
   if root ≠ pk then return none
   pure (some (output, ⟨sig, counter, fun lay => counters.getD lay.val 0⟩))
 def headerBytes (w : WCT9.Witness) : List UInt8 :=
@@ -64,12 +61,7 @@ instance (N : HashOutput) (w : WBytes) : Decidable (Shaped N w) := by
   unfold Shaped; infer_instance
 end ClaudeWCT.W9.T3M
 end
-
 section
-
-
-
-
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig wrho wdc wctr layersP nodeHashP verifyLayersP)
@@ -108,8 +100,9 @@ theorem verifyLayersP_congr (w w' : Witness) (pads pads' : SigGolfCandidate.T3M.
   | zero => intro root; rfl
   | succ n ih =>
       intro root
-      simp only [SigGolfCandidate.T3M.verifyLayersP, SigGolfCandidate.T3M.recoverLayerP, hl, hc, hp, hm, hh, ih]
-theorem layersP_decW (N : HashOutput) (w : WBytes) (n : Nat) (root : Digest) :
+      simp only [SigGolfCandidate.T3M.verifyLayersP, SigGolfCandidate.T3M.recoverNextP, SigGolfCandidate.T3M.recoverLayerP,
+        SigGolfCandidate.T3M.recoverPairP, hl, hc, hp, hm, hh, ih]
+theorem layersP_decW (N : HashOutput) (w : WBytes) (n : Nat) (root : SigGolfCandidate.T3.LayerMessage) :
     layersP w (N.toNat % 2 ^ 31) n root =
       verifyLayersP (WCT9.toT3Witness (witDecP N w)) (padDecP N w).toT3 (N.toNat % 2 ^ 31) n root := by
   rw [SigGolfCandidate.T3M.layersP_dec]
@@ -197,7 +190,7 @@ def verifyTailP (pk : Digest) (w : WBytes) (N : HashOutput) : M Bool := do
   if !gateOk N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← wctP w N | pure false
-  let some root ← layersP w index 4 root | pure false
+  let some root ← layersP w index 4 (root, 0, 0) | pure false
   pure (root == pk)
 theorem verifyP_eq_tail (m : Message) (pk : Digest) (w : WBytes) :
     verifyP m pk w = ((do
@@ -253,10 +246,7 @@ theorem verifyP_normal (m : Message) (pk : Digest) (w : WBytes) :
       · simp [hg]
 end ClaudeWCT.W9.T3M
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig wle32 wrho wdc wctr wvalue wpath wchainPads wchainHeaderPad wmerklePad sibOff zeros layerStorage
@@ -572,11 +562,7 @@ theorem padDecP_witEnc (N : HashOutput) (w : WCT9.Witness) : padDecP N (witEnc N
   · funext lay i; exact wchainHeaderPad_witEnc N w lay i
 end ClaudeWCT.W9.T3M
 end
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (wdig wrho wdc wctr layersP eval_countCalls_bind_congr eval_countCalls_fst eval_map)
@@ -640,7 +626,7 @@ theorem expandN_facts (answers : Correctness.Answers) (m : Message) (pk : Digest
       obtain ⟨counter, output⟩ := found
       simp only [hd, evalWithAnswerFn_bind] at he
       cases hl : evalWithAnswerFn answers (expandLayers (WCT9.toT3Signature σ) (output.toNat % 2 ^ 31) 4
-          (evalWithAnswerFn answers (WCT9.recoverFts σ (output.toNat % 2 ^ 31) output))) with
+          (evalWithAnswerFn answers (WCT9.recoverFts σ (output.toNat % 2 ^ 31) output), 0, 0)) with
       | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some layers =>
           obtain ⟨root, counters⟩ := layers

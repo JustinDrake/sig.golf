@@ -1,6 +1,5 @@
 import SigGolfCandidate.T3.Core
 import SigGolfCandidate.ClaudeWCT.WCT9.Codebook
-
 namespace ClaudeWCT.WCT9
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SphincsSecurity (bytesLE)
@@ -105,7 +104,7 @@ def signPayload (cache : Cache) (message : Message) : M (Option Signature) := do
       let opening : Opening := ⟨fun i => values.getD i.val 0, fun i => path.getD i.val 0⟩
       pure (state.1 ++ [opening], state.2 ++ [(levels.getD 7 []).getD 0 0])) ([], [])
   let root ← forestPk index state.2
-  let some layers ← signLayers cache index 4 root | pure none
+  let some layers ← signLayers cache index 4 (root, 0, 0) | pure none
   pure (some ⟨rho, fun coord => state.1.getD coord.val ⟨fun _ => 0, fun _ => 0⟩,
     fun lay => piecesSignature lay (layers.getD lay.val ([], []))⟩)
 def sign (cache : Cache) (message : Message) : M (Option Signature) := do
@@ -139,7 +138,7 @@ def expand (message : Message) (pk : Digest) (sig : Signature) : M (Option Witne
   let some (counter, output) ← digestSearch sig.rho message 0 attemptLimit | pure none
   let index := output.toNat % 2 ^ 31
   let root ← recoverFts sig index output
-  let some (root, counters) ← expandLayers (toT3Signature sig) index 4 root | pure none
+  let some (root, counters) ← expandLayers (toT3Signature sig) index 4 (root, 0, 0) | pure none
   if root ≠ pk then return none
   pure (some ⟨sig, counter, fun lay => counters.getD lay.val 0⟩)
 def verify (message : Message) (pk : Digest) (w : Witness) : M Bool := do
@@ -148,7 +147,7 @@ def verify (message : Message) (pk : Digest) (w : Witness) : M Bool := do
   if !admissible output then return false
   let index := output.toNat % 2 ^ 31
   let root ← recoverFts w.signature index output
-  let some root ← verifyLayers (toT3Witness w) index 4 root | pure false
+  let some root ← verifyLayers (toT3Witness w) index 4 (root, 0, 0) | pure false
   pure (root == pk)
 def keygen := SigGolfCandidate.T3.keygen
 end ClaudeWCT.WCT9

@@ -1,6 +1,5 @@
 import SigGolfCandidate.T3M.Witness.Normal
 import SigGolfCandidate.T3M.Witness.Roundtrip
-
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 set_option linter.unusedSimpArgs false
@@ -133,7 +132,7 @@ theorem expandN_facts (answers : Correctness.Answers) (m : Message) (pk : Digest
       | none => simp only [hf, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some forest =>
           simp only [hf, evalWithAnswerFn_bind] at he
-          cases hl : evalWithAnswerFn answers (expandLayers σ (output.toNat % 2 ^ 31) 4 forest) with
+          cases hl : evalWithAnswerFn answers (expandLayers σ (output.toNat % 2 ^ 31) 4 (forest, 0, 0)) with
           | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
           | some layers =>
               obtain ⟨root, counters⟩ := layers

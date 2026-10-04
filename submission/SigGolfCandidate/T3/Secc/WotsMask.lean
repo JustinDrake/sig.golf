@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.Secc.WotsMaskChain
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -99,8 +98,9 @@ theorem route_leaf_lt (index : Nat) (lay : Layer) : (route index lay).1 < 2 ^ 32
   have : 2 ^ height lay ≤ 2 ^ 32 := Nat.pow_le_pow_right (by decide) (by fin_cases lay <;> decide)
   omega
 theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
-    ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
-      (height (Fin.ofNat 4 (m + 1))) []).getD 0 0 = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
+    (((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
+      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 (m + 1)) (route index (Fin.ofNat 4 (m + 1))).2).getD
+      (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 1 0) = leafMsg T (routeLeaf index (Fin.ofNat 4 m)) := by
   have hl : (Fin.ofNat 4 m : Layer).val < 3 := by
     change m % 4 < 3
     omega
@@ -113,7 +113,8 @@ theorem signedMsg_succ (T : Answers) (index m : Nat) (hm : m < 3) :
   rw [hlay, ← route_tree_succ index m hm]
   rfl
 theorem signedMsg_top (T : Answers) (index : Nat) :
-    evalWithAnswerFn T (forestPk index (Correctness.forestRoots T index 7)) = leafMsg T (routeLeaf index 3) := by
+    ((evalWithAnswerFn T (forestPk index (Correctness.forestRoots T index 7)), 0, 0) : Digest × BitVec 96 × Digest) =
+      leafMsg T (routeLeaf index 3) := by
   unfold leafMsg routeLeaf
   simp only [show ¬((3 : Layer).val < 3) by decide, dite_false]
   rw [route_top_index, honestForest_eq]

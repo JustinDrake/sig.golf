@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3.Secc.WotsExtractLayer
-
 namespace SigGolfCandidate.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -9,10 +8,11 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 theorem layersP_wots_walk (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
-    ∀ n, n ≤ 4 → ∀ root : Digest,
-    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0) →
+    ∀ n, n ≤ 4 → ∀ root : Digest × BitVec 96 × Digest,
+    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0).1 →
     WotsPrimitiveSrc answers (entriesOf answers (queried answers (layersP w index n root))) ∨
-    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧ root = Extract.walkTarget answers index n)
+    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧
+      (if n = 0 then root.1 = (Extract.walkTarget answers index 0).1 else root = Extract.walkTarget answers index n))
   | 0, _, root, h => by
       right
       refine ⟨fun l hl => absurd hl (Nat.not_lt_zero _), ?_⟩
@@ -23,15 +23,15 @@ theorem layersP_wots_walk (answers : Answers) (w : WBytes) (index : Nat) (hidx :
       have hval : (Fin.ofNat 4 n : Layer).val = n := by simp; omega
       rcases layersP_wots_walk answers w index hidx n (by omega) _ hrest with hprim | ⟨hgood, hv⟩
       · exact Or.inl (hprim.mono (entriesOf_mono hqR))
-      · rw [Extract.walkTarget_root answers index n (by omega)] at hv
-        rcases layer_wots answers w index (Fin.ofNat 4 n) root digits hidx hframe
-            (queried answers (layersP w index (n + 1) root)) henc hqL hv with hprim | ⟨hmsg, hgoodn⟩
+      · have hv' := Extract.next_target answers w index n digits hv
+        rcases layer_wots answers w index n (by omega) root digits hidx hframe
+            (queried answers (layersP w index (n + 1) root)) henc hqL hv' with hprim | ⟨hmsg, hgoodn⟩
         · exact Or.inl hprim
         · right
           have hmsg' : Extract.honestMsg answers index (Fin.ofNat 4 n) = Extract.walkTarget answers index (n + 1) := by
             have hl : (Fin.ofNat 4 n : Layer) = ⟨n, by omega⟩ := Fin.ext hval
             simp only [Extract.walkTarget, dif_pos (show n < 4 by omega), hl]
-          refine ⟨fun l hl => ?_, hmsg.trans hmsg'⟩
+          refine ⟨fun l hl => ?_, by simpa only [Nat.succ_ne_zero, if_false] using hmsg.trans hmsg'⟩
           by_cases hle : l.val < n
           · exact hgood l hle
           · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
@@ -91,17 +91,19 @@ theorem verifyP_walk_wots (answers : Answers) (m : Message) (pk : Digest) (w : W
   simp only at hv ⊢
   rw [evalWithAnswerFn_bind] at hv
   rw [queried_bind]
-  generalize hL : evalWithAnswerFn answers (layersP w index 4 root) = ll at hv ⊢
+  generalize hL : evalWithAnswerFn answers (layersP w index 4 (root, 0, 0)) = ll at hv ⊢
   rcases ll with _ | root'
   · simp at hv
   simp only [evalWithAnswerFn_pure, beq_iff_eq] at hv
   subst hv
-  have htop : Extract.walkTarget answers index 0 = root' := by
+  have htop : (Extract.walkTarget answers index 0).1 = root' := by
     rw [hpk]; simp only [Extract.walkTarget, route_top_tree index hidx]
-  rcases layersP_wots_walk answers w index hidx 4 le_rfl root (by rw [hL, htop]) with hprim | ⟨hgood, hroot⟩
+  rcases layersP_wots_walk answers w index hidx 4 le_rfl (root, 0, 0) (by rw [hL, htop]) with hprim | ⟨hgood, hroot⟩
   · exact Or.inl (hprim.mono (entriesOf_mono fun q hq => by simp only [List.mem_append]; tauto))
   have hroot' : root = Extract.honestForest answers index := by
-    rw [hroot]; simp [Extract.walkTarget, Extract.honestMsg]
+    have h4 : ((root, 0, 0) : Digest × BitVec 96 × Digest) = Extract.walkTarget answers index 4 := by simpa using hroot
+    simp [Extract.walkTarget, Extract.honestMsg] at h4
+    exact h4
   exact Or.inr ⟨fun l => hgood l l.isLt, by rw [hroot'],
     fun q hq => by simp only [List.mem_append]; tauto⟩
 theorem honestForest_eq_built (answers : Answers) (index : Nat) :

@@ -463,11 +463,11 @@ theorem verifyP_walk_wct (answers : Answers) (m : Message) (pk : Digest) (w : WB
       (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : Spec.Domain) ∈ queried answers (verifyP m pk w) ∧
       Shaped N w ∧
       evalWithAnswerFn answers (layersP w (N.toNat % 2 ^ 31) 4 (evalWithAnswerFn answers
-        (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N))) = some pk ∧
+        (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N), 0, 0)) = some pk ∧
       (∀ q ∈ queried answers (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N),
         q ∈ queried answers (verifyP m pk w)) ∧
       (∀ q ∈ queried answers (layersP w (N.toNat % 2 ^ 31) 4 (evalWithAnswerFn answers
-          (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N))),
+          (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N), 0, 0)),
         q ∈ queried answers (verifyP m pk w)) := by
   classical
   obtain ⟨hdc, hS⟩ := shaped_of_verifyP answers m pk w hv
@@ -495,7 +495,7 @@ theorem verifyP_walk_wct (answers : Answers) (m : Message) (pk : Digest) (w : WB
   dsimp only at hv ⊢
   rw [evalWithAnswerFn_bind] at hv
   rw [queried_bind]
-  generalize hL : evalWithAnswerFn answers (layersP w (N.toNat % 2 ^ 31) 4 root) = ll at hv ⊢
+  generalize hL : evalWithAnswerFn answers (layersP w (N.toNat % 2 ^ 31) 4 (root, 0, 0)) = ll at hv ⊢
   rcases ll with _ | root'
   · simp at hv
   simp only [evalWithAnswerFn_pure, beq_iff_eq] at hv
@@ -519,8 +519,8 @@ theorem verifyP_wct_extract (answers : Answers) (m : Message) (pk : Digest) (w :
 def LayersWalkSpec (LayerEvent : Answers → WBytes → Nat → List Spec.Domain → Prop)
     (LayersGood : Answers → WBytes → Nat → Prop) : Prop :=
   ∀ (answers : Answers) (w : WBytes) (index : Nat) (root : Digest) (qs : List Spec.Domain), index < 2 ^ 31 →
-    (∀ q ∈ queried answers (layersP w index 4 root), q ∈ qs) →
-    evalWithAnswerFn answers (layersP w index 4 root) = some (Extract.honestRoot answers 0 0) →
+    (∀ q ∈ queried answers (layersP w index 4 (root, 0, 0)), q ∈ qs) →
+    evalWithAnswerFn answers (layersP w index 4 (root, 0, 0)) = some (Extract.honestRoot answers 0 0) →
     LayerEvent answers w index qs ∨ (LayersGood answers w index ∧ root = Extract.honestForest answers index)
 theorem verifyP_extract {LayerEvent : Answers → WBytes → Nat → List Spec.Domain → Prop}
     {LayersGood : Answers → WBytes → Nat → Prop} (hL : LayersWalkSpec LayerEvent LayersGood)
