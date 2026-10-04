@@ -423,9 +423,9 @@ theorem verifyP_eq (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) 
 theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage) (fts : W9Drv.FtsGood)
     (m : SigGolfCandidate.T3.Message) (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState)
     (hu : DgOut m pk w a u) :
-    GoodQ u (8057 + 1981 + 0) (8057 + 1981 + 0) True (5736 + 1981 + 0) (ccM (afterDigest pk w a) Kb) := by
+    GoodQ u (8057 + 1981 + 0) (8057 + 1981 + 0) True (5731 + 1981 + 0) (ccM (afterDigest pk w a) Kb) := by
   obtain ⟨hst, hpre⟩ := gatePre_of_hook m pk w a u hu
-  have h := fts pk w a _ 8057 8057 5736 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
+  have h := fts pk w a _ 8057 8057 5731 True (fun r => ccM (afterFts pk w (a.toNat % 2 ^ 31) r) Kb) hpre
     (by simp only [afterFts, ccM_pure, Kb])
     (fun root t ht => (goodQ_frozen hbridge).mpr (after_good pk w True trivial a root t ht))
   have h2 := (goodQ_frozen hbridge).mp (h.steps hst)
@@ -434,7 +434,7 @@ theorem afterDigest_good (hbridge : W9Machine.Frozen.image = Images.verifyImage)
   exact h2
 def fuelBound : Nat := 17 + (8057 + 1981 + 0)
 def cycleBoundAll : Nat := 24 + (8057 + 1981 + 0)
-def cycleBound : Nat := 24 + (5736 + 1981 + 0)
+def cycleBound : Nat := 24 + (5731 + 1981 + 0)
 theorem fuelBound_eq : fuelBound = 10055 := rfl
 theorem cycleBoundAll_eq : cycleBoundAll = 10062 := rfl
 theorem cycleBound_eq : cycleBound = ClaudeWCT.W9.T3M.Final.verifyCycleBound := rfl

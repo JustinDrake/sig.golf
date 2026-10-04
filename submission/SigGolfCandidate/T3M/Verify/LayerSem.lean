@@ -46,7 +46,7 @@ theorem encB_facts (lay : Nat) (hlay : lay < 4) :
     encB lay % 8 = 0 ∧ encB lay + 64 < 16777216 ∧ (encB lay = 256 ∨ 0x800 + layerEnd lay ≤ encB lay) := by
   interval_cases lay <;> decide
 theorem dst_facts (lay : Nat) (hlay : lay < 4) (D : Nat) (hD : D ∈ dstSet lay) :
-    safeDest D = true ∧ D % 8 = 0 ∧ D + 32 ≤ 2 ^ 23 ∧ (D = 320 ∨ 0x800 + layerEnd lay ≤ D) ∧ layerEnd lay % 8 = 0 ∧
+    safeDest D = true ∧ D % 8 = 0 ∧ D + 32 ≤ 2 ^ 23 ∧ (D = 256 ∨ 0x800 + layerEnd lay ≤ D) ∧ layerEnd lay % 8 = 0 ∧
     accessValid (BitVec.ofNat 64 D) 8 = true ∧ accessValid (BitVec.ofNat 64 (D + 8)) 8 = true := by
   interval_cases lay <;> simp [dstSet] at hD <;>
     first | (subst hD; decide +kernel) | (rcases hD with rfl | rfl <;> decide +kernel)
@@ -120,7 +120,24 @@ theorem route_evals (index : Nat) (lay : Layer) (hidx : index < 2 ^ 31) (s : Mac
       Nat.div_div_eq_div_mul, ← Nat.pow_add, BitVec.toNat_ofNat]
     rw [Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) (by omega))]
   refine ⟨hlE, htE, ?_, ?_⟩
-  · simp only [tpE, E.eval, BinOp.eval, hlE, htE, kw]
+  · by_cases h0 : lay.val = 0
+    · have hT : (route index lay).2 = 0 := by
+        rw [route_snd]
+        have hb : below lay.val + hL lay.val = 31 := by rw [h0]; rfl
+        rw [hb]
+        exact Nat.div_eq_of_lt hidx
+      simp only [tpE, if_pos h0, E.eval, BinOp.eval, hlE, kw]
+      rw [hdr1_eq _ _ ht hl32, hT]
+      apply BitVec.eq_of_toNat_eq
+      rw [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt (show (route index lay).1 < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show (32 : Nat) < 2 ^ 64 by norm_num),
+        show 32 % 64 = 32 from rfl, Nat.shiftLeft_eq,
+        Nat.mod_eq_of_lt (show (route index lay).1 * 2 ^ 32 < 2 ^ 64 by
+          have : (route index lay).1 * 2 ^ 32 < 2 ^ 32 * 2 ^ 32 := Nat.mul_lt_mul_of_pos_right hl32 (by norm_num)
+          omega),
+        BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show 0 + 2 ^ 32 * (route index lay).1 < 2 ^ 64 by omega)]
+      ring
+    simp only [tpE, if_neg h0, E.eval, BinOp.eval, hlE, htE, kw]
     rw [hdr1_eq _ _ ht hl32]
     apply BitVec.eq_of_toNat_eq
     rw [BitVec.toNat_or, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
@@ -253,7 +270,7 @@ theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : T3
     have h11 : t.getReg .x11 = BitVec.ofNat 64 64 := hkt (.x11, 64) (by simp [bK, bKB, layK])
     obtain ⟨D, hD, h12⟩ : ∃ D ∈ dstSet lay.val, t.getReg .x12 = BitVec.ofNat 64 D := by
       by_cases h3 : lay.val = 3
-      · exact ⟨320, by simp [dstSet, h3], hkt (.x12, 320) (by simp [bK, h3])⟩
+      · exact ⟨256, by simp [dstSet, h3], hkt (.x12, 256) (by simp [bK, h3])⟩
       · obtain ⟨D, hD, h⟩ := hs.dst.resolve_left h3
         exact ⟨D, hD, by rw [ht.keep .x12 (by simp [keepA, h3]), h]⟩
     have hDf := dst_facts lay.val lay.isLt D hD
