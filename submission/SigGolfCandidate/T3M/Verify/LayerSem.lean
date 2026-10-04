@@ -651,7 +651,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       · exact hko (.x15, 0x6e000) (by simp [postBl])
       · exact hko (.x22, BitVec.ofNat 64 (s6v lay.val)) (by simp [postBl])
       · rw [hkeep .x4 (by simp [keepB]), hu, writeHash_getReg, ht.tp lay rfl]; rfl
-      · rw [hkL (.x27, BitVec.ofNat 64 (hw 1 lay.val)) (by simp [chainK])]; unfold hw; congr 1
+      · rw [hkL (.x27, BitVec.ofNat 64 (hw 4 lay.val)) (by simp [chainK])]; unfold hw; congr 1
       · rw [hs0.regs (.x16, a6E) (by simp [specBl]), a6E_eval hans]
       · rw [hs0.regs (.x17, a7lE) (by simp [specBl]), e17]
       · rw [hs0.regs (.x29, t4E lay.val) (by simp [specBl]), e29]
