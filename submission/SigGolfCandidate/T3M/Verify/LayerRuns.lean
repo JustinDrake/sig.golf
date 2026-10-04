@@ -27,9 +27,9 @@ def kw (k : Nat) : E := .c (BitVec.ofNat 64 k)
 def hL (lay : Nat) : Nat := [12,7,6,6].getD lay 0
 def stepsA (lay : Nat) : Nat := if lay = 3 then 23 else if lay = 0 then 16 else 15
 def retOff (lay : Nat) : Nat := if lay = 0 then 69 else if lay = 3 then 52 else 44
-def s6v (lay : Nat) : Nat := [15064,19288,22424,25560].getD lay 0
-def s3v : Nat := 15768
-def tgtL (lay : Nat) : Nat := [126,195,195,194].getD lay 0
+def s6v (lay : Nat) : Nat := [14344, 18312, 21448, 24584].getD lay 0
+def s3v : Nat := 15048
+def tgtL (lay : Nat) : Nat := [126,196,196,196].getD lay 0
 def hw (t lay : Nat) : Nat := 1 + 256 * t + 65536 * lay
 def rejEcall : Nat := 743
 def stabIdx (lay : Nat) : Nat := [209768,209640,209576,209512].getD lay 0

@@ -51,7 +51,7 @@ def chainFuel (lay : Nat) : Nat := if lay = 0 then 2321 else 1720
 def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + chainCost0 lay - Z
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 theorem layerCost_vals :
-    layerCost 3 0 = 1288 ∧ layerCost 2 0 = 1271 ∧ layerCost 1 0 = 1271 ∧ layerCost 0 0 = 1199 := by decide
+    layerCost 3 0 = 1270 ∧ layerCost 2 0 = 1262 ∧ layerCost 1 0 = 1262 ∧ layerCost 0 0 = 1199 := by decide
 theorem layerFuel_vals :
     layerFuel 3 = 1794 ∧ layerFuel 2 = 1786 ∧ layerFuel 1 = 1786 ∧ layerFuel 0 = 2475 := by decide
 theorem ckOf_lt (lay : Layer) (hlay : lay ≠ 0) (a : BitVec 256) (ds : List Nat)
@@ -143,7 +143,7 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
     (hpc : u.pc = pcOf 656) (hroot : DigAt u 0x100 root)
-    (hwit : Verify.Orig w (fun o => o < 64 ∨ 11288 ≤ o) u) :
+    (hwit : Verify.Orig w (fun o => o < 64 ∨ 10568 ≤ o) u) :
     ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 root t := by
   obtain ⟨t, ht⟩ := spec_run ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl

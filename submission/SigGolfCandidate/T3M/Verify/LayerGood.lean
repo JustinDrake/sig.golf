@@ -289,7 +289,7 @@ open SigGolfCandidate.T3 (Digest route)
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def topChainRegs : List Reg := [.x10,.x12,.x25,.x3,.x14,.x15]
-def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (14104 ≤ A ∧ A < 17576)
+def topChainWrites (A : Nat) : Prop := (512 ≤ A ∧ A < 1488) ∨ (13384 ≤ A ∧ A < 16856)
 theorem topLeafReady_of (w : WBytes) (pk : Digest) (index c : Nat) (t s0 s : MachineState)
     (a : BitVec 256) (ends : List Digest) (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s0)
@@ -348,7 +348,7 @@ set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 theorem nctx_block (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) :
     (nctxOf w index v p).blk i - 0x800 = chainBlock 0 i := by
-  change 15768 - 1664 + 64 * (53 - i) - 2048 = 11288 + 64 * 12 + 64 * (54 - 1 - i)
+  change 15048 - 1664 + 64 * (53 - i) - 2048 = 10568 + 64 * 12 + 64 * (54 - 1 - i)
   omega
 theorem nctx_chain_eq (w : WBytes) (index : Nat) (v : Digest) (p i : Nat) (hi : i < 54) :
     let c := nctxOf w index v p
@@ -409,7 +409,7 @@ theorem nctx_encoded (u s : MachineState) (v : Digest) (p : Nat) (he : TopEntry 
   · rw [he.hi]
     exact Search.topWindow_cross v
   · rw [he.tail,Search.topWindow_tail v hv]
-theorem top_chain_frame (c : NCtx) (hc : c.S3 = 15768) {s t : MachineState}
+theorem top_chain_frame (c : NCtx) (hc : c.S3 = 15048) {s t : MachineState}
     (hf : Frame s t (c.Wr 54)) : Frame s t topChainWrites := by
   apply hf.mono
   intro A _ hA

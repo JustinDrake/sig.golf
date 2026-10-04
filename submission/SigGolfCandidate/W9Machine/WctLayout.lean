@@ -228,7 +228,7 @@ theorem verifyData_header (k : Nat) (hk : k < 2048) :
   congr 2
   omega
 set_option maxRecDepth 200000 in
-theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : MachineState)
+theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 24264) (s : MachineState)
     (h : initialState submission .verify (m, pk, w) = some s) : InitOK m pk w s := by
   unfold initialState at h
   simp only [submission_admissible.2 .verify, if_true, Option.some.injEq] at h
@@ -239,7 +239,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   simp only [List.foldl_cons, List.foldl_nil]
   have lm : (bytes m).length = 32 := length_bytes m
   have lp : (bytes pk).length = 16 := length_bytes pk
-  have lw : (bytes w).length = 25240 := length_bytes w
+  have lw : (bytes w).length = 24264 := length_bytes w
   have lD := verifyData_length
   have eD := dataBase_verify
   set blank : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := 0x1000 }
@@ -270,7 +270,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
     intro A hA
     rw [getMem_writeBytesAsWords _ s1 0xA0 A (by rw [lp]; omega) hA, lp]
   have g3 : ∀ A, A < 2 ^ 64 → s3.getMem (BitVec.ofNat 64 A) =
-      if 0x800 ≤ A ∧ A < 0x800 + 8 * ((25240 + 7) / 8) ∧ (A - 0x800) % 8 = 0 then
+      if 0x800 ≤ A ∧ A < 0x800 + 8 * ((24264 + 7) / 8) ∧ (A - 0x800) % 8 = 0 then
         bytesToWordLE (((bytes w).drop (A - 0x800)).take 8) else s2.getMem (BitVec.ofNat 64 A) := by
     intro A hA
     rw [getMem_writeBytesAsWords _ s2 0x800 A (by rw [lw]; omega) hA, lw]
@@ -338,7 +338,7 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
   · intro j hj
     unfold WX at hj
     rw [gm, g3 _ (by unfold WIT; omega)]
-    by_cases hw : 8 * j < 25240
+    by_cases hw : 8 * j < 24264
     · rw [if_pos (by unfold WIT; omega), show WIT + 8 * j - 0x800 = 8 * j by unfold WIT; omega,
         bytes_word w j (by omega)]
       rfl
@@ -779,7 +779,7 @@ structure FtsOut (F : FCtx) (root : Digest) (u : MachineState) : Prop where
   idx : u.getReg .x22 = BitVec.ofNat 64 F.idx
   pc : u.pc = pcOf layerPc
   root : DigAt u 0x100 root
-  wit : Orig F.w (fun o => o < 64 ∨ 11288 ≤ o) u
+  wit : Orig F.w (fun o => o < 64 ∨ 10568 ≤ o) u
 end SigGolfCandidate.T3M.Verify
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv OracleComp
@@ -900,7 +900,7 @@ def lCyc : Nat → Nat
 def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + mkFuel n + lFuel n
-theorem lCyc_4 : lCyc 4 = 5827 := by decide
+theorem lCyc_4 : lCyc 4 = 5791 := by decide
 theorem lFuel_4 : lFuel 4 = 8051 := by decide
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
     ∀ n, n ≤ 4 → ∀ M s, RestIn w pk index n M s →
@@ -928,7 +928,7 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
     exact hg.mono (by simp only [lFuel]; omega) (by simp only [lCyc]; omega) (fun q => ⟨q, by simp only [lCyc]; omega⟩)
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8057 8057 Q 5833 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8057 8057 Q 5797 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl root t (by simpa [RestIn] using hL3)
@@ -974,7 +974,7 @@ structure Budget where
   allCycles : Nat
   acceptCycles : Nat
 def layerEntryWord : Nat := 656
-def layerWitnessOffset : Nat := 11288
+def layerWitnessOffset : Nat := 10568
 def forestRootAddress : Nat := 0x100
 def digestAttemptLimit : Nat := 2 ^ 21
 def OpeningAt (L : Layout) (w : WBytes) (sig : ClaudeWCT.WCT9.Signature) : Prop :=

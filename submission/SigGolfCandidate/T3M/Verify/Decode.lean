@@ -514,7 +514,7 @@ theorem lowSum_eq (V : Nat) (h : V / 2 ^ 64 < 2 ^ 62) :
   have := lowDigits_sum (V % 2 ^ 64) (V / 2 ^ 64) (Nat.mod_lt _ (by norm_num))
   rw [← hV] at this
   exact this.symm
-theorem target_le (lay : Layer) : target lay ≤ 195 := by
+theorem target_le (lay : Layer) : target lay ≤ 196 := by
   fin_cases lay <;> decide
 theorem decode_lower (lay : Layer) (hlay : lay ≠ 0) (value : Digest) :
     decode lay value =

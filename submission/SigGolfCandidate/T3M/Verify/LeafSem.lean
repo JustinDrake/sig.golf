@@ -288,7 +288,7 @@ structure LeafOut (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends :
   T1 : u.getMem (BitVec.ofNat 64 (lfBase lay.val + 24)) =
     BitVec.ofNat 64 (hdr1 (route index lay).2 (route index lay).1)
   zero : lay = 0 → u.getMem (BitVec.ofNat 64 0x570) = 0 ∧ u.getMem (BitVec.ofNat 64 0x578) = 0
-  orig : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase lay + 64 * height lay) u
+  orig : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerBase lay + 64 * height lay) u
 theorem LeafOut.hashInput {w : WBytes} {pk : Digest} {index : Nat} {lay : Layer} {ends : List Digest}
     {u : MachineState} (h : LeafOut w pk index lay ends u) :
     hashInput u = toQ (pad64 (leafInput lay (route index lay).2 (route index lay).1 ends)) ∧
@@ -390,16 +390,16 @@ theorem hw2_hdr0 (lay : Layer) (tree : Nat) (ht : tree < 2 ^ 32) : hw 2 lay.val 
   unfold hw; ring
 theorem geomL (lay : Layer) (h : lay ≠ 0) :
     s6v lay.val = 2048 + layerBase lay + 64 * height lay + 1024 ∧ layerBase lay + 64 * height lay ≤ layerEnd lay.val ∧
-      11288 ≤ layerBase lay ∧ layerEnd lay.val < 25241 := by
+      10568 ≤ layerBase lay ∧ layerEnd lay.val < 24265 := by
   fin_cases lay
   · exact absurd rfl h
   all_goals decide
-theorem geomT : s6v 0 = 15064 ∧ layerBase 0 = 11288 ∧ height 0 = 12 ∧ layerEnd 0 = 15768 := by
+theorem geomT : s6v 0 = 14344 ∧ layerBase 0 = 10568 ∧ height 0 = 12 ∧ layerEnd 0 = 14792 := by
   decide
 theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (c : Nat)
     (hc : c < nCopy lay.val) (hidx : index < 2 ^ 31) (a : BitVec 256) (s0 : MachineState)
     (hk : ∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2)
-    (hG : Glob (chainK lay.val) w pk s0) (hO : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay.val) s0)
+    (hG : Glob (chainK lay.val) w pk s0) (hO : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd lay.val) s0)
     (h23 : s0.getReg .x23 = BitVec.ofNat 64 (2 ^ hL lay.val + (route index lay).1))
     (h30 : s0.getReg .x30 = BitVec.ofNat 64 (route index lay).2)
     (ends : List Digest) (t : MachineState)
@@ -493,7 +493,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     rw [hR .x4 (by simp [chainRegs]), hk (.x4, BitVec.ofNat 64 L.w1) (by simp [LCtx.known])]
     rfl
   ·
-    have hOt : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase lay + 64 * height lay) t :=
+    have hOt : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerBase lay + 64 * height lay) t :=
       (hO.mono (fun o ho => ⟨ho.1, by omega⟩)).frame (fun j hj hp => hF.get (by unfold WIT WX at *; omega)
         (fun hw => by
           unfold LCtx.Wr at hw; rw [hS6] at hw
@@ -510,7 +510,7 @@ structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List D
   tp : t.getReg .x4 = BitVec.ofNat 64 (hdr1 (route index 0).2 (route index 0).1)
   len : ends.length = 54
   ends : ∀ j < 54, DigAt t (slotT j) (ends.getD j 0)
-  orig : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerBase 0 + 64 * height 0) t
+  orig : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerBase 0 + 64 * height 0) t
 theorem leafT_step (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0) (hidx : index < 2 ^ 31)
     (ends : List Digest) (t : MachineState) (ht : TopLeafReady w pk index c ends t) :
     ∃ u, Steps image t 13 13 u ∧ LeafOut w pk index 0 ends u := by

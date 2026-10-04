@@ -867,7 +867,7 @@ set_option linter.unusedSimpArgs false
 def topEntryRegs : List Reg := [.x1,.x3,.x16,.x17,.x14,.x25,.x29,.x19,.x22,.x24,.x15,.x28]
 structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) : Prop where
   pc : s.pc = pcOf (176744 + 256 * (v.toNat % 128))
-  ra : s.getReg .x1 = pcOf (p + 69)
+  ra : s.getReg .x1 = pcOf (p + 17)
   lo : s.getReg .x16 = v.extractLsb' 0 64
   hi : s.getReg .x17 = (v.extractLsb' 64 64 <<< (1 : Word)) ||| (v.extractLsb' 0 64 >>> (63 : Word))
   tail : s.getReg .x29 = Search.topWindow v 17
@@ -880,12 +880,12 @@ structure TopEntry (u : MachineState) (v : Digest) (p : Nat) (s : MachineState) 
   frame : Frame u s (fun _ => False)
 theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
     (hpc : u.pc = pcOf (trPc 0 c + 17)) (hk : KnownOK (bK 0) u) :
-    ∃ s, Steps image u 2 2 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 69) ∧
+    ∃ s, Steps image u 1 1 s ∧ s.pc = pcOf 724 ∧ s.getReg .x1 = pcOf (trPc 0 c + 17) ∧
       RegsExcept u s [.x1] ∧ Frame u s (fun _ => False) := by
   have hcc := (copy_parts 0 (trPc 0 c) (copyCheck_at 0 c (by decide) hc)).2.2.1 rfl
   obtain ⟨s, hs⟩ := spec_run hcc u hpc (by simp [KnownOK]) (by simp [specTopCall]) (by simp)
   refine ⟨s, hs.steps, hs.pc rfl, ?_, ?_, ?_⟩
-  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 69))) (by simp [specTopCall])
+  · exact hs.regs (.x1, kw (0x1000 + 4 * (trPc 0 c + 17))) (by simp [specTopCall])
   · intro r hr
     cases r
     case x0 => simp [MachineState.getReg]
@@ -897,7 +897,7 @@ theorem topCall_jumps (c : Nat) (hc : c < nCopy 0) (u : MachineState)
 theorem topCall_step (c : Nat) (hc : c < nCopy 0) (u : MachineState)
     (hpc : u.pc = pcOf (trPc 0 c + 17)) (hk : KnownOK (bK 0) u)
     (hmem : u.getMem (BitVec.ofNat 64 0xff3800) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56)) :
-    ∃ s, Steps image u 8 8 s ∧ s.pc = pcOf 96160 ∧ s.getReg .x1 = pcOf (trPc 0 c + 69) ∧
+    ∃ s, Steps image u 7 7 s ∧ s.pc = pcOf 96160 ∧ s.getReg .x1 = pcOf (trPc 0 c + 17) ∧
       s.getReg .x28 = Nonbinary.topPrefixWord (u.getReg .x4) ∧
       RegsExcept u s [.x1,.x3,.x28] ∧ Frame u s (fun _ => False) := by
   obtain ⟨r, er, pr, ra, rr, fr⟩ := topCall_jumps c hc u hpc hk
@@ -968,7 +968,7 @@ open Nonbinary (NCtx)
 set_option maxHeartbeats 800000
 set_option linter.unusedSimpArgs false
 def nctxOf (w : WBytes) (index : Nat) (v : Digest) (p : Nat) : NCtx :=
-  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 69⟩
+  ⟨w, (route index 0).2, (route index 0).1, 15768, coreDigit 0 v, p + 17⟩
 theorem nctx_ok (w : WBytes) (index : Nat) (v : Digest) (c : Nat) (hidx : index < 2 ^ 31) :
     (nctxOf w index v (trPc 0 c)).ok := by
   have hp := trPc_lt 0 c
@@ -1001,14 +1001,14 @@ theorem nctx_known (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineStat
 theorem topEntry_orig (w : WBytes) (pk : Digest) (index c : Nat) (t s : MachineState) (a : BitVec 256)
     (ht : EncPre w pk index 0 c t)
     (he : TopEntry (writeHash t a) (a.extractLsb' 0 128) (trPc 0 c) s) :
-    Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s := by
+    Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) s := by
   have h12 : t.getReg .x12 = 320#64 := ht.glob.1 (_, _) (by simp [bK])
   have ho := Orig_writeHash ht.orig a 320 h12 (by norm_num)
-  have hu : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
+  have hu : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) (writeHash t a) :=
     ho.mono (fun o h => ⟨h, Or.inr (by unfold WIT; omega)⟩)
   exact hu.frame (fun j hj hp => he.frame.get (by unfold WIT WX at *; omega) (by simp))
 theorem nctx_orig (w : WBytes) (index : Nat) (v : Digest) (p : Nat) (s : MachineState)
-    (ho : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd 0) s) (hD : DataOK s) :
+    (ho : Verify.Orig w (fun o => 10568 ≤ o ∧ o < layerEnd 0) s) (hD : DataOK s) :
     (nctxOf w index v p).Orig0 s := by
   refine ⟨fun i hi k hk => ?_, hD⟩
   clear hD
