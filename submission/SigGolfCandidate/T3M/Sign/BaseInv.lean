@@ -1,5 +1,6 @@
 import SigGolfCandidate.T3M.Sign.Basic
 import SigGolfCandidate.T3M.Search.TopTables
+
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP MACBLK REGION)
@@ -76,52 +77,6 @@ theorem wordsOf_region (cache : Bytes 131072) :
     ← Nat.pow_add]
   congr 3; ring
 theorem Base.region_words {sk : SecretKey} {cache : Bytes 131072} {t : MachineState} (h : Base sk cache t) :
-    t.readWords (BitVec.ofNat 64 REGION) 16380 = wordsOf (List.ofFn (cacheDec cache).region) := by
-  rw [readWords_eq_map t REGION 16380 (by sg_omega), wordsOf_region]
-  exact List.map_congr_left (fun k hk => h.region k (List.mem_range.mp hk))
-def NeverWL (A : Nat) : Prop :=
-  A = FLEAF ∨ A = FLEAF + 8 ∨ A = FLEAF + 48 ∨ A = FLEAF + 56 ∨ A = NODE + 32 ∨ A = NODE + 40 ∨
-    A = CHAIN ∨ A = CHAIN + 8 ∨ A = CHAIN + 32 ∨ A = CHAIN + 40 ∨ A = LEAFPK + 880 ∨ A = LEAFPK + 888 ∨
-    (ZDIG ≤ A ∧ A < ZDIG + 64) ∨ A = ENC + 40 ∨ A = NBUF + 32
-def BaseAL (A : Nat) : Prop :=
-  A = PRIV ∨ A = PRIV + 8 ∨ A = PRIV + 32 ∨ A = PRIV + 40 ∨ A = PRIV + 48 ∨ A = PRIV + 56 ∨
-    (REGION ≤ A ∧ A < REGION + 131040) ∨ NeverWL A ∨
-      (Search.TOP_DATA ≤ A ∧ A < Search.TOP_DATA + 632)
-structure BaseL (sk : SecretKey) (cache : Bytes 131072) (t : MachineState) : Prop where
-  x5 : t.getReg .x5 = 0
-  p0 : t.getMem (BitVec.ofNat 64 PRIV) = sk.extractLsb' 0 64
-  p8 : t.getMem (BitVec.ofNat 64 (PRIV + 8)) = sk.extractLsb' 64 64
-  p32 : t.getMem (BitVec.ofNat 64 (PRIV + 32)) = sk.extractLsb' 128 64
-  p40 : t.getMem (BitVec.ofNat 64 (PRIV + 40)) = sk.extractLsb' 192 64
-  p48 : t.getMem (BitVec.ofNat 64 (PRIV + 48)) = 0
-  p56 : t.getMem (BitVec.ofNat 64 (PRIV + 56)) = 0
-  region : ∀ k < 16380, t.getMem (BitVec.ofNat 64 (REGION + 8 * k)) = cache.extractLsb' (64 * (k + 4)) 64
-  zero : ∀ A < 2 ^ 64, NeverWL A → t.getMem (BitVec.ofNat 64 A) = 0
-  table : Search.TableOK t
-theorem Base.toBaseL {sk : SecretKey} {cache : Bytes 131072} {t : MachineState} (h : Base sk cache t) :
-    BaseL sk cache t :=
-  ⟨h.x5, h.p0, h.p8, h.p32, h.p40, h.p48, h.p56, h.region, fun A hA hn => h.zero A hA (by
-    unfold NeverWL at hn; unfold NeverW; tauto), h.table⟩
-theorem BaseL.frame {sk : SecretKey} {cache : Bytes 131072} {t u : MachineState} {W : Nat → Prop}
-    {l : List Reg} (h : BaseL sk cache t) (hf : Frame t u W) (hr : RegsExcept t u l) (h5 : .x5 ∉ l)
-    (hW : ∀ A, A < 2 ^ 64 → BaseAL A → ¬ W A) : BaseL sk cache u := by
-  have g : ∀ A, A < 2 ^ 64 → BaseAL A → u.getMem (BitVec.ofNat 64 A) = t.getMem (BitVec.ofNat 64 A) :=
-    fun A hA hb => hf.get hA (hW A hA hb)
-  refine ⟨by rw [hr.get h5, h.x5], ?_, ?_, ?_, ?_, ?_, ?_, fun k hk => ?_, fun A hA hn => ?_, ?_⟩
-  · rw [g _ (by sg_omega) (by unfold BaseAL; simp), h.p0]
-  · rw [g _ (by sg_omega) (by unfold BaseAL; simp), h.p8]
-  · rw [g _ (by sg_omega) (by unfold BaseAL; simp), h.p32]
-  · rw [g _ (by sg_omega) (by unfold BaseAL; simp), h.p40]
-  · rw [g _ (by sg_omega) (by unfold BaseAL; simp), h.p48]
-  · rw [g _ (by sg_omega) (by unfold BaseAL; simp), h.p56]
-  · rw [g _ (by sg_omega) (by unfold BaseAL; right; right; right; right; right; right; left; sg_omega),
-      h.region k hk]
-  · rw [g _ hA (by unfold BaseAL; right; right; right; right; right; right; right; left; exact hn), h.zero A hA hn]
-  · exact h.table.frame hf (fun i hi => hW _ (by unfold Search.TOP_DATA; omega) (by
-      unfold BaseAL
-      right; right; right; right; right; right; right; right
-      unfold Search.TOP_DATA; omega))
-theorem BaseL.region_words {sk : SecretKey} {cache : Bytes 131072} {t : MachineState} (h : BaseL sk cache t) :
     t.readWords (BitVec.ofNat 64 REGION) 16380 = wordsOf (List.ofFn (cacheDec cache).region) := by
   rw [readWords_eq_map t REGION 16380 (by sg_omega), wordsOf_region]
   exact List.map_congr_left (fun k hk => h.region k (List.mem_range.mp hk))

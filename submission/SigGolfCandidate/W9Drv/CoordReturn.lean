@@ -186,7 +186,7 @@ def dispatchCode (k : Fin 9) : List (BitVec 32) :=
   [dispatchWords0, dispatchWords1, dispatchWords2, dispatchWords3, dispatchWords4,
     dispatchWords5, dispatchWords6, dispatchWords7, dispatchWords8].getD k.val []
 def dispatchBit (k : Fin 9) : Nat := [43,64,85,106,128,149,170,192,213].getD k.val 0
-def dispatchLen (k : Fin 9) : Nat := if k.val = 0 then 13 else 15
+def dispatchLen (k : Fin 9) : Nat := dispatchCost (dispatchBit k) (decide (k.val ≠ 0))
 def dispatchResult (k : Fin 9) : Result :=
   coordDispatch (dispatchPc k.val) (dispatchBit k) (decide (k.val ≠ 0))
 theorem dispatch_checked (k : Fin 9) :
@@ -258,6 +258,26 @@ theorem dispatch_child (a : HashOutput) (k : Fin 9) :
   rw [Nat.and_two_pow_sub_one_eq_mod]
   fin_cases k <;> simp [dispatchBit, ClaudeWCT.WCT9.child, ClaudeWCT.WCT9.coordBase,
     BitVec.toNat_ofNat] <;> omega
+theorem dispatchDig_eval (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
+    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
+    (dispatchDig (dispatchBit k)).eval u = a.extractLsb' (64 * (dispatchBit k / 64)) 64 := by
+  fin_cases k
+  all_goals first
+    | exact hu.digest _ (by decide)
+    | exact hu.digestWord (by decide)
+theorem dispatchChild_eval (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
+    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
+    (dispatchChild (dispatchBit k)).eval u = BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val := by
+  have hl := dispatchDig_eval pk w a k roots u hu
+  have hs : (BitVec.ofNat 64 (dispatchBit k % 64)).toNat % 64 = dispatchBit k % 64 := by
+    simp only [BitVec.toNat_ofNat]; omega
+  have h := dispatch_child a k
+  unfold dispatchChild
+  split_ifs with hz
+  · simp only [mkBin_eval, E.eval, BinOp.eval, hl]
+    convert h using 1 <;> simp only [hz, BitVec.ushiftRight_zero] <;> rfl
+  · simp only [mkBin_eval, E.eval, BinOp.eval, hl, hs]
+    exact h
 theorem dispatch_chain_pre (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
     Chain.Pre w (idxOf a) k (ClaudeWCT.WCT9.child a k) (ClaudeWCT.WCT9.rank a k)
@@ -271,7 +291,7 @@ theorem dispatch_chain_pre (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 
     simp only [List.mem_cons, not_or] at hr
     simp only [dispatchResult, coordDispatch]
     split <;> simp [RegFile.get_set_ne, hr, RegFile.init]
-  have hload := hu.digest (dispatchBit k / 64) (by fin_cases k <;> decide)
+  have hload := dispatchDig_eval pk w a k roots u hu
   have hshift : (BitVec.ofNat 64 (dispatchBit k % 64)).toNat % 64 = dispatchBit k % 64 := by
     simp only [BitVec.toNat_ofNat]
     omega
@@ -301,10 +321,10 @@ theorem dispatch_chain_pre (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 
       RegFile.get, RegFile.set, RegFile.init, addC_eval, E.eval, hu.headerReg, Chain.table]
   · change ((dispatchResult k).toState u).getReg .x4 = _
     simp only [dispatchResult, coordDispatch, Result.toState_getReg]
-    split <;> simp only [RegFile.get, RegFile.set, mkBin_eval, E.eval,
-      BinOp.eval]
-    all_goals rw [hload, hshift]
-    all_goals erw [dispatch_child a k, hu.index]
+    split <;> simp only [RegFile.get, RegFile.set]
+    all_goals
+      simp only [mkBin_eval, E.eval, BinOp.eval]
+      rw [dispatchChild_eval pk w a k roots u hu, hu.index]
     all_goals
       change (BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val <<< 32) |||
         BitVec.ofNat 64 (idxOf a) = _
@@ -320,12 +340,14 @@ theorem dispatch_chain_pre (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 
         Nat.mod_eq_of_lt (by omega : idxOf a < 2 ^ 64), hor]
       unfold hdr1
       omega
-  · rfl
+  · change ((dispatchResult k).toState u).getReg .x11 = 64
+    fin_cases k <;> exact hu.hashLen
   · change ((dispatchResult k).toState u).getReg .x23 = _
     simp only [dispatchResult, coordDispatch, Result.toState_getReg]
-    split <;> simp only [RegFile.get, RegFile.set, mkBin_eval, mkAdd_eval, E.eval, BinOp.eval]
-    all_goals rw [hload, hshift]
-    all_goals erw [dispatch_child a k, hu.childBlock]
+    split <;> simp only [RegFile.get, RegFile.set]
+    all_goals
+      simp only [mkAdd_eval, mkBin_eval, E.eval, BinOp.eval]
+      rw [dispatchChild_eval pk w a k roots u hu, hu.childBlock]
     all_goals
       change (BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val <<< 8) +
         BitVec.ofNat 64 0xce800 = _
@@ -386,11 +408,11 @@ theorem dispatch_pc (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
     ((dispatchResult k).toState u).pc = pcOf (jtStart + ClaudeWCT.WCT9.field a k) := by
   change (mkBin .and (mkAdd (mkBin .and
-    (mkBin .srl (.ld (.c (BitVec.ofNat 64 (96 + 8 * (dispatchBit k / 64)))))
+    (mkBin .srl (dispatchDig (dispatchBit k))
       (.c (BitVec.ofNat 64 (dispatchBit k % 64 + 5)))) (.reg .x2)) (.reg .x24))
       (.c (~~~1#64))).eval u = _
   simp only [mkBin_eval, mkAdd_eval, E.eval, BinOp.eval, hu.mask, hu.jt]
-  rw [hu.digest (dispatchBit k / 64) (by fin_cases k <;> decide)]
+  rw [dispatchDig_eval pk w a k roots u hu]
   have hshift : (BitVec.ofNat 64 (dispatchBit k % 64 + 5)).toNat % 64 =
       dispatchBit k % 64 + 5 := by fin_cases k <;> decide
   rw [hshift]
@@ -676,6 +698,12 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     digest := fun i hi => (hm _ (by omega) (Or.inl (by omega))).trans (hu.digest i hi)
     bank := ?_
     index := (hr .x22 (by decide)).trans hc.indexReg
+    digestWord := by
+      intro hn
+      have he : (chainEntryState a k u).getReg .x16 = (dispatchDig (dispatchBit k)).eval u := by
+        fin_cases k <;> rfl
+      rw [hr .x16 (by decide), he, dispatchDig_eval pk w a k roots u hu]
+      fin_cases k <;> rfl
     heaps := ?_
     stepOne := (hr .x6 (by decide)).trans hc.stepOne
     stepTwo := (hr .x7 (by decide)).trans hc.stepTwo
@@ -687,7 +715,13 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
       using (hr .x28 (by decide)).trans hc.headerReg
     roots := ?_
     coords := ?_
-    layer := ?_ }
+    layer := ?_
+    forestZero := fun A hA => (hf A (by rcases hA with rfl | rfl <;> decide) (by
+      unfold Chain.base W9Machine.forestSlot
+      split_ifs <;> rcases hA with rfl | rfl <;> omega)).trans (hu.forestZero A hA)
+    hashLen := by
+      rw [writeHash_getReg, rootPrepared, (coordRoot_keeps (rootPc k) k.val).reg t (x := .x11) (by decide)]
+      exact ht.a1 }
   · rw [writeHash_pc]
     change pcOf (rootPc k + 1) + 4 = _
     fin_cases k <;> rfl
@@ -733,8 +767,8 @@ theorem coord_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a : Hash
     (hu : CoordPre pk w a k.val roots u) (hnone : K none = pure (false, 0))
     (hnext : ∀ root t, CoordPre pk w a (k.val + 1) (roots ++ [root]) t →
       GoodQFor Frozen.image t N C Q A (K (some (roots ++ [root])))) :
-    GoodQFor Frozen.image u (N + (if k.val = 0 then 214 else 216))
-      (C + (if k.val = 0 then 214 else 216)) Q (A + (if k.val = 0 then 214 else 216))
+    GoodQFor Frozen.image u (N + (dispatchLen k + 201))
+      (C + (dispatchLen k + 201)) Q (A + (dispatchLen k + 201))
       (ccM (ClaudeWCT.W9.T3M.wctStep w a (some roots) k) K) := by
   have ds := dispatch_steps pk w a k roots u hu
   let f : Fin 16384 := ⟨ClaudeWCT.WCT9.field a k, Nat.mod_lt _ (by decide)⟩
@@ -753,9 +787,9 @@ theorem coord_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a : Hash
     have full := (core.steps js).steps ds
     simp only [ClaudeWCT.W9.T3M.wctStep, hok, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte, ccM_bind, ccM_pure]
-    exact full.mono (by unfold dispatchLen; split_ifs <;> omega)
-      (by unfold dispatchLen; split_ifs <;> omega)
-      (fun hq => ⟨hq, by unfold dispatchLen; split_ifs <;> omega⟩)
+    exact full.mono (by omega)
+      (by omega)
+      (fun hq => ⟨hq, by omega⟩)
   · have hfield : ¬ ClaudeWCT.WCT9.field a k < 16016 := by
       intro hh
       exact hok (show decide (ClaudeWCT.WCT9.field a k < 16016) = true from decide_eq_true hh)
@@ -770,8 +804,8 @@ theorem coord_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a : Hash
     dsimp only [gReject] at full
     have hfalse : ClaudeWCT.W9.T3M.fieldOk a k = false := Bool.eq_false_iff.mpr hok
     simp only [ClaudeWCT.W9.T3M.wctStep, hfalse, Bool.not_false, ↓reduceIte, ccM_pure, hnone]
-    exact full.mono (by unfold dispatchLen; split_ifs <;> omega)
-      (by unfold dispatchLen; split_ifs <;> omega)
-      (fun hq => ⟨hq, by unfold dispatchLen; split_ifs <;> omega⟩)
+    exact full.mono (by omega)
+      (by omega)
+      (fun hq => ⟨hq, by omega⟩)
 end W9Drv
 end

@@ -2,7 +2,7 @@ import SigGolfCandidate.W9Machine.WctDriverCheck
 
 namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
-def rootPc (k : Fin 9) : Nat := [81,98,115,132,149,166,183,200,217].getD k.val 0
+def rootPc (k : Fin 9) : Nat := [80,95,110,125,140,155,170,185,200].getD k.val 0
 def rootCode (k : Fin 9) : List (BitVec 32) :=
   [rootWords0, rootWords1, rootWords2, rootWords3, rootWords4,
     rootWords5, rootWords6, rootWords7, rootWords8].getD k.val []

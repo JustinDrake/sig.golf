@@ -120,7 +120,7 @@ local macro "so" : tactic =>
 def Kw (cache : Bytes 131072) (m : Message) (rho : Digest) : M (Option WCT9.Signature) := do
   let some (_, output) ← WCT9.digestSearch rho m 0 WCT9.digestAttemptLimit | pure none
   let forest ← WCT9.signForest (output.toNat % 2 ^ 31) output
-  let some pieces ← signLayers (cacheDec cache) (output.toNat % 2 ^ 31) 4 (forest.2, 0, 0) | pure none
+  let some pieces ← signLayers (cacheDec cache) (output.toNat % 2 ^ 31) 4 forest.2 | pure none
   pure (some (WCT9.assembledSignature rho forest.1 pieces))
 theorem rev3_sign_eq (cache : Bytes 131072) (m : Message) :
     WCT9.Rev3.sign (cacheDec cache) m = (do

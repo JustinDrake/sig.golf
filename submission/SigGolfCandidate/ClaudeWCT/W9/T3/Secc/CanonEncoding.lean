@@ -2,6 +2,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
 import SigGolfCandidate.SphincsSecurity.Proof.Base.FirstSuccessFamily
 import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableOverwrite
+
 namespace ClaudeWCT.W9.T3.Security.CanonEncoding
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -36,18 +37,17 @@ theorem childIndex_lt (L : EncLeaf) : L.1.tree.val * 2 ^ height L.1.lay + L.1.le
   fin_cases lay <;> simp [treeBits, height] at ht hl ⊢ <;> omega
 def childIndex (L : EncLeaf) : Fin (2^31) :=
   ⟨L.1.tree.val * 2 ^ height L.1.lay + L.1.leaf.val, childIndex_lt L⟩
-def msgLabel (labels : Labels) (L : EncLeaf) : (Digest × BitVec 96 × Digest) :=
+def msgLabel (labels : Labels) (L : EncLeaf) : Digest :=
   if h : L.1.lay.val < 3 then
-    (treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 0, 0,
-      treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩ - 1) 1)
-  else ((labels (.forest (childIndex L))).extractLsb' 0 128, 0, 0)
+    treeLabel labels ⟨L.1.lay.val + 1, by omega⟩ (childIndex L) (height ⟨L.1.lay.val + 1, by omega⟩) 0
+  else (labels (.forest (childIndex L))).extractLsb' 0 128
 theorem leafMsg_eq {answers : Answers} {labels : Labels} (h : Agrees answers labels) (L : EncLeaf) :
     Wots.leafMsg answers L.toWots = msgLabel labels L := by
   unfold Wots.leafMsg msgLabel EncLeaf.toWots
   dsimp only
   split_ifs with hlay
-  · exact honestPair_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)
-  · exact congrArg (fun x : Digest => ((x, 0, 0) : Digest × BitVec 96 × Digest)) (honestForest_eq h (childIndex L))
+  · exact honestRoot_eq h ⟨L.1.lay.val + 1, by omega⟩ (childIndex L)
+  · exact honestForest_eq h (childIndex L)
 def encKey (labels : Labels) (x : EncLeaf × Fin (2^22)) : QuerySpace.EncodingKey :=
   ((x.1.1.lay, x.1.1.tree, x.1.1.leaf, msgLabel labels x.1), x.2)
 theorem encKey_injective (labels : Labels) : Function.Injective (encKey labels) := by
@@ -255,7 +255,7 @@ theorem selection_valid (U : Finset HashInput) (hE : encInputs ⊆ U) (labels : 
   have h := (FirstSuccessTable.select_some_iff _ _ r.1 r.2).mp hr
   obtain ⟨-, hs⟩ := (decodeAt_eq_some L _ r.2).mp h.1
   exact Option.isSome_iff_exists.mp hs
-theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
+theorem counterSearch_select (answers : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest)
     (decodeLay : HashOutput → Option Digest)
     (hdecode : ∀ answer, decodeLay answer =
       if (decode lay (answer.extractLsb' 0 128)).isSome then some (answer.extractLsb' 0 128) else none) :

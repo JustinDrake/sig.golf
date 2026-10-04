@@ -72,8 +72,8 @@ def compareCode : List (BitVec 32) :=
     SigGolfCandidate.T3M.Expand.seg_351 ++ SigGolfCandidate.T3M.Expand.seg_353
 def BackSpec (im : Image) : Prop :=
   (∀ (sk : BitVec 256) (sig : SigGolfCandidate.T3.Signature) (index : Nat) (value : Digest) (s : MachineState),
-    LInv sig index 4 (value, 0, 0) s →
-      TBSim im sk s (lcost 4) (SigGolfCandidate.T3.expandLayers sig index 4 (value, 0, 0)) (LPost s sig index 4)) ∧
+    LInv sig index 4 value s →
+      TBSim im sk s (lcost 4) (SigGolfCandidate.T3.expandLayers sig index 4 value) (LPost s sig index 4)) ∧
   CodeAt im (pcOf 342) compareCode ∧ KernAt im 354
 def ExpandDataOK (im : Image) : Prop := im.data = hdrBankBytes ++ SigGolfCandidate.T3M.Images.expandLegacyData
 def ExpandRefinesW (imgs : Phase → Image) : Prop :=

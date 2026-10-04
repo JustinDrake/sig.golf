@@ -5,7 +5,11 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CaseCFull
 import SigGolfCandidate.ClaudeWCT.GuessV2.WorldHash
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CaseCSplit
 import SigGolfCandidate.T3.Secc.WotsEvents
+
 section
+
+
+
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -168,7 +172,7 @@ theorem keygen_free : AllQueriesSatisfy keygen WFree := by
   apply bind_allowed WFree keygenPayload_free
   intro generated
   exact bind_allowed WFree (privateMac_free _) fun _ => pure_allowed _ _
-theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
+theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) WFree := by
   induction fuel generalizing counter with
   | zero => exact pure_allowed _ _
@@ -205,7 +209,7 @@ theorem signTop_free (cache : SigGolfCandidate.T3.Cache) (leaf : Nat) (digits : 
   unfold signTop
   exact bind_allowed WFree (buildLeaf_free _ _ _ _ _) fun _ =>
     bind_allowed WFree (topPath_free _ _) fun _ => pure_allowed _ _
-theorem signLayers_free (cache : SigGolfCandidate.T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
+theorem signLayers_free (cache : SigGolfCandidate.T3.Cache) (index n : Nat) (message : Digest) :
     AllQueriesSatisfy (signLayers cache index n message) WFree := by
   induction n generalizing message with
   | zero => exact pure_allowed _ _
@@ -290,7 +294,10 @@ theorem eval_free (g g' : WctPoint → Digest) {α : Type} {program : M α} (hp 
 end Table
 end ClaudeWCT.W9.T3.Security.WPair
 end
+
 section
+
+
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -407,7 +414,7 @@ noncomputable def signerCore (published : SigGolfCandidate.T3.Cache) (request : 
     | none => none
     | some (_, output) =>
         match evalWithAnswerFn (wA hU ω 0) (signLayers request.cache (output.toNat % 2 ^ 31) 4
-            (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31), 0, 0)) with
+            (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31))) with
         | none => none
         | some pieces => some (evalWithAnswerFn (wA hU ω 0) (privateNonce request.message), output, pieces)
   else none
@@ -437,7 +444,7 @@ theorem sign_answers (g : WctPoint → Digest) (published : SigGolfCandidate.T3.
         rw [honestForest_world hU ω g 0 (output.toNat % 2 ^ 31) (outIndex_lt output),
           eval_free hU ω g 0 (signLayers_free _ _ _ _)]
         cases evalWithAnswerFn (wA hU ω 0) (signLayers request.cache (output.toNat % 2 ^ 31) 4
-          (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31), 0, 0)) with
+          (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31))) with
         | none => rfl
         | some pieces => rfl
   · rw [if_neg hc, if_neg hc]
@@ -498,7 +505,9 @@ theorem sign_opened (g : WctPoint → Digest) (published : SigGolfCandidate.T3.C
 end World
 end ClaudeWCT.W9.T3.Security.WPair
 end
+
 section
+
 namespace ClaudeWCT.Guess
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3
@@ -587,7 +596,12 @@ theorem one {init final : State GCoord Digest Memory} {log : List E} {entries : 
 end WTracks
 end ClaudeWCT.Guess
 end
+
 section
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

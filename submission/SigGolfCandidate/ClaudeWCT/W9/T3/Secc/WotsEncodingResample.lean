@@ -11,6 +11,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonEncoding
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraph
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -24,7 +25,7 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 namespace Enc
 open SigGolfCandidate.T3.Security.Wots.Enc
-abbrev EncIndex := CanonGraph.LeafPos × (Digest × BitVec 96 × Digest) × BitVec 32
+abbrev EncIndex := CanonGraph.LeafPos × Digest × BitVec 32
 def encInput (e : EncIndex) : HashInput := encodingRow (leafOf e.1) e.2.1 e.2.2
 theorem encInput_length (e : EncIndex) : (encInput e).length = 64 := by
   simp [encInput, encodingRow, encodingInput, pad64, bytesLE_length]

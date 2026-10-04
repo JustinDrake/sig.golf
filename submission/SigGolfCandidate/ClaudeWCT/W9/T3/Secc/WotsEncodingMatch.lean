@@ -16,6 +16,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGame
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGameSim
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsPrefixGameBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskRest
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -46,7 +47,7 @@ theorem reached_valid_reference {T : Answers} {L : LeafAddr} {input : HashInput}
   rw [hs]
   rfl
 def MatchEntry (T : Answers) (entry : Entry) : Prop :=
-  ∃ (L : CanonGraph.LeafPos) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32),
+  ∃ (L : CanonGraph.LeafPos) (message : Digest) (counter : BitVec 32),
     entry.1 = encodingRow (leafOf L) message counter ∧
       referenceInput T (leafOf L) ≠ some (encodingRow (leafOf L) message counter) ∧
       decode L.lay (low entry.2) = some (referenceDigits T (leafOf L))

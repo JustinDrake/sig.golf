@@ -1,6 +1,7 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccSufSigned
 import SigGolfCandidate.ClaudeWCT.WCT9.QueriesWots
 import SigGolfCandidate.T3.Secc.SeccSufRoute
+
 namespace ClaudeWCT.W9.T3.Security.BPB
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -84,23 +85,21 @@ theorem counterSearch_good (answers : Correctness.Answers) (w : WBytes) (index :
       exact absurd this (by simp)
 theorem honestMsg_lower (answers : Correctness.Answers) (index n : Nat) (hn : n + 1 < 4) :
     ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 n) =
-      (treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
-        (height (Fin.ofNat 4 (n + 1)) - 1) 0, 0,
-       treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
-        (height (Fin.ofNat 4 (n + 1)) - 1) 1) := by
+      treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
+        (height (Fin.ofNat 4 (n + 1))) 0 := by
   have hv : (Fin.ofNat 4 n : Layer).val = n := Nat.mod_eq_of_lt (by omega)
   have hl : (⟨n + 1, by omega⟩ : Layer) = Fin.ofNat 4 (n + 1) := Fin.ext (by simp; omega)
   simp only [ClaudeWCT.W9.T3M.Extract.honestMsg, hv, dif_pos (show n < 3 by omega),
-    ClaudeWCT.W9.T3M.Extract.honestPair, hl]
+    ClaudeWCT.W9.T3M.Extract.honestRoot, hl]
 theorem honestMsg_three (answers : Correctness.Answers) (index : Nat) :
-    ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 3) = (WCT9.honestForest answers index, 0, 0) := by
+    ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 3) = WCT9.honestForest answers index := by
   rw [show (Fin.ofNat 4 3 : Layer) = 3 from rfl]
   simp only [ClaudeWCT.W9.T3M.Extract.honestMsg, show ¬((3 : Layer).val < 3) by decide, dite_false,
     ClaudeWCT.W9.T3M.Extract.honestForest_eq_recover]
   rfl
 theorem signLayers_good (answers : Correctness.Answers) (cache : SigGolfCandidate.T3.Cache) (index : Nat) (w : WBytes)
     (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers w index lay) :
-    ∀ n, n ≤ 4 → ∀ value : Digest × BitVec 96 × Digest,
+    ∀ n, n ≤ 4 → ∀ value : Digest,
       (∀ k, n = k + 1 → value = ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 k)) →
       ∃ pieces, evalWithAnswerFn answers (signLayers cache index n value) = some pieces := by
   intro n
@@ -122,9 +121,8 @@ theorem signLayers_good (answers : Correctness.Answers) (cache : SigGolfCandidat
         have htree := Correctness.eval_buildTree_result answers (Fin.ofNat 4 (k + 1))
           (route index (Fin.ofNat 4 (k + 1))).2 (route index (Fin.ofNat 4 (k + 1))).1 digits hvalid
           (route_leaf_bound index _)
-        obtain ⟨pieces, hp⟩ := ih (by omega) ((((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 0 0, 0, ((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 1 0))
+        obtain ⟨pieces, hp⟩ := ih (by omega) (((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
+            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1))) []).getD 0 0)
           (fun k' hk' => by
             have hkk : k' = k := by omega
             rw [hkk, honestMsg_lower answers index k (by omega)]
@@ -138,7 +136,7 @@ theorem selected_payload_succeeds (answers : Correctness.Answers) (cache : SigGo
     (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers w (N.toNat % 2 ^ 31) lay) :
     ∃ sig, evalWithAnswerFn answers (payloadForNonce cache rho m) = some sig ∧ sig.rho = rho := by
   obtain ⟨pieces, hp⟩ := signLayers_good answers cache (N.toNat % 2 ^ 31) w hgood 4 le_rfl
-    (WCT9.honestForest answers (N.toNat % 2 ^ 31), 0, 0)
+    (WCT9.honestForest answers (N.toNat % 2 ^ 31))
     (fun k hk => by
       obtain rfl : k = 3 := by omega
       exact (honestMsg_three answers _).symm)
@@ -148,7 +146,7 @@ theorem selected_payload_succeeds (answers : Correctness.Answers) (cache : SigGo
 theorem afterDigest_ok (cache : SigGolfCandidate.T3.Cache) (rho : Digest) (output : HashOutput) :
     AllQueriesSatisfy (do
       let forest ← WCT9.signForest (output.toNat % 2 ^ 31) output
-      let some pieces ← signLayers cache (output.toNat % 2 ^ 31) 4 (forest.2, 0, 0) | pure none
+      let some pieces ← signLayers cache (output.toNat % 2 ^ 31) 4 forest.2 | pure none
       pure (some (WCT9.assembledSignature rho forest.1 pieces)) : M (Option Signature))
       SigGolfCandidate.T3.Security.BPB.NotDigestQ := by
   apply SourceQueries.bind_allowed _ (ClaudeWCT.WCT9.Wots.BPB.signForest_ok _ output)
