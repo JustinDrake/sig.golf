@@ -178,7 +178,8 @@ theorem verifyData_word (k : Nat) (hk : k < 12) :
       BitVec.ofNat 64 (dataWords.getD k 0) := by
   interval_cases k <;> decide +kernel
 def headerWord (k : Nat) : Nat :=
-  0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
+  if k < 4 then 128 + 193 * 2 ^ 56 + k * 2 ^ 48
+  else 0x101 + 65536 * (k / 512) + 2 ^ 40 * (k % 512 / 8) + 2 ^ 32 * (k % 8)
 def headerWordsCheck : List (BitVec 8) → Nat → Bool
   | [], _ => true
   | a :: b :: c :: d :: e :: f :: g :: h :: tail, k =>
@@ -386,9 +387,13 @@ theorem init_ok (m : Legacy.Message) (pk : PublicKey) (w : Bytes 25240) (s : Mac
       have e1 : (512 * lay + 8 * i + d) / 512 = lay := by omega
       have e2 : (512 * lay + 8 * i + d) % 512 / 8 = i := by omega
       have e3 : (512 * lay + 8 * i + d) % 8 = d := by omega
-      have ew : headerWord (512 * lay + 8 * i + d) = 0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d := by
+      have ew : headerWord (512 * lay + 8 * i + d) =
+          (if lay = 0 ∧ i = 0 ∧ d < 4 then 128 + 193 * 2 ^ 56 + d * 2 ^ 48
+           else 0x101 + 65536 * lay + 2 ^ 40 * i + 2 ^ 32 * d) := by
         unfold headerWord
-        rw [e1, e2, e3]
+        by_cases hsmall : lay = 0 ∧ i = 0 ∧ d < 4
+        · rcases hsmall with ⟨rfl, rfl, hd4⟩; simp [hd4]
+        · rw [if_neg (by omega), if_neg hsmall, e1, e2, e3]
       rw [gm, g3 _ (by omega), if_neg (by omega), g2 _ (by omega), if_neg (by omega), g1 _ (by omega),
         if_neg (by omega), g0 _ (by omega), if_pos (by simp only [TAB, VERIFY_DATA, HDATA]; omega),
         show HDATA + 4096 * lay + 64 * i + 8 * d - VERIFY_DATA = 20992 + 8 * (512 * lay + 8 * i + d) by
@@ -872,14 +877,14 @@ theorem mkEnd_next (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 
       rcases hp with (rfl | rfl) | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact ht.glob.1 _ (by simp [baseK])
       · exact ht.glob.1 _ (by simp [baseK])
-      · rw [hkp .x27 (by simp [mkKeep]), hkU (.x27, BitVec.ofNat 64 (hw 4 n)) (by simp [lfK, postLf, leafK]),
+      · rw [hkp .x27 (by simp [mkKeep]), hkU (.x27, BitVec.ofNat 64 (hw 1 n)) (by simp [lfK, postLf, leafK]),
           show n - 1 + 1 = n by omega]
       · rw [hkp .x24 (by simp [mkKeep]), hkU (.x24, 0x10000) (by simp [lfK, lfKeepK, h0])]
       · rw [hkp .x2 (by simp [mkKeep]), hkU (.x2, 0x3fe00) (by simp [lfK, lfKeepK])]
       · rw [hkp .x20 (by simp [mkKeep]), hkU (.x20, BitVec.ofNat 64 M1c) (by simp [lfK, lfKeepK, h0])]
       · rw [hkp .x21 (by simp [mkKeep]), hkU (.x21, BitVec.ofNat 64 M2c) (by simp [lfK, lfKeepK, h0])]
       · exact hkt _ (by simp)
-      · rw [hkp .x28 (by simp [mkKeep]), hkU (.x28, BitVec.ofNat 64 (headerBank 0 0)) (by simp [lfK, lfKeepK])]
+      · rw [hkp .x28 (by simp [mkKeep]), hkU (.x28, BitVec.ofNat 64 (headerBank 0 0)) (by simp [lfK, lfKeepK, h0])]
       all_goals exact hkt _ (by simp [mkKc])
     ·
       rw [show rReg (n - 1) = .x30 by simp [rReg, hn3], ht.keep .x30 (by simp [mkKeep]), hu.t5,
@@ -895,8 +900,8 @@ def lCyc : Nat → Nat
 def lFuel : Nat → Nat
   | 0 => 9
   | n + 1 => layerFuel n + mkFuel n + lFuel n
-theorem lCyc_4 : lCyc 4 = 5964 := by decide
-theorem lFuel_4 : lFuel 4 = 8017 := by decide
+theorem lCyc_4 : lCyc 4 = 5827 := by decide
+theorem lFuel_4 : lFuel 4 = 8051 := by decide
 theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^ 31) (Q : Prop) (hQ : Q) :
     ∀ n, n ≤ 4 → ∀ M s, RestIn w pk index n M s →
       GoodQ s (lFuel n) (lCyc n) Q (lCyc n) (ccM (layersP w index n M) (kFin pk)) := by
@@ -923,7 +928,7 @@ theorem layers_good (w : WBytes) (pk : Digest) (index : Nat) (hidx : index < 2 ^
     exact hg.mono (by simp only [lFuel]; omega) (by simp only [lCyc]; omega) (fun q => ⟨q, by simp only [lCyc]; omega⟩)
 theorem after_good (pk : Digest) (w : WBytes) (Q : Prop) (hQ : Q) (a : HashOutput) (root : Digest) (u : MachineState)
     (h : FtsOut ⟨pk, w, a⟩ root u) :
-    GoodQ u 8050 8050 Q 5970 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
+    GoodQ u 8057 8057 Q 5833 (ccM (afterFts pk w (a.toNat % 2 ^ 31) (some root)) Kb) := by
   have hidx : a.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   obtain ⟨t, hst, hL3⟩ := layerIn_of_fts w pk _ root u hidx h.glob h.idx h.pc h.root h.wit
   have hg := layers_good w pk _ hidx Q hQ 4 le_rfl root t (by simpa [RestIn] using hL3)
@@ -944,6 +949,7 @@ open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv
 open RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.T3M
 open SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput M)
+def hLoad (i d : Nat) : E := .ld (addC (.reg .x28) (hOff i d))
 def GoodQFor (im : Image) (s : MachineState) (N C : Nat) (Q : Prop) (A : Nat)
     (X : OracleComp HashSpec Obs) : Prop :=
   ∀ F, N ≤ F → obs <$> Riscv.execute F im s = X ∧

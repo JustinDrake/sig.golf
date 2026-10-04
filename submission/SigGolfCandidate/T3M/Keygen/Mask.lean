@@ -13,7 +13,7 @@ open SigGolfCandidate.T3 (Layer Digest buildLeaf buildLevels buildTree height ch
 def kgLeaf (j : Nat) : LeafArgs := ⟨0, 0, j, [], false, ZDIG, DUMMY, TOP + 16 * (4096 + j), 34⟩
 def kgLev : LevArgs := ⟨3, 0, 0, 12, TOP, 39⟩
 theorem kgLeaf_n (j : Nat) : (kgLeaf j).n = 54 := rfl
-theorem kgLeaf_costs (j : Nat) : (kgLeaf j).leafK = 7259 ∧ (kgLeaf j).leafC = 9050 ∧
+theorem kgLeaf_costs (j : Nat) : (kgLeaf j).leafK = 10667 ∧ (kgLeaf j).leafC = 12458 ∧
     (kgLeaf j).leafN = 241 ∧ (kgLeaf j).leafB = 254 := by
   have e : (kgLeaf j).leafK = (kgLeaf 0).leafK ∧ (kgLeaf j).leafC = (kgLeaf 0).leafC ∧
       (kgLeaf j).leafN = (kgLeaf 0).leafN ∧ (kgLeaf j).leafB = (kgLeaf 0).leafB := ⟨rfl, rfl, rfl, rfl⟩
@@ -64,6 +64,12 @@ theorem kgLeaf_pre {j : Nat} (hj : j < 4096) {t : MachineState} (hr : RegsExcept
       x31 := by rw [g _ (by decide), hs.x31]; rfl
       htree := show 0 < 2 ^ 32 by norm_num
       hleaf := by show j < 2 ^ 32; omega
+      hroute := by change 0 * 2 ^ 12 + j < 2 ^ 31; omega
+      hleafHeight := hj
+      hsteps := fun i _ => by
+        change T3.maxDigit 0 i ≤ 8
+        unfold T3.maxDigit
+        split_ifs <;> omega
       p0 := by rw [m _ (by decide) (by unfold W1; decide), hs.p0]
       p8 := by rw [m _ (by decide) (by unfold W1; decide), hs.p8]
       p32 := by rw [m _ (by decide) (by unfold W1; decide), hs.p32]
@@ -100,7 +106,7 @@ theorem kgLeaf_pre {j : Nat} (hj : j < 4096) {t : MachineState} (hr : RegsExcept
       hdv := Or.inr (by show DUMMY + 16 * 54 ≤ TOP + 16 * (4096 + j); kg_omega) }
 theorem leafLoop_body {j : Nat} (hj : j < 4096) (acc : List Digest × List Digest) (t : MachineState)
     (ht : LoopInv s1 j acc t) :
-    TSim image sk t 7269 9060 241 254
+    TSim image sk t 10677 12468 241 254
       (do
         let (root, values) ← buildLeaf 0 0 j (if j = 0 then [] else [])
         pure (acc.1 ++ [root], if j = 0 then values else acc.2))
@@ -162,12 +168,12 @@ theorem leafLoop_body {j : Nat} (hj : j < 4096) (acc : List Digest × List Diges
       (fun _ _ _ h => h)
 def treeRegs : List Reg := loopRegs ++ [.x6] ++ [.x1, .x15, .x21] ++ levRegs
 theorem buildTree_tsim :
-    TSim image sk s1 29933611 37298212 991231 1044479 (buildTree 0 0 0 [])
+    TSim image sk s1 43892779 51257380 991231 1044479 (buildTree 0 0 0 [])
       (fun r t => t.pc = pcOf 39 ∧ HeapAt t kgLev 12 r.1 ∧ RegsExcept s1 t treeRegs ∧
         Frame s1 t (fun X => W1 X ∨ LevW kgLev X)) := by
   unfold buildTree
   refine (TSim.bind (k₂ := 159787) (c₂ := 188452) (n₂ := 4095) (b₂ := 4095)
-    (TSim.foldlM_range 4096 _ _ (LoopInv s1) (fun _ => 7269) (fun _ => 9060)
+    (TSim.foldlM_range 4096 _ _ (LoopInv s1) (fun _ => 10677) (fun _ => 12468)
     (fun _ => 241) (fun _ => 254) (fun j hj acc t ht => leafLoop_body hs hj acc t ht) (loopInv_zero hs))
     (fun st t ht => ?_)).of_eq rfl ?_ ?_ ?_ ?_
   rotate_left

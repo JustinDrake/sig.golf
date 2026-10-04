@@ -55,7 +55,8 @@ theorem ftsQuery_untouched {index : Nat} (a : ChainAddr) {q : Query} (h : FtsQue
   rcases q with (coin | input) | (tweak | other)
   · exact h.elim
   · obtain ⟨tag, lay, position, idx, htag, hblock⟩ := FtsInput.hdrBlock (show FtsInput index input from h)
-    exact Mask.untouched_of_hdr a input _ hblock (Mask.tag_ne_one (tag_mod htag).2.1 _ _ _ _)
+    exact Mask.untouched_of_hdr a input _ hblock
+      (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
   · obtain ⟨coord, selected, pair, -, -, -, rfl⟩ := (show FtsSeed index tweak from h)
     exact Mask.untouched_privatePair a (by decide) _ _ _ _
   · exact h.elim
@@ -93,7 +94,7 @@ theorem respects_chain (coord selected t start count : Nat) (value : Digest) :
   unfold chainInput
   rw [List.append_assoc (zero16 ++ _), wctHeader_eq_header _ _ _ _ _ (by decide)]
   exact Wots.Mask.untouched_of_hdr a _ _ (hdrBlock_pad64_prefix _ _ _ (by simp [zero16]))
-    (Wots.Mask.tag_ne_one (by decide) _ _ _ _)
+    (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
 theorem respects_leafHash (coord selected : Nat) (ends : List Digest) :
     Wots.Mask.Respects (Wots.Mask.Untouched a) (WCT9.leafHash index coord selected ends) := by
   unfold WCT9.leafHash

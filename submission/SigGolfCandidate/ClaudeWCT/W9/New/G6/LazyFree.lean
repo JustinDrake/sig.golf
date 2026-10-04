@@ -36,8 +36,18 @@ theorem signForest_dn (index : Nat) (output : HashOutput) : AllQueriesSatisfy (W
 theorem cell_not_digest (s : CanonGraph.Secrets) (node : CanonGraph.Node) (labels : CanonGraph.Labels) :
     CanonGraph.cell s node labels ∉ digestInputs := by
   have h := CanonGraph.hdrBlock_cell s node labels
-  cases node <;> simp only [CanonGraph.Node.toPos, ClaudeWCT.W9.T3M.Extract.Pos.hdr] at h <;>
-    exact SigGolfCandidate.T3.Security.BPair.not_digest_of_hdr h (by decide)
+  cases node with
+  | chain point =>
+      intro hm
+      obtain ⟨rho, m, ctr, he⟩ := SigGolfCandidate.T3.Security.BPair.mem_digestInputs.mp hm
+      rw [he, ClaudeWCT.W9.T3M.Extract.hdrBlock_pad64 _
+        (by rw [SigGolfCandidate.T3.Security.BPair.digestInput_length]; omega)] at h
+      unfold digestInput at h
+      rw [ClaudeWCT.W9.T3M.Extract.hdrBlock_prefix] at h
+      exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective h).symm
+  | _ =>
+      simp only [CanonGraph.Node.toPos, ClaudeWCT.W9.T3M.Extract.Pos.hdr] at h
+      exact SigGolfCandidate.T3.Security.BPair.not_digest_of_hdr h (by decide)
 def nonceHalf (m : Message) : ChainGraph.HalfCoordinate := (.inr (.inl m), 0)
 theorem nonceHalf_not_secret (m : Message) : nonceHalf m ∉ Set.range CanonGraph.secretCoordinate := by
   rintro ⟨i, hi⟩

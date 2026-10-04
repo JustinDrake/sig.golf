@@ -20,6 +20,9 @@ structure LeafPreS (sk : BitVec 256) (s : MachineState) (A : LeafArgs) : Prop wh
   x31 : s.getReg .x31 = BitVec.ofNat 64 (if A.so then 1 else 0)
   htree : A.tree < 2 ^ 32
   hleaf : A.leaf < 2 ^ 32
+  hroute : A.tree * 2 ^ T3.height A.lay + A.leaf < 2 ^ 31
+  hleafHeight : A.leaf < 2 ^ T3.height A.lay
+  hsteps : ∀ i < A.n, A.e i ≤ 8
   p0 : s.getMem (BitVec.ofNat 64 PRIV) = sk.extractLsb' 0 64
   p8 : s.getMem (BitVec.ofNat 64 (PRIV + 8)) = sk.extractLsb' 64 64
   p32 : s.getMem (BitVec.ofNat 64 (PRIV + 32)) = sk.extractLsb' 128 64
@@ -144,26 +147,29 @@ theorem leaf_prechainS {j : Nat} (hj : j < A.n) {st : List Digest × List Digest
     have := hpre.hdv
     simp only [CHAIN, PRIV, SEEDS, LEAFPK, LOUT] at *
     omega
-  refine ⟨u, ?_, upc, ⟨?_, ux1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+  refine ⟨u, ?_, upc, {
+      x5 := ?_, x1 := ux1, x8 := ?_, x9 := ?_, x18 := ?_
+      x17 := ?_, x19 := ?_, x21 := ?_, x23 := ?_, htree := hpre.htree
+      hi := by change j < 64; change A.n = 54 ∨ A.n = 43 at hn; omega
+      hroute := hpre.hroute, hleaf := hpre.hleafHeight
+      hcap := ?_, he := hpre.hsteps j hj, hv8 := ?_, hv := ?_, hvc := ?_
+      z0 := ?_, z8 := ?_, z32 := ?_, z40 := ?_ },
     hseedv.frame (((t2f.trans t3f).trans t4f).trans (t5f.trans (t6f.trans uf))) (by decide)
       (by simp) (by simp), e1u, f1u⟩
   · have := (st1.trans st2).trans ((st3.trans st4).trans ((st5.trans st6).trans st7))
     refine Steps.of_eq this ?_ ?_ <;> split_ifs <;> simp_all <;> omega
   · rw [gu _ (by simp [leafRegs]) (by simp), hpre.x5]
   · rw [gu _ (by simp [leafRegs]) (by simp), hpre.x8]
+  · rw [gu _ (by simp [leafRegs]) (by simp), hpre.x9]
+  · rw [gu _ (by simp [leafRegs]) (by simp), hpre.x18]
   · rw [ur.get (by simp), t6r.get (by simp), t5r.get (by simp), t4r.get (by simp), t3r.get (by simp),
       t2x17]
   · rw [e1u.get (by simp)]; exact ht.x19
   · rw [ur.get (by simp)]; exact t6x21
   · rw [e1u.get (by simp)]; exact ht.x23
-  · exact hpre.htree
-  · omega
   · unfold LeafArgs.e; split_ifs with hso
     · exact le_refl _
     · exact hdb.2 (by simpa using hso)
-  · unfold LeafArgs.e; split_ifs with hso
-    · omega
-    · unfold maxDigit; split_ifs <;> omega
   · omega
   · omega
   · simp only [CHAIN, PRIV, LEAFPK] at hvs ⊢; omega
@@ -171,7 +177,6 @@ theorem leaf_prechainS {j : Nat} (hj : j < A.n) {st : List Digest × List Digest
   · rw [fr (CHAIN + 8) (by decide) (hL _ (by simp)) (by decide) (by decide), hpre.z8]
   · rw [fr (CHAIN + 32) (by decide) (hL _ (by simp)) (by decide) (by decide), hpre.z32]
   · rw [fr (CHAIN + 40) (by decide) (hL _ (by simp)) (by decide) (by decide), hpre.z40]
-  · rw [f1u.get (by decide) (by simp), ht.w24]
 set_option maxHeartbeats 1000000 in
 theorem leaf_postchainS {j : Nat} (hj : j < A.n) {st : List Digest × List Digest} {t u : MachineState}
     (ht : LeafInv s0 A j st t) (hupc : u.pc = pcOf (b + 79))
@@ -246,7 +251,7 @@ theorem leaf_postchainS {j : Nat} (hj : j < A.n) {st : List Digest × List Diges
       · exact h.elim
       · exact h
       · exact h.elim)
-  refine ⟨w, ?_, wpc, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, fuw⟩
+  refine ⟨w, ?_, wpc, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, fuw⟩
   · have := st1.trans (st2.trans st6)
     refine Steps.of_eq this ?_ ?_ <;> split_ifs <;> simp_all <;> omega <;> omega
   · rw [wx19]
@@ -259,8 +264,6 @@ theorem leaf_postchainS {j : Nat} (hj : j < A.n) {st : List Digest × List Diges
     · exact LeafW_of_c48 h
     · exact LeafW_of_chainW hj h
     · exact LeafW_of_slot hj h
-  · have := slot_hdr j
-    rw [ftw.get (by decide) (by unfold ChainW; sc_omega), ht.w24]
   · have := slot_hdr j
     rw [ftw.get (by decide) (by unfold ChainW; sc_omega), ht.lh16]
   · have := slot_hdr j
@@ -306,7 +309,7 @@ theorem leaf_iterS {j : Nat} (hj : j < A.n) {st : List Digest × List Digest} {t
     (hseed : DigAt t (SEEDS + 16 * (j % 2)) seed) :
     TSim image sk t (A.iterK j) (A.iterC j) (A.e j) (A.e j) (halfUpd A st <$> chainProg A j seed)
       (fun st' u => u.pc = pcOf (b + 41) ∧ LeafInv s0 A (j + 1) st' u ∧
-        Frame t u (fun X => X = CHAIN + 16 ∨ (CHAIN + 48 ≤ X ∧ X < CHAIN + 80) ∨
+        Frame t u (fun X => (X = CHAIN + 16 ∨ X = CHAIN + 24) ∨ (CHAIN + 48 ≤ X ∧ X < CHAIN + 80) ∨
           (slot j ≤ X ∧ X < slot j + 16) ∨ (A.valp + 16 * j ≤ X ∧ X < A.valp + 16 * j + 16))) := by
   obtain ⟨u0, st0, u0pc, hcp, hcs, u0r, u0f⟩ := leaf_prechainS hsub sk hpre hj ht hpc seed hseed
   have hch := chainRun_tsim hsub sk hcp u0pc seed hcs
@@ -382,7 +385,7 @@ theorem leaf_prfS {p : Nat} (hp : 2 * p < A.n) {st : List Digest × List Digest}
   refine (TSim.steps (st1.trans (st2.trans st3)) (TSim.privatePair_bind (k := k) (c := c) (n := n) (b := bl)
     (fetch_sub59 hsub t3 t3pc) h5 hv hq (fun a => ?_))).of_eq rfl (by omega) (by omega) rfl rfl
   have hwf := Frame.writeHash t3 a SEEDS t3x12 (by decide)
-  refine hk a (writeHash t3 a) ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ (by rw [pc_writeHash, t3pc,
+  refine hk a (writeHash t3 a) ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ (by rw [pc_writeHash, t3pc,
     pcOf_add4]) (DigAt.writeHash_lo t3 a SEEDS t3x12 (by decide))
     (DigAt.writeHash_hi t3 a SEEDS t3x12 (by decide))
   · rw [getReg_writeHash, r13.get (by simp)]; exact ht.x19
@@ -397,7 +400,6 @@ theorem leaf_prfS {p : Nat} (hp : 2 * p < A.n) {st : List Digest × List Digest}
     · left; exact h
     · right; left; exact h
     · right; right; left; simp only [SEEDS] at h ⊢; omega
-  · rw [(f13.trans hwf).get (by decide) (by simp only [CHAIN, PRIV, SEEDS]; omega), ht.w24]
   · rw [(f13.trans hwf).get (by decide) (by simp only [LEAFPK, PRIV, SEEDS]; omega), ht.lh16]
   · rw [(f13.trans hwf).get (by decide) (by simp only [LEAFPK, PRIV, SEEDS]; omega), ht.lh24]
   · exact ht.elen
@@ -421,13 +423,12 @@ theorem leaf_oddS {j : Nat} (hj : j < A.n) (hodd : j % 2 = 1) {st : List Digest 
   rw [if_neg (by omega)] at t2pc
   have r12 : RegsExcept t t2 [.x6] := (t1r.trans t2r).mono (by simp)
   have f12 : Frame t t2 (fun _ => False) := (t1f.trans t2f).mono (fun X _ h => by simp_all)
-  refine ⟨t2, st1.trans st2, t2pc, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ht.elen, ht.vlen, ?_, ?_⟩, f12⟩
+  refine ⟨t2, st1.trans st2, t2pc, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ht.elen, ht.vlen, ?_, ?_⟩, f12⟩
   · rw [r12.get (by simp)]; exact ht.x19
   · rw [r12.get (by simp)]; exact ht.x23
   · rw [r12.get (by simp)]; exact ht.x3
   · exact (ht.regs.trans r12).mono (by decide)
   · exact (ht.frame.trans f12).mono (fun X _ h => by rcases h with h | h; exact h; exact h.elim)
-  · rw [f12.get (by decide) (by simp)]; exact ht.w24
   · rw [f12.get (by decide) (by simp)]; exact ht.lh16
   · rw [f12.get (by decide) (by simp)]; exact ht.lh24
   · intro hso c hc
@@ -665,7 +666,7 @@ theorem buildLeaf_tsimS (hpc : s0.pc = pcOf (b + 27)) :
   obtain ⟨t1, st1, t1pc, t1x3, t1x19, t1c24, t1l24, t1l16, t1r, t1f⟩ :=
     sub27_spec hsub s0 hpc A.lay.val A.tree A.leaf hlay hpre.htree hpre.hleaf hpre.x8 hpre.x9 hpre.x18
   have h0 : LeafInv s0 A 0 ([], []) t1 := by
-    refine ⟨t1x19, ?_, by rw [t1x3, hpre.x1], t1r.mono (by decide), t1f.mono (fun X _ h => ?_), t1c24, ?_,
+    refine ⟨t1x19, ?_, by rw [t1x3, hpre.x1], t1r.mono (by decide), t1f.mono (fun X _ h => ?_), ?_,
       t1l24, by simp, rfl, fun _ c hc => absurd hc (by omega), DigsAt.nil _ _⟩
     · rw [t1r.get (by simp), hpre.x23]; simp
     · unfold LeafW; simp only [CHAIN, LEAFPK] at h ⊢; omega

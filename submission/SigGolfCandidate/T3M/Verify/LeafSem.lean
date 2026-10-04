@@ -65,14 +65,14 @@ theorem lower_good (c : LCtx) (hc : c.ok) (hi0 : c.i0 = 0) (hko : c.koff = 0) (h
   · unfold lowCost; omega
 def coreChain (c : LCtx) (D : List Nat) (i : Nat) : M Digest :=
   chainP c.lay c.tree c.leaf i (D.getD i 0) (maxDigit c.lay i - D.getD i 0) (wchainPads c.w c.lay i).1
-    (wchainPads c.w c.lay i).2 (wvalue c.w c.lay i)
+    (wchainPads c.w c.lay i).2 (wchainHeaderPad c.w c.lay i) (wvalue c.w c.lay i)
 theorem chainCount_lower (lay : Layer) (h : lay ≠ 0) : chainCount lay = 43 := by
   fin_cases lay
   · exact absurd rfl h
   all_goals rfl
 theorem fit_chain (c : LCtx) (hlay : c.lay ≠ 0) (hko : c.koff = 0) (D : List Nat)
     (hD : ∀ i < 43, c.dig i = D.getD i 0) (hS6 : c.S6 = 0x800 + chainBlock c.lay 42 + 1024) (i : Nat) (hi : i < 43) :
-    chainP c.lay c.tree c.leaf (i + c.koff) (c.dig i) (7 - c.dig i) (c.pad0 i) (c.pad1 i) (c.val i) =
+    chainP c.lay c.tree c.leaf (i + c.koff) (c.dig i) (7 - c.dig i) (c.pad0 i) (c.pad1 i) (c.padHeader i) (c.val i) =
       c.coreChain D i := by
   unfold coreChain
   have hw : maxDigit c.lay i = 7 := by simp [maxDigit, hlay]
@@ -80,8 +80,8 @@ theorem fit_chain (c : LCtx) (hlay : c.lay ≠ 0) (hko : c.koff = 0) (D : List N
   have hn := chainCount_lower c.lay hlay
   have e : c.blk i - 0x800 = chainBlock c.lay i := by
     unfold blk chainBlock at *; rw [hS6]; rw [hn] at *; simp only at *; omega
-  unfold pad0 pad1 val wchainPads wvalue
-  rw [e]
+  unfold pad0 pad1 padHeader val wchainPads wchainHeaderPad wvalue
+  rw [e, wdig_hi, show chainBlock c.lay i + 16 + 8 = chainBlock c.lay i + 24 by omega]
 theorem lowP_eq (c : LCtx) (hlay : c.lay ≠ 0) (hko : c.koff = 0) (D : List Nat)
     (hD : ∀ i < 43, c.dig i = D.getD i 0) (hS6 : c.S6 = 0x800 + chainBlock c.lay 42 + 1024) :
     c.lowP = (List.finRange 43).mapM fun i => c.coreChain D i.val := by
@@ -89,7 +89,7 @@ theorem lowP_eq (c : LCtx) (hlay : c.lay ≠ 0) (hko : c.koff = 0) (D : List Nat
     List.mapM_append]
   unfold lowP
   have hF : (List.range' 0 42).foldlM c.chainF [] = (fun l => [] ++ l) <$> (List.range' 0 42).mapM
-      (fun i => chainP c.lay c.tree c.leaf (i + c.koff) (c.dig i) (7 - c.dig i) (c.pad0 i) (c.pad1 i) (c.val i)) :=
+      (fun i => chainP c.lay c.tree c.leaf (i + c.koff) (c.dig i) (7 - c.dig i) (c.pad0 i) (c.pad1 i) (c.padHeader i) (c.val i)) :=
     foldlM_app_mapM _ 42 0 []
   rw [hF, mapM_congr' (List.range' 0 42) (fun i hi => c.fit_chain hlay hko D hD hS6 i (by
     have := List.mem_range'_1.mp hi; omega))]
@@ -122,7 +122,7 @@ theorem sum_dig (c : LCtx) (D : List Nat) (hD : ∀ i < 43, c.dig i = D.getD i 0
   conv_rhs => rw [hE]
   exact QCtx.sum_range'_eq _ _ 0 43 (fun i _ hi => hD i (by omega))
 theorem lowCost_accept (c : LCtx) (hck : c.ck < 8) (D : List Nat) (hD : ∀ i < 43, c.dig i = D.getD i 0)
-    (hl : D.length = 43) (T : Nat) (hT : D.sum = T) : c.lowCost + c.zSum 0 43 + 9 * T = 2993 := by
+    (hl : D.length = 43) (T : Nat) (hT : D.sum = T) : c.lowCost + c.zSum 0 43 + 9 * T = 2950 := by
   have := c.chainsCost_lower hck T (by rw [c.sum_dig D hD hl, hT])
   unfold lowCost
   omega
@@ -271,9 +271,10 @@ def lfSlot (lay j : Nat) : Nat := if lay = 0 then slotT j else slotL j
 def stabBits (lay : Nat) : Nat := if lay = 1 then 7 else 6
 def lfSteps (lay : Nat) : Nat := if lay = 0 then 13 else 12
 def lfKeepK (lay : Nat) : List (Reg × Word) :=
-  [(.x2, 0x3fe00), (.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
+  [(.x2, 0x3fe00), (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6),
    (.x31, 7), (.x22, BitVec.ofNat 64 (s6v lay))] ++
-  (if lay = 0 then [] else [(.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x24, 0x10000)])
+  (if lay = 0 then [] else [(.x28, BitVec.ofNat 64 (headerBank 0 0)), (.x20, BitVec.ofNat 64 M1c),
+    (.x21, BitVec.ofNat 64 M2c), (.x24, 0x10000)])
 def lfK (lay : Nat) : List (Reg × Word) := postLf lay ++ lfKeepK lay
 structure LeafOut (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (ends : List Digest) (u : MachineState) :
     Prop where
@@ -462,7 +463,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
       have m6 : ((.x6 : Reg), (1 : Word)) ∈ postLf lay.val := by
         simp [postLf, leafK, h0]
       simp only [lfKeepK, if_neg h0, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
-      rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | (rfl | rfl | rfl)
+      rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | (rfl | rfl | rfl | rfl)
       all_goals first
         | exact hku _ m28
         | exact hku _ m6
@@ -501,7 +502,7 @@ theorem leafL_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay 
     exact (hu.orig_const hOt).mono (fun o ho => ⟨ho, by simp⟩)
 structure TopLeafReady (w : WBytes) (pk : Digest) (index c : Nat) (ends : List Digest)
     (t : MachineState) : Prop where
-  pc : t.pc = pcOf (trPc 0 c + 17)
+  pc : t.pc = pcOf (trPc 0 c + 69)
   glob : Glob (leafK 0) w pk t
   keep : KnownOK (lfKeepK 0) t
   s7 : t.getReg .x23 = BitVec.ofNat 64 (2 ^ hL 0 + (route index 0).1)
@@ -544,7 +545,7 @@ theorem leafT_step (w : WBytes) (pk : Digest) (index c : Nat) (hc : c < nCopy 0)
     · have hkp : p.1 ∈ keepLfAll 0 := by
         change p ∈ lfKeepK 0 at hp
         simp [lfKeepK] at hp
-        rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [keepLfAll]
+        rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [keepLfAll]
       rw [hkeep _ hkp]
       exact ht.keep p hp
   · rw [hkeep .x23 (by simp [keepLfAll]), ht.s7]

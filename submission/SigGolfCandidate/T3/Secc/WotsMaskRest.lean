@@ -21,8 +21,8 @@ theorem lay_eq_of_header {lay : Layer} {t t' tree pos leaf tree' pos' leaf' : Na
 theorem untouched_chainInput_of_lay {lay : Layer} (hl : lay ≠ a.key.lay) (tree leaf i s : Nat) (v : Digest) :
     Untouched a (.inl (.inr (pad64 (chainInput lay tree leaf i s v)))) := by
   intro step value _ heq
-  rw [pad64_chainInput, chainRow_eq, chainInput_eq_zero, chainInput_eq_zero] at heq
-  exact hl (lay_eq_of_header a (chainInputP_fields heq).2.1)
+  rw [pad64_chainInput] at heq
+  exact hl (chainHeader_fields (chainInput_fields heq).1).1
 theorem respects_chain_of_lay {lay : Layer} (hl : lay ≠ a.key.lay) (tree leaf i start count : Nat) (v : Digest) :
     Respects (Untouched a) (chain lay tree leaf i start count v) := by
   unfold chain

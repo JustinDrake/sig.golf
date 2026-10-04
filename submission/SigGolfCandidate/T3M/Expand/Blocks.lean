@@ -1,31 +1,8 @@
+import SigGolfCandidate.T3M.Keygen.PackedBlocks
 import SigGolfCandidate.T3M.ImageSlice
 import SigGolfCandidate.T3M.Images.Expand
 import SigGolfCandidate.T3M.Search.Blocks
 
-section
-
-
-namespace SigGolfCandidate.T3M
-open RiscvZkvm.Rv64 SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
-def expandCodeChunks : List (List (BitVec 32)) := [Images.expandCode_0, Images.expandCode_1, Images.expandCode_2, Images.expandCode_3, Images.expandCode_4, Images.expandCode_5, Images.expandCode_6, Images.expandCode_7, Images.expandCode_8, Images.expandCode_9, Images.expandCode_10, Images.expandCode_11, Images.expandCode_12, Images.expandCode_13, Images.expandCode_14, Images.expandCode_15, Images.expandCode_16, Images.expandCode_17, Images.expandCode_18, Images.expandCode_19, Images.expandCode_20, Images.expandCode_21, Images.expandCode_22, Images.expandCode_23, Images.expandCode_24, Images.expandCode_25, Images.expandCode_26, Images.expandCode_27, Images.expandCode_28, Images.expandCode_29, Images.expandCode_30, Images.expandCode_31, Images.expandCode_32, Images.expandCode_33, Images.expandCode_34, Images.expandCode_35, Images.expandCode_36, Images.expandCode_37, Images.expandCode_38, Images.expandCode_39, Images.expandCode_40, Images.expandCode_41, Images.expandCode_42, Images.expandCode_43, Images.expandCode_44, Images.expandCode_45, Images.expandCode_46, Images.expandCode_47, Images.expandCode_48, Images.expandCode_49, Images.expandCode_50, Images.expandCode_51, Images.expandCode_52, Images.expandCode_53, Images.expandCode_54, Images.expandCode_55, Images.expandCode_56, Images.expandCode_57, Images.expandCode_58, Images.expandCode_59, Images.expandCode_60, Images.expandCode_61, Images.expandCode_62, Images.expandCode_63, Images.expandCode_64, Images.expandCode_65, Images.expandCode_66, Images.expandCode_67, Images.expandCode_68, Images.expandCode_69, Images.expandCode_70, Images.expandCode_71, Images.expandCode_72, Images.expandCode_73, Images.expandCode_74, Images.expandCode_75, Images.expandCode_76, Images.expandCode_77, Images.expandCode_78, Images.expandCode_79, Images.expandCode_80, Images.expandCode_81, Images.expandCode_82, Images.expandCode_83, Images.expandCode_84, Images.expandCode_85, Images.expandCode_86, Images.expandCode_87, Images.expandCode_88, Images.expandCode_89, Images.expandCode_90, Images.expandCode_91, Images.expandCode_92, Images.expandCode_93, Images.expandCode_94, Images.expandCode_95, Images.expandCode_96, Images.expandCode_97, Images.expandCode_98, Images.expandCode_99, Images.expandCode_100, Images.expandCode_101, Images.expandCode_102, Images.expandCode_103, Images.expandCode_104, Images.expandCode_105, Images.expandCode_106, Images.expandCode_107, Images.expandCode_108, Images.expandCode_109, Images.expandCode_110, Images.expandCode_111, Images.expandCode_112, Images.expandCode_113, Images.expandCode_114, Images.expandCode_115, Images.expandCode_116, Images.expandCode_117, Images.expandCode_118, Images.expandCode_119, Images.expandCode_120, Images.expandCode_121, Images.expandCode_122, Images.expandCode_123, Images.expandCode_124, Images.expandCode_125, Images.expandCode_126, Images.expandCode_127, Images.expandCode_128, Images.expandCode_129, Images.expandCode_130, Images.expandCode_131, Images.expandCode_132, Images.expandCode_133, Images.expandCode_134, Images.expandCode_135, Images.expandCode_136, Images.expandCode_137, Images.expandCode_138, Images.expandCode_139, Images.expandCode_140, Images.expandCode_141, Images.expandCode_142, Images.expandCode_143, Images.expandCode_144, Images.expandCode_145, Images.expandCode_146, Images.expandCode_147, Images.expandCode_148, Images.expandCode_149, Images.expandCode_150, Images.expandCode_151, Images.expandCode_152, Images.expandCode_153, Images.expandCode_154, Images.expandCode_155, Images.expandCode_156, Images.expandCode_157, Images.expandCode_158, Images.expandCode_159, Images.expandCode_160, Images.expandCode_161, Images.expandCode_162]
-private theorem foldl_chunks (cs : List (List (BitVec 32))) (acc : List (BitVec 32)) :
-    cs.foldl (· ++ ·) acc = acc ++ cs.flatten := by
-  induction cs generalizing acc with
-  | nil => simp only [List.foldl_nil, List.flatten_nil, List.append_nil]
-  | cons c cs ih => simp only [List.foldl_cons, ih, List.flatten_cons, List.append_assoc]
-theorem expandCode_flatten : Images.expandCode = expandCodeChunks.flatten := by
-  change expandCodeChunks.foldl (· ++ ·) [] = expandCodeChunks.flatten
-  rw [foldl_chunks, List.nil_append]
-theorem codeAt_expand_slice {b : Nat} {code : List (BitVec 32)}
-    (hb : 0x1000 + 4 * b + 4 * code.length < 2 ^ 64)
-    (h : (expandCodeChunks.flatten.drop b).take code.length = code) :
-    CodeAt Images.expandImage (pcOf b) code := by
-  apply codeAt_slice hb
-  change (Images.expandCode.drop b).take code.length = code
-  rw [expandCode_flatten]
-  exact h
-end SigGolfCandidate.T3M
-end
 
 section
 
@@ -105,7 +82,7 @@ def seg_1027 : List (BitVec 32) := [936451]
 def seg_1028 : List (BitVec 32) := [7342739,267363]
 def seg_1030 : List (BitVec 32) := [536871023]
 def seg_1031 : List (BitVec 32) := [89805923]
-def seg_1032 : List (BitVec 32) := [9016211,21201843,33788691,17047315,31679283,269706003,134711,437128723,7223331,132407,436536595,67110291,132663,486934035]
+def seg_1032 : List (BitVec 32) := [0x3352706f, 0x014383b3, 0x02039313, 0x01041f13, 0x01e36333, 0x10136313, 0x00020e37, 0x1a0e0e13, 0x006e3823, 0x00020537, 0x1a050513, 0x04000593, 0x00020637, 0x1d060613]
 def seg_1046 : List (BitVec 32) := [115]
 def seg_1047 : List (BitVec 32) := [1706515,0xfbdff06f]
 def seg_1049 : List (BitVec 32) := [4824595,623715]

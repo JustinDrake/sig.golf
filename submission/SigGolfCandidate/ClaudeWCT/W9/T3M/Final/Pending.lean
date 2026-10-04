@@ -960,8 +960,8 @@ open ClaudeWCT.WCT9 (Signature Witness)
 open ClaudeWCT.WCT9.Rev3 (sign expand verify)
 open SigGolfCandidate.T3M (mrealize countBoth countCalls cacheB cacheDec isHash)
 open ClaudeWCT.W9.T3M (Images submission)
-def verifyCycleBound : Nat := 8019
-def claimedC : Nat := 8118
+def verifyCycleBound : Nat := 7882
+def claimedC : Nat := 7981
 variable (I : Images)
 def KeygenRunCounts : Prop := ∀ sk : SecretKey,
   (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> (submission I).run .keygen sk =
@@ -969,7 +969,7 @@ def KeygenRunCounts : Prop := ∀ sk : SecretKey,
 def KeygenRunWith : Prop := ∀ (hash : Hash) (sk : SecretKey),
   (submission I).runWith hash .keygen sk =
     ⟨some (((evalWithAnswerFn hash (mrealize sk keygen)).1 : PublicKey),
-      cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 39960239, 995328, 1048576⟩
+      cacheB (evalWithAnswerFn hash (mrealize sk keygen)).2), true, 53919407, 995328, 1048576⟩
 def SignRefines : Prop := ∀ (sk : SecretKey) (cache : Bytes 131072) (m : Message),
   (fun r => (r.value, r.hashCalls, r.hashCompressions)) <$> (submission I).run .sign (sk, cache, m) =
     (fun p => (p.1.map sigB, p.2.1, p.2.2)) <$> countBoth (mrealize sk (sign (cacheDec cache) m))
