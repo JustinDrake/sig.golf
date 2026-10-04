@@ -434,7 +434,7 @@ theorem ckBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV 
     (d : Bool) :
     Br.holds u (ckBr lay.val d) ↔ d = decide (¬ (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8) := by
   have hS := lowSum_lt (ansV a)
-  have hT : tgtL lay.val ≤ 195 := by fin_cases lay <;> decide
+  have hT : tgtL lay.val ≤ 196 := by fin_cases lay <;> decide
   have hT7 : 7 ≤ tgtL lay.val := by fin_cases lay <;> decide
   have ht4 : ((t4E lay.val).eval u).toNat = (lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 := by
     simp only [t4E, E.eval, BinOp.eval, kw]
@@ -442,19 +442,20 @@ theorem ckBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV 
     omega
   have hiff : (lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 ↔
       (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8 := by omega
-  have key : (BinOp.sltu.eval ((t4E lay.val).eval u) (BitVec.ofNat 64 8) == BitVec.ofNat 64 0) =
+  have key : BitVec.ult (BitVec.ofNat 64 7) ((t4E lay.val).eval u) =
       decide (¬ (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8) := by
-    simp only [BinOp.eval, BitVec.ult, ht4, BitVec.toNat_ofNat]
-    by_cases hc : (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8
-    · have h1 : decide ((lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 % 2 ^ 64) = true := by
-        rw [decide_eq_true_eq, show (8 : Nat) % 2 ^ 64 = 8 by norm_num]; exact hiff.mpr hc
-      rw [h1, decide_eq_false (fun h => h hc)]; decide
-    · have h1 : decide ((lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 % 2 ^ 64) = false := by
-        rw [decide_eq_false_iff_not, show (8 : Nat) % 2 ^ 64 = 8 by norm_num]; exact fun h' => hc (hiff.mp h')
-      rw [h1, decide_eq_true hc]; decide
+    simp only [BitVec.ult, ht4, BitVec.toNat_ofNat]
+    rw [show (7 : Nat) % 2 ^ 64 = 7 by norm_num, decide_eq_decide]
+    constructor
+    · intro h1 h2
+      have := hiff.mpr h2
+      omega
+    · intro h1
+      by_contra h2
+      exact h1 (hiff.mp (by omega))
   simp only [ckBr, Br.holds, CmpOp.eval]
-  show (BinOp.sltu.eval ((t4E lay.val).eval u) (BitVec.ofNat 64 8) == BitVec.ofNat 64 0) = d ↔ _
-  rw [key]; exact eq_comm
+  show BitVec.ult ((kw 7).eval u) ((t4E lay.val).eval u) = d ↔ _
+  rw [show (kw 7).eval u = BitVec.ofNat 64 7 from rfl, key]; exact eq_comm
 def ckOf (lay : Layer) (a : BitVec 256) : Nat := (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64
 def a7lW (a : BitVec 256) : Word := ((a.extractLsb' 64 64) <<< 1) ||| ((a.extractLsb' 0 64) >>> 63)
 def lctxOf (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (p : Nat) : LCtx :=
@@ -651,7 +652,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
         fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 23 ∧ cy ≤ 26) ∧
-    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 38 41 s0 ∧
+    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 34 37 s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
@@ -694,7 +695,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         rcases hb with rfl | rfl
         · exact (ckBr_iff hans hr' lay true).mpr (by rw [decide_eq_true hck])
         · exact (rngBr_iff hans 62 (by norm_num) false).mpr (by rw [decide_eq_false hr])) hob
-      exact ⟨v, 22, 25, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
+      exact ⟨v, 21, 24, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
         hv.regs (.x10, kw 1) (by simp [rejCk]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 62 = 0 := by
@@ -718,7 +719,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       simp only [a7lE, b1E, E.eval, BinOp.eval, a7E_eval hans, a6E_eval hans, kw, a7lW]
       rfl
     have e29 : ((t4E lay.val).eval u) = 7#64 - BitVec.ofNat 64 (ckOf lay a) := by
-      have hT : tgtL lay.val ≤ 195 := by fin_cases lay <;> decide
+      have hT : tgtL lay.val ≤ 196 := by fin_cases lay <;> decide
       have hT7 : 7 ≤ tgtL lay.val := by fin_cases lay <;> decide
       have hS' : lowSum (ansV a) < 4095 := lowSum_lt (ansV a)
       have hle : lowSum (ansV a) ≤ tgtL lay.val ∧ tgtL lay.val - lowSum (ansV a) < 8 := by omega
