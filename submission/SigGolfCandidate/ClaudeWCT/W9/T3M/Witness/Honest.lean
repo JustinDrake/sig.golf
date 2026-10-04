@@ -37,7 +37,7 @@ def regionBytes (child : Nat) (op : WCT9.Opening) : List UInt8 :=
 def wctBytes (N : HashOutput) (sig : WCT9.Signature) : List UInt8 :=
   (List.finRange 9).flatMap fun k => regionBytes (WCT9.child N k).val (sig.openings k)
 def witList (N : HashOutput) (w : WCT9.Witness) : List UInt8 :=
-  headerBytes w ++ wctBytes N w.signature ++ zeros 2008 ++
+  headerBytes w ++ wctBytes N w.signature ++ zeros 1288 ++
     (List.finRange 4).flatMap fun lay =>
       layerStorage lay (route (N.toNat % 2 ^ 31) lay).1 (w.signature.layers lay)
 def witEnc (N : HashOutput) (w : WCT9.Witness) : WBytes := BitVec.ofNat _ (readLE (witList N w))
@@ -284,7 +284,7 @@ theorem wctBytes_length (N : HashOutput) (sig : WCT9.Signature) : (wctBytes N si
   unfold wctBytes
   rw [List.length_flatMap]
   simp only [regionBytes_length, List.map_const', List.length_finRange, List.sum_replicate, smul_eq_mul]
-theorem witList_length_eq (N : HashOutput) (w : WCT9.Witness) : (witList N w).length = 25240 := by
+theorem witList_length_eq (N : HashOutput) (w : WCT9.Witness) : (witList N w).length = 24264 := by
   have h3 := SigGolfCandidate.T3M.witList_length_eq N (WCT9.toT3Witness w)
   unfold SigGolfCandidate.T3M.witList at h3
   rw [List.length_append, List.length_append, List.length_append, SigGolfCandidate.T3M.headerBytes_length,
@@ -300,21 +300,21 @@ theorem witList_length_eq (N : HashOutput) (w : WCT9.Witness) : (witList N w).le
 theorem wdig_witEnc (N : HashOutput) (w : WCT9.Witness) (off : Nat) :
     wdig (witEnc N w) off = readDigest (window (witList N w) off 16) := by
   unfold wdig witEnc readDigest window
-  exact extract_readLE (witList N w) 25240 (by rw [witList_length_eq]) off 16
+  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 16
 theorem wle32_witEnc (N : HashOutput) (w : WCT9.Witness) (off : Nat) :
     wle32 (witEnc N w) off = BitVec.ofNat 32 (readLE (window (witList N w) off 4)) := by
   unfold wle32 witEnc window
-  exact extract_readLE (witList N w) 25240 (by rw [witList_length_eq]) off 4
+  exact extract_readLE (witList N w) 24264 (by rw [witList_length_eq]) off 4
 section t3
 variable (N : HashOutput) (w : WCT9.Witness)
 theorem headerBytes_eq : headerBytes w = SigGolfCandidate.T3M.headerBytes (WCT9.toT3Witness w) := rfl
-theorem win_T3 (off n : Nat) (h : off + n ≤ 64 ∨ 11288 ≤ off) :
+theorem win_T3 (off n : Nat) (h : off + n ≤ 64 ∨ 10568 ≤ off) :
     window (witList N w) off n = window (SigGolfCandidate.T3M.witList N (WCT9.toT3Witness w)) off n := by
-  have hA : (headerBytes w ++ wctBytes N w.signature ++ zeros 2008).length = 11288 := by
+  have hA : (headerBytes w ++ wctBytes N w.signature ++ zeros 1288).length = 10568 := by
     simp only [List.length_append, headerBytes_length, wctBytes_length, zeros, List.length_replicate]
   have hB : (SigGolfCandidate.T3M.headerBytes (WCT9.toT3Witness w) ++
       SigGolfCandidate.T3M.leafBytes (WCT9.toT3Witness w).signature ++
-      SigGolfCandidate.T3M.streamBytes (selections N) (WCT9.toT3Witness w).signature.proof).length = 11288 := by
+      SigGolfCandidate.T3M.streamBytes (selections N) (WCT9.toT3Witness w).signature.proof).length = 10568 := by
     simp only [List.length_append, SigGolfCandidate.T3M.headerBytes_length, SigGolfCandidate.T3M.leafBytes_length,
       SigGolfCandidate.T3M.streamBytes_length]
   rcases h with h | h
@@ -328,7 +328,7 @@ theorem win_T3 (off n : Nat) (h : off + n ≤ 64 ∨ 11288 ≤ off) :
     unfold witList
     rw [window_append_right _ _ _ _ (by rw [hA]; omega), hA]
     rfl
-theorem wdig_T3 (off : Nat) (h : off + 16 ≤ 64 ∨ 11288 ≤ off) :
+theorem wdig_T3 (off : Nat) (h : off + 16 ≤ 64 ∨ 10568 ≤ off) :
     wdig (witEnc N w) off = wdig (SigGolfCandidate.T3M.witEnc N (WCT9.toT3Witness w)) off := by
   rw [wdig_witEnc, SigGolfCandidate.T3M.wdig_witEnc, win_T3 N w off 16 h]; rfl
 theorem wle32_T3 (off : Nat) (h : off + 4 ≤ 64) :
@@ -346,7 +346,7 @@ theorem wctr_witEnc (lay : Layer) : wctr (witEnc N w) lay = w.counters lay := by
   unfold wctr
   rw [wle32_T3 N w _ (by unfold counterOff; have := lay.isLt; omega)]
   exact SigGolfCandidate.T3M.wctr_witEnc N _ lay
-theorem layerBase_ge (lay : Layer) : 11288 ≤ layerBase lay := by
+theorem layerBase_ge (lay : Layer) : 10568 ≤ layerBase lay := by
   fin_cases lay <;> simp [layerBase]
 theorem wvalue_witEnc (lay : Layer) (i : Fin (chainCount lay)) :
     wvalue (witEnc N w) lay i.val = (w.signature.layers lay).values i := by

@@ -21,7 +21,7 @@ theorem run_keygen_congr {sA wA sB wB c : Nat} {l : Layout} {iA iB : Phase → R
   rfl
 theorem keygen_run_eq (hadm : (submission I).Admissible) (sk : SecretKey) :
     (submission I).run .keygen sk = SigGolfCandidate.T3M.submission.run .keygen sk := by
-  have hvA : ((submission I).image .keygen).Valid ⟨5456, 25240, 131072⟩ ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩ :=
+  have hvA : ((submission I).image .keygen).Valid ⟨5456, 24264, 131072⟩ ⟨0x40, 0x80, 0xA0, 0x80000, 0x7000, 0x800⟩ :=
     hadm.2 .keygen
   have hvB : (SigGolfCandidate.T3M.submission.image .keygen).Valid
       ⟨SigGolfCandidate.T3M.submission.sizes.signature, SigGolfCandidate.T3M.submission.sizes.witness, 131072⟩
