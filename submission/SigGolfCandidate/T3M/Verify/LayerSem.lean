@@ -199,7 +199,7 @@ theorem copy_parts (lay p : Nat) (h : copyCheck lay p = true) :
     specB [] [] baseK (runAt (preK lay) [] p [.br false]) (specA lay p) [] (bK lay) keepA = true ∧
     specB [] [] [] (runAt (preK lay) [] p [.br true]) (rejA lay p) [] [] [] = true ∧
     (lay = 0 →
-      specB [] [] [] (runAt [] [724] (p + stepsA lay + 1) []) (specTopCall p) [] [] keepTopCall = true) ∧
+      specB [] [] [] (runAt [] [730] (p + stepsA lay + 1) []) (specTopCall p) [] [] keepTopCall = true) ∧
     (lay ≠ 0 →
       specB [] [] baseK (runAt (bK lay) [] (p + stepsA lay + 1) [.br false, .br false, .jmp]) (specBl lay p) []
         (postBl lay p) keepB = true ∧
@@ -224,7 +224,7 @@ theorem hw4_hdr0 (lay : Layer) (tree : Nat) (ht : tree < 2 ^ 32) : hw 4 lay.val 
   unfold hw; ring
 theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : Digest) (s : MachineState)
     (hs : LayerIn w pk index lay.val M s) :
-    ((wctr w lay).toNat ≥ counterLimit → ∃ u, Steps image s (stepsA lay.val) (stepsA lay.val) u ∧
+    ((wctr w lay).toNat ≥ counterLimit → ∃ u, Steps image s (stepsA lay.val + 1) (stepsA lay.val + 1) u ∧
         fetch image u = some (.base .ECALL) ∧ u.getReg .x5 = 1 ∧ u.getReg .x10 = 1) ∧
     ((wctr w lay).toNat < counterLimit → ∃ t, Steps image s (stepsA lay.val) (stepsA lay.val) t ∧
         fetch image t = some (.base .ECALL) ∧ t.getReg .x5 = 0 ∧ hashArgumentsValid t = true ∧
@@ -248,7 +248,7 @@ theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : Di
     have hkt : KnownOK (bK lay.val) t := ht.known
     have h10 : t.getReg .x10 = BitVec.ofNat 64 256 := hkt (.x10, 256) (by simp [bK])
     have h11 : t.getReg .x11 = BitVec.ofNat 64 64 := hkt (.x11, 64) (by simp [bK, layK])
-    have h12 : t.getReg .x12 = BitVec.ofNat 64 320 := hkt (.x12, 320) (by simp [bK])
+    have h12 : t.getReg .x12 = BitVec.ofNat 64 256 := hkt (.x12, 256) (by simp [bK])
     have hG : Glob (bK lay.val) w pk t := by
       have := ht.glob _ w pk hs.glob (RelOK.nil s)
       exact ⟨hkt, this.2.1, this.2.2.1, this.2.2.2.1, this.2.2.2.2⟩
@@ -263,7 +263,7 @@ theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : Di
       rcases hp with rfl | rfl | rfl <;> simp <;> omega
     have tree_lt' := tree_lt index lay hs.idx
     refine ⟨t, ht.steps, ht.ecall rfl, hkt (.x5, 0) (by simp [bK, layK, baseK]),
-      hashArgs_of t 256 64 320 h10 h11 h12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num),
+      hashArgs_of t 256 64 256 h10 h11 h12 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num),
       ?_, c, hc, ⟨?_, hG, fun L hL => ?_, fun L hL => ?_, fun L hL => ?_, ?_⟩⟩
     ·
       apply hashInput_words8 t _ 256 (by rw [pad64_encodingInput]; simp [encodingInput, SphincsSecurity.bytesLE_length])
@@ -346,8 +346,8 @@ theorem toNat_remuc (x : Word) (k : Nat) (hk : 0 < k) (hk' : k < 2 ^ 64) :
   rw [hne]
   simp only [Bool.false_eq_true, if_false, BitVec.toNat_umod, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk']
 structure AnsAt (u : MachineState) (a : BitVec 256) : Prop where
-  lo : u.getMem (BitVec.ofNat 64 320) = a.extractLsb' 0 64
-  hi : u.getMem (BitVec.ofNat 64 328) = a.extractLsb' 64 64
+  lo : u.getMem (BitVec.ofNat 64 256) = a.extractLsb' 0 64
+  hi : u.getMem (BitVec.ofNat 64 264) = a.extractLsb' 64 64
 abbrev ansV (a : BitVec 256) : Nat := (a.extractLsb' 0 128).toNat
 theorem ansV_split (a : BitVec 256) :
     ansV a = (a.extractLsb' 0 64).toNat + 2 ^ 64 * (a.extractLsb' 64 64).toNat := by
@@ -421,19 +421,20 @@ theorem ckBr_iff {u : MachineState} {a : BitVec 256} (h : AnsAt u a) (hr : ansV 
     omega
   have hiff : (lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 ↔
       (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8 := by omega
-  have key : (BinOp.sltu.eval ((t4E lay.val).eval u) (BitVec.ofNat 64 8) == BitVec.ofNat 64 0) =
+  have key : BitVec.ult (BitVec.ofNat 64 7) ((t4E lay.val).eval u) =
       decide (¬ (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8) := by
-    simp only [BinOp.eval, BitVec.ult, ht4, BitVec.toNat_ofNat]
-    by_cases hc : (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64 < 8
-    · have h1 : decide ((lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 % 2 ^ 64) = true := by
-        rw [decide_eq_true_eq, show (8 : Nat) % 2 ^ 64 = 8 by norm_num]; exact hiff.mpr hc
-      rw [h1, decide_eq_false (fun h => h hc)]; decide
-    · have h1 : decide ((lowSum (ansV a) + 2 ^ 64 - (tgtL lay.val - 7)) % 2 ^ 64 < 8 % 2 ^ 64) = false := by
-        rw [decide_eq_false_iff_not, show (8 : Nat) % 2 ^ 64 = 8 by norm_num]; exact fun h' => hc (hiff.mp h')
-      rw [h1, decide_eq_true hc]; decide
+    simp only [BitVec.ult, ht4, BitVec.toNat_ofNat]
+    rw [show (7 : Nat) % 2 ^ 64 = 7 by norm_num, decide_eq_decide]
+    constructor
+    · intro h1 h2
+      have := hiff.mpr h2
+      omega
+    · intro h1
+      by_contra h2
+      exact h1 (hiff.mp (by omega))
   simp only [ckBr, Br.holds, CmpOp.eval]
-  show (BinOp.sltu.eval ((t4E lay.val).eval u) (BitVec.ofNat 64 8) == BitVec.ofNat 64 0) = d ↔ _
-  rw [key]; exact eq_comm
+  show BitVec.ult ((kw 7).eval u) ((t4E lay.val).eval u) = d ↔ _
+  rw [show (kw 7).eval u = BitVec.ofNat 64 7 from rfl, key]; exact eq_comm
 def ckOf (lay : Layer) (a : BitVec 256) : Nat := (tgtL lay.val + 2 ^ 64 - lowSum (ansV a)) % 2 ^ 64
 def a7lW (a : BitVec 256) : Word := ((a.extractLsb' 64 64) <<< 1) ||| ((a.extractLsb' 0 64) >>> 63)
 def lctxOf (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (p : Nat) : LCtx :=
@@ -621,7 +622,7 @@ theorem lctxOf_known (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (
   · exact hk (.x15, 0x6e000) (by simp [postBl, chainK, baseK, hw])
   · exact hk (.x22, BitVec.ofNat 64 (s6v lay.val)) (by simp [postBl, chainK, baseK, hw])
   · exact h4
-  · exact hk (.x27, BitVec.ofNat 64 (0x101 + 65536 * lay.val)) (by simp [postBl, chainK, baseK, hw])
+  · exact hk (.x27, BitVec.ofNat 64 (0x401 + 65536 * lay.val)) (by simp [postBl, chainK, baseK, hw])
   · exact h16
   · exact h17
   · exact h29
@@ -630,7 +631,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
         fetch image v = some (.base .ECALL) ∧ v.getReg .x5 = 1 ∧ v.getReg .x10 = 1 ∧ k ≤ 23 ∧ cy ≤ 26) ∧
-    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) 38 41 s0 ∧
+    (decode lay (a.extractLsb' 0 128) ≠ none → ∃ s0, Steps image (writeHash t a) (bSt lay.val) (bCy lay.val) s0 ∧
         (lctxOf w index lay a (trPc lay.val c)).ok ∧
         (∀ p ∈ (lctxOf w index lay a (trPc lay.val c)).known, s0.getReg p.1 = p.2) ∧
         (lctxOf w index lay a (trPc lay.val c)).Orig0 s0 ∧
@@ -642,12 +643,12 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
   have hcc := copy_parts lay.val (trPc lay.val c) (copyCheck_at lay.val c lay.isLt hc)
   have hB := (hcc.2.2.2.1 (fun h => hlay (Fin.ext h)))
   have hkt : KnownOK (bK lay.val) t := ht.glob.1
-  have h12 : t.getReg .x12 = BitVec.ofNat 64 320 := hkt (.x12, 320) (by simp [bK])
+  have h12 : t.getReg .x12 = BitVec.ofNat 64 256 := hkt (.x12, 256) (by simp [bK])
   have hku : KnownOK (bK lay.val) u := fun p hp => by rw [hu, writeHash_getReg]; exact hkt p hp
   have hpcu : u.pc = pcOf (trPc lay.val c + stepsA lay.val + 1) := by
     rw [hu, writeHash_pc, ht.pc, show (4 : Word) = BitVec.ofNat 64 4 from rfl, ofNat_add_ofNat]
     congr 1
-  have hans : AnsAt u a := ⟨writeHash_at0 t a 320 h12 (by norm_num), writeHash_at8 t a 320 h12 (by norm_num)⟩
+  have hans : AnsAt u a := ⟨writeHash_at0 t a 256 h12 (by norm_num), writeHash_at8 t a 256 h12 (by norm_num)⟩
   have hdec := decode_lower lay hlay (a.extractLsb' 0 128)
   have hS := lowSum_lt (ansV a)
   constructor
@@ -669,7 +670,7 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
         rcases hb with rfl | rfl
         · exact (ckBr_iff hans hr' lay true).mpr (by rw [decide_eq_true hck])
         · exact (rngBr_iff hans 62 (by norm_num) false).mpr (by rw [decide_eq_false hr])) (by simp)
-      exact ⟨v, 22, 25, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
+      exact ⟨v, 21, 24, hv.steps, hv.ecall rfl, hv.regs (.x5, kw 1) (by simp [rejCk]),
         hv.regs (.x10, kw 1) (by simp [rejCk]), by norm_num, by norm_num⟩
   · intro hsome
     have hr0 : (a.extractLsb' 64 64).toNat / 2 ^ 62 = 0 := by
@@ -714,11 +715,11 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
       · simp only [hL, lctxOf]; unfold retOff; split_ifs <;> omega
       · simpa only [hL, lctxOf, hL_eq] using leaf_lt index lay
     have hGu : Glob (bK lay.val) w pk u := by
-      have := Glob_writeHash ht.glob a 320 h12 (by decide)
+      have := Glob_writeHash ht.glob a 256 h12 (by decide)
       exact this
     have hGs0 := hs0.glob _ w pk hGu (RelOK.nil u)
     have hOu : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay.val) u := by
-      have := Orig_writeHash ht.orig a 320 h12 (by norm_num)
+      have := Orig_writeHash ht.orig a 256 h12 (by norm_num)
       exact this.mono (fun o ho => ⟨ho, Or.inr (by unfold WIT; omega)⟩)
     have hOs0 : Verify.Orig w (fun o => 11288 ≤ o ∧ o < layerEnd lay.val) s0 := by
       have := hs0.orig_const hOu

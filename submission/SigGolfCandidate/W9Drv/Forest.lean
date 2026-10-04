@@ -188,7 +188,7 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
     have mt : t.mem = (writeHash s1 ans).mem := toState_mem_nil _ _ rfl
     have et : ∀ A, t.getMem A = (writeHash s1 ans).getMem A := fun A => congrFun mt A
     have hout : FtsOut ⟨pk, w, a⟩ (ans.extractLsb' 0 128) t := by
-      refine ⟨?_, ?_, rfl, ?_, ?_⟩
+      refine ⟨?_, ?_, rfl, ?_, ?_, ?_⟩
       · exact Glob_toState (Glob_writeHash g1 ans 0x100 h12 (by decide)) fTail.st
           (fTail.pc.eval (writeHash s1 ans)) (by decide) (by decide)
       · rw [ht, Result.toState_getReg]
@@ -200,6 +200,9 @@ theorem forest_good (pk : Digest) (w : WBytes) (a : HashOutput)
         have o3 : Orig w (fun o => o < 64 ∨ 11288 ≤ o) (writeHash s1 ans) :=
           o2.mono (fun o ho => ⟨ho, Or.inr (by unfold WIT; omega)⟩)
         exact o3.frame (fun j _ _ => et _)
+      · rw [ht, Result.toState_getReg]
+        show (writeHash s1 ans).getReg .x12 = _
+        rw [writeHash_getReg]; exact h12
     exact (hnext _ t hout).steps st2'
   have hq := GoodQFor.shortHash_bind (f := fun d : Digest => (pure d : M Digest)) (K := K)
     hf h5 hv hin hpost
