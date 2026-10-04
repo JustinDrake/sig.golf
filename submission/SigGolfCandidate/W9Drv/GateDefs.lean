@@ -18,7 +18,7 @@ structure HeaderBank (u : MachineState) : Prop where
     u.getMem (BitVec.ofNat 64 (0xfee600 + 512 * k.val + 456)) =
       BitVec.ofNat 64 (1 + 6 * 256 + k.val * 65536)
 structure GatePre (pk : Digest) (w : WBytes) (a : HashOutput) (u : MachineState) : Prop where
-  pc : u.pc = pcOf 27
+  pc : u.pc = pcOf 29
   glob : Glob baseK w pk u
   digest : DigestAt a u
   bank : HeaderBank u
