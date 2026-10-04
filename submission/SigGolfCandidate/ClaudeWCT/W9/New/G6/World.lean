@@ -83,21 +83,9 @@ theorem privateMac_free (region : Region) : AllQueriesSatisfy (privateMac region
   · intro key; exact pure_allowed _ _
 theorem chainStep_free (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) WFree := by
-  unfold shortHash publicHash
-  apply bind_allowed WFree
-  · apply (allQueriesSatisfy_query_iff _ _).mpr
-    change Guess.decodeProbe (pad64 (chainInput lay tree leaf i step value)) = none
-    rw [Guess.decodeProbe_eq_none, chainInput_padded]
-    intro a p c he
-    have hh := congrArg Guess.hdrBlock he
-    rw [Guess.probeInput, Guess.hdrBlock_wctChainInput] at hh
-    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hh
-    rw [chainInput_header] at hh
-    have hn := congrArg BitVec.toNat (bytesLE_injective hh)
-    have hc := chainHeader_firstByte lay tree leaf i step
-    rw [hn, Guess.wctHeader_toNat'] at hc
-    omega
-  · intro _; exact pure_allowed _ _
+  unfold chainInput
+  rw [zero16_eq]
+  exact shortHash_header_free 0 _ _ _ _ _ (by decide)
 theorem chain_free (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) WFree := by
   unfold chain

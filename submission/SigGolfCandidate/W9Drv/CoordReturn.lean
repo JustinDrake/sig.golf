@@ -687,7 +687,10 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
       using (hr .x28 (by decide)).trans hc.headerReg
     roots := ?_
     coords := ?_
-    layer := ?_ }
+    layer := ?_
+    forestZero := fun A hA => (hf A (by rcases hA with rfl | rfl <;> decide) (by
+      unfold Chain.base W9Machine.forestSlot
+      split_ifs <;> rcases hA with rfl | rfl <;> omega)).trans (hu.forestZero A hA) }
   · rw [writeHash_pc]
     change pcOf (rootPc k + 1) + 4 = _
     fin_cases k <;> rfl
