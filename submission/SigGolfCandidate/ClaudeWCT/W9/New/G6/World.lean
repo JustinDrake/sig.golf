@@ -1,11 +1,19 @@
 import SigGolfCandidate.ClaudeWCT.W9.New.CanonTable.ChainTable
 import SigGolfCandidate.ClaudeWCT.W9.T3.FullCache.NativeGame
 import SigGolfCandidate.ClaudeWCT.WCT9.Forest
+import SigGolfCandidate.ClaudeWCT.W9.New.Game.Signer
+import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CaseCFull
 import SigGolfCandidate.ClaudeWCT.GuessV2.WorldHash
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CaseCSplit
 import SigGolfCandidate.T3.Secc.WotsEvents
+
 section
+
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -29,14 +37,11 @@ theorem hdrBlock_pad64_prefix (a : Digest) (h : BitVec 128) (rest : HashInput) :
     Guess.hdrBlock (pad64 (bytesLE 16 a ++ bytesLE 16 h ++ rest)) = bytesLE 16 h := by
   unfold Guess.hdrBlock pad64
   rw [List.append_assoc, List.append_assoc, List.drop_left' (bytesLE_length _ _), List.take_left' (bytesLE_length _ _)]
-theorem decodeProbe_prefix (a : Digest) {h : BitVec 128} (rest : HashInput) (ht : Guess.tagByte h ≠ 5) :
+theorem decodeProbe_prefix (a : Digest) {h : BitVec 128} (rest : HashInput) (ht : h.toNat % 256 < 128) :
     Guess.decodeProbe (pad64 (bytesLE 16 a ++ bytesLE 16 h ++ rest)) = none :=
   Guess.decodeProbe_of_hdrBlock (hdrBlock_pad64_prefix a h rest) ht
-theorem tagByte_header_ne {t : Nat} (l tr p ix : Nat) (ht : t % 256 ≠ 5) : Guess.tagByte (header t l tr p ix) ≠ 5 := by
-  rw [Guess.tagByte_header]; exact ht
-theorem tagByte_wctHeader_ne {t : Nat} (l tr p ix : Nat) (ht : t % 256 ≠ 5) :
-    Guess.tagByte (WCT9.wctHeader t l tr p ix) ≠ 5 := by
-  rw [Guess.tagByte_wctHeader]; exact ht
+theorem firstByte_header (t l tr p ix : Nat) : (header t l tr p ix).toNat % 256 < 128 := by
+  rw [header_firstByte]; decide
 theorem eval_query' (A : Answers) (input : SigGolfCandidate.T3.Spec.Domain) :
     evalWithAnswerFn A (liftM (SigGolfCandidate.T3.Spec.query input)) = A input :=
   simulateQ_spec_query A input
@@ -52,14 +57,14 @@ theorem eval_congr_allowed {P : SigGolfCandidate.T3.Spec.Domain → Prop} {α : 
 section Free
 open SourceQueries
 theorem zero16_eq : zero16 = bytesLE 16 (0 : Digest) := by decide
-theorem shortHash_free (a : Digest) {h : BitVec 128} (rest : HashInput) (ht : Guess.tagByte h ≠ 5) :
+theorem shortHash_free (a : Digest) {h : BitVec 128} (rest : HashInput) (ht : h.toNat % 256 < 128) :
     AllQueriesSatisfy (shortHash (bytesLE 16 a ++ bytesLE 16 h ++ rest)) WFree := by
   unfold shortHash publicHash
   exact bind_allowed WFree ((allQueriesSatisfy_query_iff _ _).mpr (decodeProbe_prefix a rest ht))
     fun _ => pure_allowed _ _
-theorem shortHash_header_free (a : Digest) {t : Nat} (l tr p ix : Nat) (rest : HashInput) (ht : t % 256 ≠ 5) :
+theorem shortHash_header_free (a : Digest) (t l tr p ix : Nat) (rest : HashInput) :
     AllQueriesSatisfy (shortHash (bytesLE 16 a ++ bytesLE 16 (header t l tr p ix) ++ rest)) WFree :=
-  shortHash_free a rest (tagByte_header_ne l tr p ix ht)
+  shortHash_free a rest (firstByte_header t l tr p ix)
 theorem privatePair_free {t : Nat} (l tr p ix : Nat) (ht : t % 256 ≠ 8) :
     AllQueriesSatisfy (privatePair t l tr p ix) WFree := by
   unfold privatePair privateHash
@@ -85,14 +90,11 @@ theorem chainStep_free (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     change Guess.decodeProbe (pad64 (chainInput lay tree leaf i step value)) = none
     rw [Guess.decodeProbe_eq_none, chainInput_padded]
     intro a p c he
-    have hh := congrArg Guess.hdrBlock he
-    rw [Guess.probeInput, Guess.hdrBlock_wctChainInput] at hh
-    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hh
-    rw [chainInput_header] at hh
-    have hn := congrArg BitVec.toNat (bytesLE_injective hh)
-    have hc := chainHeader_firstByte lay tree leaf i step
-    rw [hn, Guess.wctHeader_toNat'] at hc
-    omega
+    have hx := congrArg Guess.hdrBlock he
+    rw [Guess.probeInput, Guess.hdrBlock_wctChainInput] at hx
+    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hx
+    rw [chainInput_header] at hx
+    exact WCT9.ftsChainHeaderP_ne_chainHeader _ _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hx).symm
   · intro _; exact pure_allowed _ _
 theorem chain_free (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) WFree := by
@@ -101,11 +103,11 @@ theorem chain_free (lay : Layer) (tree leaf i start count : Nat) (value : Digest
 theorem leafHash_free (lay : Layer) (tree leaf : Nat) (ends : List Digest) :
     AllQueriesSatisfy (leafHash lay tree leaf ends) WFree := by
   unfold leafHash
-  exact shortHash_header_free _ _ _ _ _ _ (by decide)
-theorem nodeHash_free {tag : Nat} (lay tree heap : Nat) (left right : Digest) (ht : tag % 256 ≠ 5) :
+  exact shortHash_header_free _ _ _ _ _ _ _
+theorem nodeHash_free (tag lay tree heap : Nat) (left right : Digest) :
     AllQueriesSatisfy (nodeHash tag lay tree heap left right) WFree := by
   unfold nodeHash
-  exact shortHash_header_free _ _ _ _ _ _ ht
+  exact shortHash_header_free _ _ _ _ _ _ _
 theorem mask_free (level index : Nat) : AllQueriesSatisfy (mask level index) WFree := by
   unfold mask pairedMask
   exact bind_allowed WFree (privatePair_free _ _ _ _ (by decide)) fun _ => pure_allowed _ _
@@ -131,15 +133,15 @@ theorem buildLeaf_free (lay : Layer) (tree leaf : Nat) (digits : List Nat) (sign
     split
     · exact pure_allowed _ _
     · exact bind_allowed WFree (leafHash_free _ _ _ _) fun _ => pure_allowed _ _
-theorem buildLevel_free {tag : Nat} (lay tree h level : Nat) (nodes : List Digest) (ht : tag % 256 ≠ 5) :
+theorem buildLevel_free (tag lay tree h level : Nat) (nodes : List Digest) :
     AllQueriesSatisfy (buildLevel tag lay tree h level nodes) WFree := by
   unfold buildLevel
-  exact mapM_allowed WFree _ _ fun _ => nodeHash_free _ _ _ _ _ ht
-theorem buildLevels_free {tag : Nat} (lay tree h : Nat) (leaves : List Digest) (ht : tag % 256 ≠ 5) :
+  exact mapM_allowed WFree _ _ fun _ => nodeHash_free _ _ _ _ _ _
+theorem buildLevels_free (tag lay tree h : Nat) (leaves : List Digest) :
     AllQueriesSatisfy (buildLevels tag lay tree h leaves) WFree := by
   unfold buildLevels
   exact foldlM_allowed WFree _ _ (fun levels level =>
-    bind_allowed WFree (buildLevel_free _ _ _ _ _ ht) fun _ => pure_allowed _ _) _
+    bind_allowed WFree (buildLevel_free _ _ _ _ _ _) fun _ => pure_allowed _ _) _
 theorem buildTree_free (lay : Layer) (tree selected : Nat) (digits : List Nat) :
     AllQueriesSatisfy (buildTree lay tree selected digits) WFree := by
   unfold buildTree
@@ -147,7 +149,7 @@ theorem buildTree_free (lay : Layer) (tree selected : Nat) (digits : List Nat) :
   · exact foldlM_allowed WFree _ _ (fun state leaf =>
       bind_allowed WFree (buildLeaf_free _ _ _ _ _) fun _ => pure_allowed _ _) _
   · intro state
-    exact bind_allowed WFree (buildLevels_free _ _ _ _ (by decide)) fun _ => pure_allowed _ _
+    exact bind_allowed WFree (buildLevels_free _ _ _ _ _) fun _ => pure_allowed _ _
 theorem maskedLevel_free (nodes : List Digest) (level : Nat) :
     AllQueriesSatisfy (maskedLevel nodes level) WFree := by
   unfold maskedLevel pairedMask
@@ -168,7 +170,7 @@ theorem keygen_free : AllQueriesSatisfy keygen WFree := by
   apply bind_allowed WFree keygenPayload_free
   intro generated
   exact bind_allowed WFree (privateMac_free _) fun _ => pure_allowed _ _
-theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
+theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) WFree := by
   induction fuel generalizing counter with
   | zero => exact pure_allowed _ _
@@ -176,7 +178,7 @@ theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest × 
       unfold counterSearch
       apply bind_allowed WFree
       · unfold encodingInput
-        exact shortHash_header_free _ _ _ _ _ _ (by decide)
+        exact shortHash_header_free _ _ _ _ _ _ _
       · intro answer
         split
         · exact ih _
@@ -184,7 +186,7 @@ theorem counterSearch_free (lay : Layer) (tree leaf : Nat) (message : Digest × 
 theorem digest_free (rho : Digest) (message : Message) (counter : BitVec 32) :
     AllQueriesSatisfy (digest rho message counter) WFree := by
   unfold digest publicHash digestInput
-  exact (allQueriesSatisfy_query_iff _ _).mpr (decodeProbe_prefix _ _ (tagByte_header_ne _ _ _ _ (by decide)))
+  exact (allQueriesSatisfy_query_iff _ _).mpr (decodeProbe_prefix _ _ (firstByte_header _ _ _ _ _))
 theorem wctDigestSearch_free (rho : Digest) (message : Message) (counter fuel : Nat) :
     AllQueriesSatisfy (WCT9.digestSearch rho message counter fuel) WFree := by
   induction fuel generalizing counter with
@@ -205,39 +207,33 @@ theorem signTop_free (cache : SigGolfCandidate.T3.Cache) (leaf : Nat) (digits : 
   unfold signTop
   exact bind_allowed WFree (buildLeaf_free _ _ _ _ _) fun _ =>
     bind_allowed WFree (topPath_free _ _) fun _ => pure_allowed _ _
-theorem signLayers_free (cache : SigGolfCandidate.T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
-    AllQueriesSatisfy (signLayers cache index n message) WFree := by
-  induction n generalizing message with
-  | zero => exact pure_allowed _ _
-  | succ n ih =>
-      unfold signLayers
-      apply bind_allowed WFree (counterSearch_free _ _ _ _ _ _)
-      intro found
-      split
-      · split
-        · exact bind_allowed WFree (signTop_free _ _ _) fun _ => pure_allowed _ _
-        · apply bind_allowed WFree (buildTree_free _ _ _ _)
-          intro built
-          obtain ⟨levels, values⟩ := built
-          dsimp only
-          apply bind_allowed WFree (ih _)
-          intro previous
-          split
-          · exact pure_allowed _ _
-          · exact pure_allowed _ _
-      · exact pure_allowed _ _
+theorem layerEncoding_free (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (counter : BitVec 32) :
+    AllQueriesSatisfy (shortHash (WCT9.layerEncodingInput lay tree leaf msg counter)) WFree := by
+  unfold shortHash publicHash
+  apply bind_allowed WFree
+  · apply (allQueriesSatisfy_query_iff _ _).mpr
+    change Guess.decodeProbe (pad64 (WCT9.layerEncodingInput lay tree leaf msg counter)) = none
+    exact Guess.decodeProbe_of_hdrBlock (ClaudeWCT.W9.T3M.BC.hdrBlock_layerEncodingInput lay tree leaf msg counter)
+      (firstByte_header _ _ _ _ _)
+  · intro _; exact pure_allowed _ _
+theorem signLayersBC_free (cache : SigGolfCandidate.T3.Cache) (index n : Nat) (msg : WCT9.LayerMsg) :
+    AllQueriesSatisfy (WCT9.signLayersBC cache index n msg) WFree :=
+  Signer.signLayersBC_allowed' WFree cache layerEncoding_free buildTree_free (signTop_free cache) index n msg
 theorem wctLeafHash_free (index coord selected : Nat) (ends : List Digest) :
     AllQueriesSatisfy (WCT9.leafHash index coord selected ends) WFree := by
   unfold WCT9.leafHash
-  exact shortHash_free _ _ (tagByte_wctHeader_ne _ _ _ _ (by decide))
-theorem wctForestPk_free (index : Nat) (roots : List Digest) : AllQueriesSatisfy (WCT9.forestPk index roots) WFree := by
-  unfold WCT9.forestPk
-  exact shortHash_header_free _ _ _ _ _ _ (by decide)
+  rw [WCT9.leaf_header_eq]
+  exact shortHash_header_free _ _ _ _ _ _ _
+theorem wctForestPk_free (index : Nat) (pairs : List (Digest × Digest)) :
+    AllQueriesSatisfy (WCT9.forestPk index pairs) WFree := by
+  unfold WCT9.forestPk WCT9.forestInput
+  rw [zero16_eq]
+  exact shortHash_header_free _ _ _ _ _ _ _
 theorem heapBuild_free (index coord : Nat) (leaves : List Digest) :
     AllQueriesSatisfy (WCT9.heapBuild index coord leaves) WFree := by
   unfold WCT9.heapBuild
   exact foldlM_allowed WFree _ _ (fun nodes heap =>
-    bind_allowed WFree (nodeHash_free _ _ _ _ _ (by decide)) fun _ => pure_allowed _ _) _
+    bind_allowed WFree (nodeHash_free _ _ _ _ _ _) fun _ => pure_allowed _ _) _
 end Free
 section Table
 variable {U : Finset HashInput} (hU : CanonGraph.canonInputs ⊆ U) (ω : CanonTable.Omega U)
@@ -290,7 +286,10 @@ theorem eval_free (g g' : WctPoint → Digest) {α : Type} {program : M α} (hp 
 end Table
 end ClaudeWCT.W9.T3.Security.WPair
 end
+
 section
+
+
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -366,15 +365,15 @@ theorem coordNodes_world (g g' : WctPoint → Digest) (index : Nat) (hindex : in
   unfold WCT9.coordNodes
   rw [coordLeaves_world hU ω g g' index hindex k]
   exact eval_free hU ω g g' (heapBuild_free _ _ _)
-theorem coordinateRoot_world (g g' : WctPoint → Digest) (index : Nat) (hindex : index < 2 ^ 31) :
-    WCT9.coordinateRoot (wA hU ω g) index = WCT9.coordinateRoot (wA hU ω g') index := by
+theorem coordinatePair_world (g g' : WctPoint → Digest) (index : Nat) (hindex : index < 2 ^ 31) :
+    WCT9.coordinatePair (wA hU ω g) index = WCT9.coordinatePair (wA hU ω g') index := by
   funext k
-  unfold WCT9.coordinateRoot
+  unfold WCT9.coordinatePair
   rw [coordNodes_world hU ω g g' index hindex k]
 theorem honestForest_world (g g' : WctPoint → Digest) (index : Nat) (hindex : index < 2 ^ 31) :
     WCT9.honestForest (wA hU ω g) index = WCT9.honestForest (wA hU ω g') index := by
   unfold WCT9.honestForest
-  rw [coordinateRoot_world hU ω g g' index hindex]
+  rw [coordinatePair_world hU ω g g' index hindex]
   exact eval_free hU ω g g' (wctForestPk_free _ _)
 theorem outIndex_lt (output : HashOutput) : outIndex output < 2 ^ 31 := Nat.mod_lt _ (by positivity)
 theorem chainOf_eq_addrOf (output : HashOutput) (k : Fin 9) (t : Fin 7) :
@@ -406,8 +405,8 @@ noncomputable def signerCore (published : SigGolfCandidate.T3.Cache) (request : 
         (privateNonce request.message)) request.message 0 WCT9.digestAttemptLimit) with
     | none => none
     | some (_, output) =>
-        match evalWithAnswerFn (wA hU ω 0) (signLayers request.cache (output.toNat % 2 ^ 31) 4
-            (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31), 0, 0)) with
+        match evalWithAnswerFn (wA hU ω 0) (WCT9.signLayersBC request.cache (output.toNat % 2 ^ 31) 4
+            (.forest (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31)))) with
         | none => none
         | some pieces => some (evalWithAnswerFn (wA hU ω 0) (privateNonce request.message), output, pieces)
   else none
@@ -435,9 +434,9 @@ theorem sign_answers (g : WctPoint → Digest) (published : SigGolfCandidate.T3.
         rw [evalWithAnswerFn_bind, WCT9.eval_signForest, evalWithAnswerFn_bind]
         simp only
         rw [honestForest_world hU ω g 0 (output.toNat % 2 ^ 31) (outIndex_lt output),
-          eval_free hU ω g 0 (signLayers_free _ _ _ _)]
-        cases evalWithAnswerFn (wA hU ω 0) (signLayers request.cache (output.toNat % 2 ^ 31) 4
-          (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31), 0, 0)) with
+          eval_free hU ω g 0 (signLayersBC_free _ _ _ _)]
+        cases evalWithAnswerFn (wA hU ω 0) (WCT9.signLayersBC request.cache (output.toNat % 2 ^ 31) 4
+          (.forest (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31)))) with
         | none => rfl
         | some pieces => rfl
   · rw [if_neg hc, if_neg hc]
@@ -498,7 +497,9 @@ theorem sign_opened (g : WctPoint → Digest) (published : SigGolfCandidate.T3.C
 end World
 end ClaudeWCT.W9.T3.Security.WPair
 end
+
 section
+
 namespace ClaudeWCT.Guess
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3
@@ -587,7 +588,12 @@ theorem one {init final : State GCoord Digest Memory} {log : List E} {entries : 
 end WTracks
 end ClaudeWCT.Guess
 end
+
 section
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

@@ -4,7 +4,9 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layer
 import SigGolfCandidate.ClaudeWCT.WCT9.Honest
+import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
 import SigGolfCandidate.T3.Secc.WotsStructuralHonest
+
 namespace ClaudeWCT.W9.T3.Security.Wots.Structural
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -60,6 +62,10 @@ theorem header_ne_hdr {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ t % 25
   obtain ⟨h1, h2, h3, h5, h6, h11, h15⟩ := ht
   cases p with
   | chain lay tree leaf i step => exact (chainHeader_ne_header lay tree leaf i step t l tr pos ix).symm
+  | wctChain index coord child c step =>
+      exact (WCT9.ftsChainHeaderP_ne_header _ _ _ _ _ _ t l tr pos ix).symm
+  | wctNode index coord level nd =>
+      simp only [Extract.Pos.hdr, WCT9.wctNodeHeader]; exact Mask.header_ne_of_tag (by omega)
   | _ => simp only [Extract.Pos.hdr]; exact Mask.header_ne_of_tag (by omega)
 theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 5 ∧
     t % 256 ≠ 6 ∧ t % 256 ≠ 11 ∧ t % 256 ≠ 15) (x : Digest) (rest : HashInput) (l tr pos ix : Nat) :
@@ -68,17 +74,31 @@ theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ 
   intro p _ he
   rw [Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega),
     Extract.hdrBlock_prefix,
-    Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
+    SigGolfCandidate.T3M.Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
   exact header_ne_hdr ht l tr pos ix p (bytesLE_injective he)
-theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) :
+theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) :
     Extract.posOf (pad64 (encodingInput lay tree leaf message counter)) = none := by
   unfold encodingInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
+theorem posOf_hdr_none {x : HashInput} {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ t % 256 ≠ 3 ∧ t % 256 ≠ 5 ∧
+    t % 256 ≠ 6 ∧ t % 256 ≠ 11 ∧ t % 256 ≠ 15) {l tr pos ix : Nat}
+    (hx : Extract.hdrBlock x = bytesLE 16 (header t l tr pos ix)) : Extract.posOf x = none := by
+  apply posOf_eq_none
+  intro p _ he
+  rw [hx, SigGolfCandidate.T3M.Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
+  exact header_ne_hdr ht l tr pos ix p (bytesLE_injective he)
+theorem posOf_layerEncoding (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (counter : BitVec 32) :
+    Extract.posOf (pad64 (WCT9.layerEncodingInput lay tree leaf msg counter)) = none :=
+  posOf_hdr_none (by decide) (BC.hdrBlock_layerEncodingInput lay tree leaf msg counter)
+theorem posOf_layerEncodingP (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (counter : BitVec 32)
+    (pad : BitVec 96) :
+    Extract.posOf (pad64 (layerEncodingInputP lay tree leaf msg counter pad)) = none :=
+  posOf_hdr_none (by decide) (BC.hdrBlock_layerEncodingInputP lay tree leaf msg counter pad)
 theorem posOf_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
     Extract.posOf (pad64 (digestInput rho message counter)) = none := by
   unfold digestInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
-theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
+theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
     ∀ fuel counter, QueriesSat T (HonestQuery T) (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with
@@ -87,6 +107,18 @@ theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message
       intro counter
       simp only [SigGolfCandidate.T3.counterSearch]
       refine QueriesSat.bind (sat_shortHash _ (Or.inl (posOf_encoding _ _ _ _ _))) ?_
+      split
+      · exact ih _
+      · exact QueriesSat.pure' _
+theorem sat_layerCounterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) :
+    ∀ fuel counter, QueriesSat T (HonestQuery T) (WCT9.layerCounterSearch lay tree leaf msg counter fuel) := by
+  intro fuel
+  induction fuel with
+  | zero => intro counter; exact QueriesSat.pure' _
+  | succ fuel ih =>
+      intro counter
+      simp only [WCT9.layerCounterSearch]
+      refine QueriesSat.bind (sat_shortHash _ (Or.inl (posOf_layerEncoding _ _ _ _ _))) ?_
       split
       · exact ih _
       · exact QueriesSat.pure' _
@@ -100,8 +132,8 @@ private theorem canonicalHeader_low (hdr : Digest) :
     (Extract.canonicalHeader (bytesLE 16 hdr)).take 8 = bytesLE 8 (hdr.extractLsb' 0 64) := by
   have he : hdr = hdr.extractLsb' 64 64 ++ hdr.extractLsb' 0 64 :=
     (BitVec.extractLsb'_append_extractLsb' (w := 64) (len := 64) (x := hdr)).symm
-  conv_lhs => rw [he, Extract.bytesLE_header_words]
-  unfold Extract.canonicalHeader
+  conv_lhs => rw [he, SigGolfCandidate.T3M.Extract.bytesLE_header_words]
+  unfold SigGolfCandidate.T3M.Extract.canonicalHeader
   split_ifs <;> simp [List.take_append, bytesLE_length]
 private theorem low_ne_of_firstByte (x y : BitVec 128)
     (hc : 128 ≤ x.toNat % 256) (hr : y.toNat % 256 = 1) :
@@ -131,6 +163,11 @@ theorem posOf_chain_offgraph (lay : Layer) (tree leaf i step : Nat) (value : Dig
   cases p with
   | chain lay' tree' leaf' i' step' =>
       exact chainHeader_offgraph_low_ne hoff hb.1 hb.2.1 hb.2.2.1 hb.2.2.2 hlo
+  | wctChain index coord child c step' =>
+      exact WCT9.ftsChainHeaderP_low_ne_chainHeader _ _ _ _ _ _ _ _ _ _ _ hlo.symm
+  | wctNode index coord level nd =>
+      simp only [Extract.Pos.hdr, WCT9.wctNodeHeader] at hlo
+      exact chain_low_ne_header _ _ _ _ _ _ _ _ _ _ hlo
   | _ => exact chain_low_ne_header _ _ _ _ _ _ _ _ _ _ hlo
 theorem sat_chain (T : Answers) (lay : Layer) (tree leaf i start count : Nat)
     (htree : tree < 2 ^ 40) (hleaf : leaf < 2 ^ 32) (hi : i < 2 ^ 24) (hcount : start + count ≤ 256) :
@@ -264,7 +301,7 @@ theorem sat_forestRows (T : Answers) (index : Nat) (hindex : index < 2 ^ 31) (ou
   (ClaudeWCT.WCT9.Wots.Structural.sat_forestRows T index output).mono fun _ hq => honestQuery_of_fts T hindex hq
 theorem sat_forestPk (T : Answers) (index : Nat) (hindex : index < 2 ^ 31) :
     QueriesSat T (HonestQuery T)
-      (ClaudeWCT.WCT9.forestPk index (List.ofFn (ClaudeWCT.WCT9.coordinateRoot T index))) :=
+      (ClaudeWCT.WCT9.forestPk index (List.ofFn (ClaudeWCT.WCT9.coordinatePair T index))) :=
   (ClaudeWCT.WCT9.Wots.Structural.sat_forestPk T index).mono fun _ hq => honestQuery_of_fts T hindex hq
 theorem sat_signForest (T : Answers) (index : Nat) (hindex : index < 2 ^ 31) (output : HashOutput) :
     QueriesSat T (HonestQuery T) (ClaudeWCT.WCT9.signForest index output) :=
@@ -295,20 +332,20 @@ theorem sat_signTop (T : Answers) (cache : Cache) (leaf : Nat) (digits : List Na
   obtain ⟨root, values⟩ := x
   exact QueriesSat.bind (sat_topPath T cache leaf hleaf) (QueriesSat.pure' _)
 theorem sat_signLayers (T : Answers) (cache : Cache) (index : Nat) (hindex : index < 2 ^ 31) :
-    ∀ n msg, QueriesSat T (HonestQuery T) (signLayers cache index n msg) := by
+    ∀ n msg, QueriesSat T (HonestQuery T) (WCT9.signLayersBC cache index n msg) := by
   intro n
   induction n with
   | zero => intro _; exact QueriesSat.pure' _
   | succ n ih =>
       intro msg
-      simp only [signLayers]
-      refine QueriesSat.bind (sat_counterSearch T _ _ _ _ _ _) ?_
-      cases hs : evalWithAnswerFn T (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+      simp only [WCT9.signLayersBC]
+      refine QueriesSat.bind (sat_layerCounterSearch T _ _ _ _ _ _) ?_
+      cases hs : evalWithAnswerFn T (WCT9.layerCounterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
         (route index (Fin.ofNat 4 n)).1 msg 0 counterLimit) with
       | none => exact QueriesSat.pure' _
       | some found =>
           obtain ⟨counter, digits⟩ := found
-          have hd := (Correctness.counterSearch_some T _ _ _ msg counterLimit 0 counter digits
+          have hd := (WCT9.layerCounterSearch_some T _ _ _ msg counterLimit 0 counter digits
             (by decide) hs).2.2
           have hvalid := Cost.validDigits_decode hd
           dsimp only
@@ -319,7 +356,7 @@ theorem sat_signLayers (T : Answers) (cache : Cache) (index : Nat) (hindex : ind
             exact this
           · refine QueriesSat.bind (sat_buildTree T _ _ _ digits hvalid (Mask.route_tree_lt index hindex _)) ?_
             refine QueriesSat.bind (ih _) ?_
-            generalize evalWithAnswerFn T (signLayers cache index n _) = r
+            generalize evalWithAnswerFn T (WCT9.signLayersBC cache index n _) = r
             rcases r with _ | r <;> exact QueriesSat.pure' _
 theorem sat_signPayload (T : Answers) (cache : Cache) (message : Message) :
     QueriesSat T (HonestQuery T) (signPayload cache message) := by
@@ -335,7 +372,7 @@ theorem sat_signPayload (T : Answers) (cache : Cache) (message : Message) :
     have hindex : output.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
     refine QueriesSat.bind (sat_signForest T _ hindex _) ?_
     refine QueriesSat.bind (sat_signLayers T cache _ hindex 4 _) ?_
-    generalize evalWithAnswerFn T (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
+    generalize evalWithAnswerFn T (WCT9.signLayersBC cache (output.toNat % 2 ^ 31) 4 _) = pieces
     rcases pieces with _ | pieces <;> exact QueriesSat.pure' _
 theorem sat_authenticatedSign (T : Answers) (published : SigGolfCandidate.T3.Cache) (request : Request) :
     QueriesSat T (HonestQuery T) (FullGame.authenticatedSign published request) := by

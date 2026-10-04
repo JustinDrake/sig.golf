@@ -10,6 +10,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonEncoding
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraph
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -24,9 +25,9 @@ set_option maxRecDepth 10000
 namespace Enc
 open SigGolfCandidate.T3.Security.Wots.Enc
 section Programs
-theorem respects_forestPk (index : Nat) (roots : List Digest) :
-    Respects Enc.NonEnc (ClaudeWCT.WCT9.forestPk index roots) :=
-  ClaudeWCT.WCT9.Wots.Enc.respects_forestPk index roots
+theorem respects_forestPk (index : Nat) (pairs : List (Digest × Digest)) :
+    Respects Enc.NonEnc (ClaudeWCT.WCT9.forestPk index pairs) :=
+  ClaudeWCT.WCT9.Wots.Enc.respects_forestPk index pairs
 theorem respects_signForest (index : Nat) (output : HashOutput) :
     Respects Enc.NonEnc (ClaudeWCT.WCT9.signForest index output) :=
   ClaudeWCT.WCT9.Wots.Enc.respects_signForest index output
@@ -37,9 +38,39 @@ end Programs
 section RespAt
 variable {T : Answers} {S : Spec.Domain → Prop}
 end RespAt
+theorem respAt_layerCounterSearch (T : Answers) (S : Spec.Domain → Prop) (lay : Layer) (tree leaf : Nat)
+    (msg : WCT9.LayerMsg) : ∀ fuel start,
+      (∀ c < fuel, (∀ c' < c, decode lay (low (T (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf msg
+          (BitVec.ofNat 32 (start + c')))))))) = none) →
+        S (.inl (.inr (pad64 (WCT9.layerEncodingInput lay tree leaf msg (BitVec.ofNat 32 (start + c))))))) →
+      RespAt T S (WCT9.layerCounterSearch lay tree leaf msg start fuel) := by
+  intro fuel
+  induction fuel with
+  | zero => intro start _; exact RespAt.pure' _
+  | succ fuel ih =>
+      intro start hS
+      simp only [WCT9.layerCounterSearch]
+      refine RespAt.bind (RespAt.of_respects (S' := S) (Respects.shortHash _ ?_) (fun _ h => h)) ?_
+      · simpa using hS 0 (Nat.zero_lt_succ _) (fun c' hc' => absurd hc' (Nat.not_lt_zero _))
+      · cases hd : decode lay (evalWithAnswerFn T (shortHash (WCT9.layerEncodingInput lay tree leaf msg
+            (BitVec.ofNat 32 start)))) with
+        | none =>
+            simp only [hd]
+            apply ih (start + 1)
+            intro c hc hprev
+            have h := hS (c + 1) (by omega) (fun c' hc' => by
+              rcases c' with _ | c''
+              · rw [Nat.add_zero]
+                exact hd
+              · have := hprev c'' (by omega)
+                rwa [show start + (c'' + 1) = start + 1 + c'' by omega])
+            rwa [show start + (c + 1) = start + 1 + c by omega] at h
+        | some digits =>
+            simp only [hd]
+            exact RespAt.pure' _
 def Reached (T : Answers) (L : LeafAddr) (input : HashInput) : Prop :=
-  ∃ c < counterLimit, input = encodingRow L (leafMsg T L) (BitVec.ofNat 32 c) ∧
-    ∀ c' < c, decode L.lay (low (T (.inl (.inr (encodingRow L (leafMsg T L) (BitVec.ofNat 32 c')))))) = none
+  ∃ c < counterLimit, input = encRow L (leafMsg T L) (BitVec.ofNat 32 c) 0 ∧
+    ∀ c' < c, decode L.lay (low (T (.inl (.inr (encRow L (leafMsg T L) (BitVec.ofNat 32 c') 0))))) = none
 def leafOf (L : CanonGraph.LeafPos) : LeafAddr := ⟨L.lay, L.tree.val, L.leaf.val⟩
 def HonestQ (T : Answers) : Spec.Domain → Prop
   | .inl (.inr input) => ¬ EncHeader input ∨ ∃ L : CanonGraph.LeafPos, Reached T (leafOf L) input
@@ -51,14 +82,15 @@ theorem honestQ_of_nonEnc {T : Answers} {q : Spec.Domain} (h : Enc.NonEnc q) : H
   · trivial
 theorem respAt_referenceSearch (T : Answers) (S : Spec.Domain → Prop) (L : LeafAddr)
     (hS : ∀ input, Reached T L input → S (.inl (.inr input))) :
-    RespAt T S (counterSearch L.lay L.tree L.leaf (leafMsg T L) 0 counterLimit) := by
-  apply respAt_counterSearch
+    RespAt T S (WCT9.layerCounterSearch L.lay L.tree L.leaf (leafMsg T L) 0 counterLimit) := by
+  apply respAt_layerCounterSearch
   intro c hc hprev
   apply hS
   refine ⟨c, hc, ?_, fun c' hc' => ?_⟩
-  · simp only [encodingRow, Nat.zero_add]
+  · rw [encRow_zero, Nat.zero_add]
   · have := hprev c' hc'
     rw [Nat.zero_add] at this
+    rw [encRow_zero]
     exact this
 def routePos (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) : CanonGraph.LeafPos :=
   ⟨lay, ⟨(route index lay).2, lt_of_le_of_lt (Nat.div_le_self _ _) hindex⟩,
@@ -68,28 +100,28 @@ def routePos (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) : CanonGraph.
 theorem leafOf_routePos (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
     leafOf (routePos index hindex lay) = routeLeaf index lay := rfl
 theorem respAt_routeSearch (T : Answers) (index : Nat) (hindex : index < 2 ^ 31) (lay : Layer) :
-    RespAt T (HonestQ T) (counterSearch lay (route index lay).2 (route index lay).1
+    RespAt T (HonestQ T) (WCT9.layerCounterSearch lay (route index lay).2 (route index lay).1
       (leafMsg T (routeLeaf index lay)) 0 counterLimit) :=
   respAt_referenceSearch T (HonestQ T) (routeLeaf index lay)
     (fun input h => Or.inr ⟨routePos index hindex lay, h⟩)
 theorem respAt_signLayers (T : Answers) (cache : T3.Cache) (index : Nat) (hindex : index < 2 ^ 31) :
     ∀ n, n ≤ 4 → ∀ msg, (∀ m, n = m + 1 → msg = leafMsg T (routeLeaf index (Fin.ofNat 4 m))) →
-      RespAt T (HonestQ T) (signLayers cache index n msg) := by
+      RespAt T (HonestQ T) (WCT9.signLayersBC cache index n msg) := by
   intro n
   induction n with
   | zero => intro _ _ _; exact RespAt.pure' _
   | succ n ih =>
       intro hn msg hmsg
-      simp only [signLayers]
+      simp only [WCT9.signLayersBC]
       refine RespAt.bind ?_ ?_
       · rw [hmsg n rfl]
         exact respAt_routeSearch T index hindex _
-      · cases hs : evalWithAnswerFn T (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+      · cases hs : evalWithAnswerFn T (WCT9.layerCounterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
           (route index (Fin.ofNat 4 n)).1 msg 0 counterLimit) with
         | none => exact RespAt.pure' _
         | some found =>
             obtain ⟨counter, digits⟩ := found
-            have hd := (Correctness.counterSearch_some T _ _ _ msg counterLimit 0 counter digits
+            have hd := (WCT9.layerCounterSearch_some T _ _ _ msg counterLimit 0 counter digits
               (by decide) hs).2.2
             have hvalid := Cost.validDigits_decode hd
             dsimp only
@@ -104,7 +136,7 @@ theorem respAt_signLayers (T : Answers) (cache : T3.Cache) (index : Nat) (hindex
               refine RespAt.bind (ih (by omega) _ (fun m' hm' => ?_)) ?_
               · obtain rfl : m = m' := by omega
                 exact Mask.signedMsg_succ T index m (by omega)
-              · cases evalWithAnswerFn T (signLayers cache index (m + 1) _) <;> exact RespAt.pure' _
+              · cases evalWithAnswerFn T (WCT9.signLayersBC cache index (m + 1) _) <;> exact RespAt.pure' _
 theorem respAt_signPayload (T : Answers) (cache : T3.Cache) (message : Message) :
     RespAt T (HonestQ T) (signPayload cache message) := by
   change RespAt T (HonestQ T) (ClaudeWCT.WCT9.Rev3.signPayload cache message)
@@ -119,10 +151,9 @@ theorem respAt_signPayload (T : Answers) (cache : T3.Cache) (message : Message) 
     refine RespAt.bind (RespAt.of_respects (respects_signForest _ _) fun _ h => honestQ_of_nonEnc h) ?_
     refine RespAt.bind (respAt_signLayers T cache _ (Nat.mod_lt _ (by decide)) 4 le_rfl _ (fun m hm => ?_)) ?_
     · obtain rfl : m = 3 := by omega
-      rw [ClaudeWCT.WCT9.signForest_root]
-      exact (congrArg (fun x => ((x, 0, 0) : Digest × BitVec 96 × Digest))
-        (Extract.honestForest_eq_wct9 T _).symm).trans (Mask.signedMsg_top T _)
-    · generalize evalWithAnswerFn T (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
+      rw [ClaudeWCT.WCT9.signForest_root, ← Extract.honestForest_eq_wct9]
+      exact Mask.signedMsg_top T _ (Nat.mod_lt _ (by decide))
+    · generalize evalWithAnswerFn T (WCT9.signLayersBC cache (output.toNat % 2 ^ 31) 4 _) = pieces
       rcases pieces with _ | pieces <;> exact RespAt.pure' _
 theorem respAt_sign (T : Answers) (published : T3.Cache) (request : Request) :
     RespAt T (HonestQ T) (FullGame.authenticatedSign published request) := by

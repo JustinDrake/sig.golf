@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3M.Witness.Layout
+
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SphincsSecurity (bytesLE)
@@ -82,23 +83,8 @@ def layerP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M Dige
     let pair := if leaf / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
     nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
       (wmerklePad w lay j.val) pair.2) value
-def layerPairP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage := do
-  let (leaf, tree) := route index lay
-  let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (wchainPads w lay i.val).1 (wchainPads w lay i.val).2 (wchainHeaderPad w lay i.val) (wvalue w lay i.val)
-  let value ← leafHash lay tree leaf ends
-  let node ← (List.finRange (height lay - 1)).foldlM (fun value j => do
-    let other := wpath w lay leaf j.val
-    let pair := if leaf / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
-    nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
-      (wmerklePad w lay j.val) pair.2) value
-  let other := wpath w lay leaf (height lay - 1)
-  pure (pairOf leaf (height lay) other ((wmerklePad w lay (height lay - 1)).extractLsb' 32 96) node)
-def layerNextP (w : WBytes) (index n : Nat) (lay : Layer) (digits : List Nat) : M LayerMessage :=
-  if n = 0 then (fun value => (value, 0, 0)) <$> layerP w index lay digits else layerPairP w index lay digits
-def layersP (w : WBytes) (index : Nat) : Nat → LayerMessage → M (Option Digest)
-  | 0, root => pure (some root.1)
+def layersP (w : WBytes) (index : Nat) : Nat → Digest → M (Option Digest)
+  | 0, root => pure (some root)
   | n + 1, root => do
       let lay : Layer := Fin.ofNat 4 n
       let counter := wctr w lay
@@ -106,8 +92,8 @@ def layersP (w : WBytes) (index : Nat) : Nat → LayerMessage → M (Option Dige
       let (leaf, tree) := route index lay
       let answer ← shortHash (encodingInput lay tree leaf root counter)
       let some digits := decode lay answer | pure none
-      let next ← layerNextP w index n lay digits
-      layersP w index n next
+      let value ← layerP w index lay digits
+      layersP w index n value
 def verifyP (m : Message) (pk : Digest) (w : WBytes) : M Bool := do
   let some N ← digestP m w | pure false
   let chosen := selections N
@@ -115,7 +101,7 @@ def verifyP (m : Message) (pk : Digest) (w : WBytes) : M Bool := do
   if !digestGate N then return false
   let index := N.toNat % 2 ^ 31
   let some root ← ftsP w index chosen | pure false
-  let some root ← layersP w index 4 (root, 0, 0) | pure false
+  let some root ← layersP w index 4 root | pure false
   pure (root == pk)
 structure Pads where
   leaf : Fin 22 → Digest
@@ -185,27 +171,8 @@ def recoverLayerP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (d
     let pair := if leaf / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
     nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
       (pads.merkle lay j) pair.2) value
-def recoverPairP (sig : Signature) (pads : Pads) (index : Nat) (lay : Layer) (digits : List Nat) :
-    M LayerMessage := do
-  let (leaf, tree) := route index lay
-  let ends ← (List.finRange (chainCount lay)).mapM fun i =>
-    chainP lay tree leaf i.val (digits.getD i.val 0) (maxDigit lay i.val - digits.getD i.val 0)
-      (pads.chain lay i).1 (pads.chain lay i).2 (pads.chainHeader lay i) ((sig.layers lay).values i)
-  let value ← leafHash lay tree leaf ends
-  let node ← (List.finRange (height lay - 1)).foldlM (fun value j => do
-    let other := (sig.layers lay).path (Fin.castLE (Nat.sub_le _ _) j)
-    let pair := if leaf / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
-    nodeHashP 3 lay.val tree (2 ^ (height lay - j.val - 1) + leaf / 2 ^ (j.val + 1)) pair.1
-      (pads.merkle lay (Fin.castLE (Nat.sub_le _ _) j)) pair.2) value
-  let top : Fin (height lay) := ⟨height lay - 1, Nat.sub_lt (height_pos lay) Nat.one_pos⟩
-  let other := (sig.layers lay).path top
-  pure (pairOf leaf (height lay) other ((pads.merkle lay top).extractLsb' 32 96) node)
-def recoverNextP (sig : Signature) (pads : Pads) (index n : Nat) (lay : Layer) (digits : List Nat) :
-    M LayerMessage :=
-  if n = 0 then (fun value => (value, 0, 0)) <$> recoverLayerP sig pads index lay digits
-  else recoverPairP sig pads index lay digits
-def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → LayerMessage → M (Option Digest)
-  | 0, root => pure (some root.1)
+def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → Digest → M (Option Digest)
+  | 0, root => pure (some root)
   | n + 1, root => do
       let lay : Layer := Fin.ofNat 4 n
       let counter := w.counters lay
@@ -213,14 +180,14 @@ def verifyLayersP (w : Witness) (pads : Pads) (index : Nat) : Nat → LayerMessa
       let (leaf, tree) := route index lay
       let answer ← shortHash (encodingInput lay tree leaf root counter)
       let some digits := decode lay answer | pure none
-      let next ← recoverNextP w.signature pads index n lay digits
-      verifyLayersP w pads index n next
+      let value ← recoverLayerP w.signature pads index lay digits
+      verifyLayersP w pads index n value
 def verifyPadsTail (pk : Digest) (output : HashOutput) (w : Witness) (pads : Pads) : M Bool := do
   let chosen := selections output
   if !digestAdmissible output then return false
   let index := output.toNat % 2 ^ 31
   let some root ← recoverFtsP w.signature pads index chosen | pure false
-  let some root ← verifyLayersP w pads index 4 (root, 0, 0) | pure false
+  let some root ← verifyLayersP w pads index 4 root | pure false
   pure (root == pk)
 def verifyPads (m : Message) (pk : Digest) (w : Witness) (pads : Pads) : M Bool := do
   if w.digestCounter.toNat ≥ attemptLimit then return false

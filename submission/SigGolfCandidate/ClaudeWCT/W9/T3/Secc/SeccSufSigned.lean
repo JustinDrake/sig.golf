@@ -24,7 +24,7 @@ def CaseCAt (answers : Correctness.Answers) (message : Message) (witness : WByte
     evalWithAnswerFn answers (digest (wrho witness) message (wdc witness)) = digestAnswer ∧
     (∃ prior, (⟨prior, .inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness)))), digestAnswer⟩ :
       FirstHit.QueryEvent) ∈ events) ∧ Shaped digestAnswer witness ∧
-    (∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) lay) ∧
+    (∀ lay : Layer, ClaudeWCT.W9.T3M.BC.GoodZ answers witness (digestAnswer.toNat % 2 ^ 31) lay) ∧
     ClaudeWCT.W9.T3M.WctExtract.WctHonest answers digestAnswer witness
 theorem CaseCAt.mono {answers : Correctness.Answers} {message : Message} {witness : WBytes}
     {events events' : List FirstHit.QueryEvent} (h : CaseCAt answers message witness events)
@@ -119,7 +119,8 @@ def ConclusionAB (answers : Correctness.Answers) (message : Message) (witness : 
         (∃ lay : Layer, ClaudeWCT.W9.T3M.Extract.Diverge answers witness (digestAnswer.toNat % 2 ^ 31) lay
           (events.map FirstHit.QueryEvent.input) ∧
           ∀ above : Layer, above.val < lay.val →
-            ClaudeWCT.W9.T3M.Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) above))
+            ClaudeWCT.W9.T3M.Extract.Good answers witness (digestAnswer.toNat % 2 ^ 31) above) ∨
+        PaddedExtraction.PadAt answers witness (digestAnswer.toNat % 2 ^ 31))
 def GameCaseAB (adversary : AdversaryP) (answers : Correctness.Answers) (result : FirstHit.Recorded Bool) : Prop :=
   ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
     ∃ interaction ∈ support (FirstHit.record
@@ -137,11 +138,13 @@ theorem linked_split (adversary : AdversaryP) (answers : Correctness.Answers) (r
       GameCaseC adversary answers id result := by
   obtain ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof, hc⟩ := h
   obtain ⟨N, hdc, hN, hq, hS, hcase⟩ := hc
-  rcases hcase with hA | hB | ⟨hgood, hfts⟩
+  rcases hcase with hA | hB | hP | ⟨hgood, hfts⟩
   · exact Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof,
       N, hdc, hN, hq, hS, Or.inl hA⟩
   · exact Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof,
-      N, hdc, hN, hq, hS, Or.inr hB⟩
+      N, hdc, hN, hq, hS, Or.inr (Or.inl hB)⟩
+  · exact Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof,
+      N, hdc, hN, hq, hS, Or.inr (Or.inr hP)⟩
   · by_cases hsd : SignedDigest interaction.value.2 message witness
     · exact Or.inr (Or.inr ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
         hof, hsd, N, hdc, hN, hq, hS, hgood, hfts⟩)
@@ -179,7 +182,7 @@ def payloadForNonce (cache : SigGolfCandidate.T3.Cache) (rho : Digest) (message 
     M (Option Signature) := do
   let some (_, output) ← WCT9.digestSearch rho message 0 WCT9.digestAttemptLimit | pure none
   let forest ← WCT9.signForest (output.toNat % 2 ^ 31) output
-  let some pieces ← signLayers cache (output.toNat % 2 ^ 31) 4 (forest.2, 0, 0) | pure none
+  let some pieces ← WCT9.signLayersBC cache (output.toNat % 2 ^ 31) 4 (.forest forest.2) | pure none
   pure (some (WCT9.assembledSignature rho forest.1 pieces))
 theorem signPayload_nonce (cache : SigGolfCandidate.T3.Cache) (message : Message) :
     WCT9.Rev3.signPayload cache message =
@@ -216,8 +219,8 @@ theorem authenticatedSign_payload (answers : Correctness.Answers) (published : S
       rcases found with _ | ⟨_, output⟩
       · simp at h
       · simp only [evalWithAnswerFn_bind] at h
-        generalize evalWithAnswerFn answers (signLayers published (output.toNat % 2 ^ 31) 4
-          ((evalWithAnswerFn answers (WCT9.signForest (output.toNat % 2 ^ 31) output)).2, 0, 0)) = layers at h
+        generalize evalWithAnswerFn answers (WCT9.signLayersBC published (output.toNat % 2 ^ 31) 4
+          (.forest (evalWithAnswerFn answers (WCT9.signForest (output.toNat % 2 ^ 31) output)).2)) = layers at h
         rcases layers with _ | pieces
         · simp at h
         · simp only [evalWithAnswerFn_pure, Option.some.injEq] at h

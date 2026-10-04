@@ -1,10 +1,9 @@
-import SigGolfCandidate.T3M.Keygen.PackedBlocks
 import SigGolfCandidate.T3M.Mem
 import SigGolfCandidate.T3M.Images.Keygen
+import SigGolfCandidate.T3M.Keygen.PackedBlocks
 
 namespace SigGolfCandidate.T3M.Keygen
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
-set_option maxRecDepth 8192
 def seg_0 : List (BitVec 32) := [659,0x8000e93,134967,963331,9352067,7286819,8336419,0x9000e93,134967,34541331,963331,9352067,7286819,8336419,134967,34551843,34552867,1043,1171,56626451,53480851,3987,133943,0x460b0b13,327991,2323]
 def seg_26 : List (BitVec 32) := [4919,40456803]
 def seg_28 : List (BitVec 32) := [138167,0xa00b8b93,6882227,4428691,2329779,465567983]
@@ -33,7 +32,7 @@ def sub_0 : List (BitVec 32) := [2579]
 def sub_1 : List (BitVec 32) := [18488931]
 def sub_2 : List (BitVec 32) := [134839,487493267,963331,9352067,7057443,8107043]
 def sub_8 : List (BitVec 32) := [89785443]
-def sub_9 : List (BitVec 32) := [0x7340006f, 0x014383b3, 0x02039313, 0x01041f13, 0x01e36333, 0x10136313, 0x00020e37, 0x1a0e0e13, 0x006e3823, 0x00020537, 0x1a050513, 0x04000593, 0x00020637, 0x1d060613]
+def sub_9 : List (BitVec 32) := [0x7340006f,21201843,33788691,17047315,31679283,269706003,134711,437128723,7223331,132407,436536595,67110291,132663,486934035]
 def sub_23 : List (BitVec 32) := [115]
 def sub_24 : List (BitVec 32) := [1706515,0xfa1ff06f]
 def sub_26 : List (BitVec 32) := [32871]
@@ -122,7 +121,7 @@ theorem codeAt_114 : CodeAt image (pcOf 114) seg_114 :=
 theorem codeAt_116 : CodeAt image (pcOf 116) seg_116 :=
   codeAt_layout code_eq mainL_ok (i := 16) (by kernel_rfl) (by decide)
 theorem codeAt_subCode : CodeAt image (pcOf 117) subCode :=
-  codeAt_layout code_eq mainL_ok (i := 17) (by kernel_rfl) (by decide)
+  codeAt_layout code_eq mainL_ok (i := 17) (by kernel_rfl) (by apply of_decide_eq_true; kernel_rfl)
 theorem codeAt_277 : CodeAt image (pcOf 277) seg_277 :=
   codeAt_layout code_eq mainL_ok (i := 18) (by kernel_rfl) (by decide)
 theorem codeAt_289 : CodeAt image (pcOf 289) seg_289 :=
@@ -136,7 +135,7 @@ theorem codeAt_310 : CodeAt image (pcOf 310) seg_310 :=
 theorem codeAt_330 : CodeAt image (pcOf 330) seg_330 :=
   codeAt_layout code_eq mainL_ok (i := 23) (by kernel_rfl) (by decide)
 theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
-  codeAt_layout code_eq mainL_ok (i := 24) (by kernel_rfl) (by decide)
+  codeAt_layout code_eq mainL_ok (i := 24) (by kernel_rfl) (by apply of_decide_eq_true; kernel_rfl)
 def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013) ∧
   (CodeAt image (pcOf (b + 1000)) maxDigitCode ∧ CodeAt image (pcOf (b + 1004)) revCode ∧
     ((image = Images.keygenImage ∧ b = 117) ∨ (image = Images.signImage ∧ b = 1013)))

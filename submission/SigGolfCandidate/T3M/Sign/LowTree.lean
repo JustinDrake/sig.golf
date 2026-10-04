@@ -1,10 +1,15 @@
 import SigGolfCandidate.T3M.Sign.FtsBlocks
 import SigGolfCandidate.T3M.Sign.TopBlocks
+import SigGolfCandidate.T3M.Sign.Basic
+import SigGolfCandidate.ClaudeWCT.WCT9.Core
 import SigGolfCandidate.T3M.Sign.Frontier
 import SigGolfCandidate.T3M.Sign.BaseInv
 import SigGolfCandidate.T3M.Sign.TopLeaf
 import SigGolfCandidate.T3M.Keygen.Tree
+
 section
+
+
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Keygen (PRIV SEEDS CHAIN NODE NOUT LOUT LEAFPK MOUT ZDIG DUMMY TOP MACBLK REGION)
@@ -105,7 +110,7 @@ theorem blk397_spec (s : MachineState) (hpc : s.pc = pcOf 397) (idx : Nat) (hidx
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 idx) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 411 ∧
       t.getReg .x8 = BitVec.ofNat 64 2 ∧ t.getReg .x15 = BitVec.ofNat 64 6 ∧
-      t.getReg .x16 = BitVec.ofNat 64 (SIG + 4048) ∧ t.getReg .x17 = BitVec.ofNat 64 196 ∧
+      t.getReg .x16 = BitVec.ofNat 64 (SIG + 4048) ∧ t.getReg .x17 = BitVec.ofNat 64 197 ∧
       t.getReg .x18 = BitVec.ofNat 64 (idx / 64 % 64) ∧ t.getReg .x14 = BitVec.ofNat 64 (idx / 64 % 64) ∧
       t.getReg .x9 = BitVec.ofNat 64 (idx / 4096) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x28] ∧
@@ -134,7 +139,7 @@ theorem blk412_spec (s : MachineState) (hpc : s.pc = pcOf 412) (idx : Nat) (hidx
     (hm : s.getMem (BitVec.ofNat 64 IDXV) = BitVec.ofNat 64 idx) :
     ∃ t, Steps image s 14 14 t ∧ t.pc = pcOf 646 ∧ t.getReg .x1 = pcOf 426 ∧
       t.getReg .x8 = BitVec.ofNat 64 1 ∧ t.getReg .x15 = BitVec.ofNat 64 7 ∧
-      t.getReg .x16 = BitVec.ofNat 64 (SIG + 3248) ∧ t.getReg .x17 = BitVec.ofNat 64 196 ∧
+      t.getReg .x16 = BitVec.ofNat 64 (SIG + 3248) ∧ t.getReg .x17 = BitVec.ofNat 64 197 ∧
       t.getReg .x18 = BitVec.ofNat 64 (idx / 4096 % 128) ∧ t.getReg .x14 = BitVec.ofNat 64 (idx / 4096 % 128) ∧
       t.getReg .x9 = BitVec.ofNat 64 (idx / 2 ^ 19) ∧
       RegsExcept s t [.x1, .x6, .x7, .x8, .x9, .x14, .x15, .x16, .x17, .x18, .x28] ∧
@@ -319,57 +324,67 @@ theorem blk1203_spec (s : MachineState) (hpc : s.pc = pcOf 1203) (l hi ar ep : N
     simp only [Result.toState_getMem, blk_1203.res]
     t3n [h24]
     rw [if_neg (by omega), if_neg (by omega)]
-theorem blk1214_spec (s : MachineState) (hpc : s.pc = pcOf 1214) (ar : Nat) (har : ar + 64 ≤ 2 ^ 24)
-    (har8 : ar % 8 = 0) (h2 : s.getReg .x2 = BitVec.ofNat 64 ar) :
-    ∃ t, Steps image s 7 7 t ∧ t.pc = pcOf 10947 ∧
+end SigGolfCandidate.T3M.Sign
+end
+
+section
+
+namespace SigGolfCandidate.T3M.Sign.BCBlocks
+open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv
+def entryCode : List (BitVec 32) := [134967,638521107,0xc90906f]
+def pairCode : List (BitVec 32) := [33633027,42021763,7286819,8336419,50410243,58798979,40843299,41892899,131175]
+theorem entry_at : CodeAt image (pcOf 1214) entryCode :=
+  codeAt_sign_slice (by decide +kernel) (by decide +kernel)
+theorem pair_at : CodeAt image (pcOf 10994) pairCode :=
+  codeAt_sign_slice (by decide +kernel) (by decide +kernel)
+sym_block entryBlock := symRun { noAlias := true } entryCode (pcOf 1214) 20
+sym_block pairBlock := symRun { noAlias := true } pairCode (pcOf 10994) 20
+theorem pair_spec (s : MachineState) (hpc : s.pc = pcOf 10994) (ar ret : Nat)
+    (har : ar + 64 ≤ 2 ^ 24) (har8 : ar % 8 = 0)
+    (hsep : ENC + 64 ≤ ar ∨ ar + 64 ≤ ENC)
+    (h2 : s.getReg .x2 = BitVec.ofNat 64 ar) (h4 : s.getReg .x4 = pcOf ret)
+    (h30 : s.getReg .x30 = BitVec.ofNat 64 ENC) :
+    ∃ t, Steps image s 9 9 t ∧ t.pc = pcOf ret ∧
       t.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 (ar + 32)) ∧
       t.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 (ar + 40)) ∧
-      t.getReg .x30 = BitVec.ofNat 64 ENC ∧
-      RegsExcept s t [.x6, .x7, .x30] ∧ Frame s t (fun A => A = ENC ∨ A = ENC + 8) := by
-  have hobl : Oblig.all s blk_1214.res.st.obl := by
-    simp only [blk_1214.res]
-    t3n [h2]
-    omega
-  refine ⟨_, symRun_sound blk_1214 codeAt_1214 s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, blk_1214.res, rv_simp]
-  · simp only [Result.toState_getMem, blk_1214.res, ENC]; t3n [h2]
-    repeat (first | rw [if_neg (by omega)] | rw [if_pos (by omega)])
-  · simp only [Result.toState_getMem, blk_1214.res, ENC]; t3n [h2]
-    repeat (first | rw [if_neg (by omega)] | rw [if_pos (by omega)])
-  · simp [Result.toState_getReg, blk_1214.res, rv_simp, ENC]
-  · intro r hr; simp at hr; cases r <;> simp_all [blk_1214.res, rv_simp] <;> rfl
-  · intro A hA hn
-    simp only [ENC] at hn
-    simp only [Result.toState_getMem, blk_1214.res]
-    t3n [h2]
-    rw [if_neg (by omega), if_neg (by omega)]
-theorem blk2074_spec (s : MachineState) (hpc : s.pc = pcOf 10947) (ar ret : Nat) (har : ar + 64 ≤ 2 ^ 24)
-    (har8 : ar % 8 = 0) (hsep : ENC + 64 ≤ ar) (h2 : s.getReg .x2 = BitVec.ofNat 64 ar) (h4 : s.getReg .x4 = pcOf ret)
-    (h30 : s.getReg .x30 = BitVec.ofNat 64 ENC) :
-    ∃ t, Steps image s 5 5 t ∧ t.pc = pcOf ret ∧
       t.getMem (BitVec.ofNat 64 (ENC + 48)) = s.getMem (BitVec.ofNat 64 (ar + 48)) ∧
       t.getMem (BitVec.ofNat 64 (ENC + 56)) = s.getMem (BitVec.ofNat 64 (ar + 56)) ∧
-      RegsExcept s t [.x6, .x7] ∧ Frame s t (fun A => A = ENC + 48 ∨ A = ENC + 56) := by
-  simp only [ENC] at hsep
-  have hobl : Oblig.all s blk_2074.res.st.obl := by
-    simp only [blk_2074.res]
-    t3n [h2, h30, ENC, h4]
-    exact ⟨⟨by norm_num, trivial⟩, ⟨by norm_num, trivial⟩, ⟨by omega, by omega⟩, by omega, by omega⟩
-  refine ⟨_, symRun_sound blk_2074 codeAt_2074 s hpc hobl, ?_, ?_, ?_, ?_, ?_⟩
-  · simp only [Result.toState_pc, blk_2074.res, rv_simp, h4, pcOf_and_max]
-  · simp only [Result.toState_getMem, blk_2074.res, ENC]; t3n [h2, h30, ENC]
-    repeat (first | rw [if_neg (by omega)] | rw [if_pos (by omega)])
-  · simp only [Result.toState_getMem, blk_2074.res, ENC]; t3n [h2, h30, ENC]
-    repeat (first | rw [if_neg (by omega)] | rw [if_pos (by omega)])
-  · intro r hr; simp at hr; cases r <;> simp_all [blk_2074.res, rv_simp] <;> rfl
+      RegsExcept s t [.x6, .x7] ∧
+      Frame s t (fun A => A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨ A = ENC + 56) := by
+  have hobl : Oblig.all s pairBlock.res.st.obl := by
+    simp only [pairBlock.res]
+    t3n [h2, h30, ENC]
+    simp only [ENC] at hsep
+    simp only [and_true]
+    omega
+  refine ⟨_, symRun_sound pairBlock pair_at s hpc hobl, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [Result.toState_pc, pairBlock.res, rv_simp, h4, pcOf_and_max]
+  · simp only [Result.toState_getMem, pairBlock.res, ENC]
+    t3n [h2, h30, ENC]
+  · simp only [Result.toState_getMem, pairBlock.res, ENC]
+    t3n [h2, h30, ENC]
+  · simp only [Result.toState_getMem, pairBlock.res, ENC]
+    t3n [h2, h30, ENC]
+  · simp only [Result.toState_getMem, pairBlock.res, ENC]
+    t3n [h2, h30, ENC]
+  · intro r hr; simp at hr; cases r <;> simp_all [pairBlock.res, rv_simp]; rfl
   · intro A hA hn
     simp only [ENC] at hn
-    simp only [Result.toState_getMem, blk_2074.res]
-    t3n [h2, h30, ENC]
-    rw [if_neg (by omega), if_neg (by omega)]
-theorem blk1214_full (s : MachineState) (hpc : s.pc = pcOf 1214) (ar ret : Nat) (har : ar + 64 ≤ 2 ^ 24)
-    (har8 : ar % 8 = 0) (hsep : ENC + 64 ≤ ar) (h2 : s.getReg .x2 = BitVec.ofNat 64 ar)
-    (h4 : s.getReg .x4 = pcOf ret) :
+    simp only [Result.toState_getMem, pairBlock.res]
+    t3n [h30, ENC]
+    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
+theorem entry_spec (s : MachineState) (hpc : s.pc = pcOf 1214) :
+    ∃ t, Steps image s 3 3 t ∧ t.pc = pcOf 10994 ∧
+      t.getReg .x30 = BitVec.ofNat 64 ENC ∧ RegsExcept s t [.x30] ∧ Frame s t (fun _ => False) := by
+  refine ⟨_, symRun_sound entryBlock entry_at s hpc (by simp [entryBlock.res, rv_simp]), ?_, ?_, ?_, ?_⟩
+  · simp [Result.toState_pc, entryBlock.res, rv_simp, pcOf]
+  · simp [Result.toState_getReg, entryBlock.res, rv_simp, ENC]
+  · intro r hr; simp at hr; cases r <;> simp_all [entryBlock.res, rv_simp]; rfl
+  · intro A hA hn; simp [Result.toState_getMem, entryBlock.res, rv_simp]
+theorem blk1214_pair_spec (s : MachineState) (hpc : s.pc = pcOf 1214) (ar ret : Nat)
+    (har : ar + 64 ≤ 2 ^ 24) (har8 : ar % 8 = 0)
+    (hsep : ENC + 64 ≤ ar ∨ ar + 64 ≤ ENC)
+    (h2 : s.getReg .x2 = BitVec.ofNat 64 ar) (h4 : s.getReg .x4 = pcOf ret) :
     ∃ t, Steps image s 12 12 t ∧ t.pc = pcOf ret ∧
       t.getMem (BitVec.ofNat 64 ENC) = s.getMem (BitVec.ofNat 64 (ar + 32)) ∧
       t.getMem (BitVec.ofNat 64 (ENC + 8)) = s.getMem (BitVec.ofNat 64 (ar + 40)) ∧
@@ -377,19 +392,28 @@ theorem blk1214_full (s : MachineState) (hpc : s.pc = pcOf 1214) (ar ret : Nat) 
       t.getMem (BitVec.ofNat 64 (ENC + 56)) = s.getMem (BitVec.ofNat 64 (ar + 56)) ∧
       RegsExcept s t [.x6, .x7, .x30] ∧
       Frame s t (fun A => A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨ A = ENC + 56) := by
-  obtain ⟨t1, st1, p1, m0, m8, x30, r1, f1⟩ := blk1214_spec s hpc ar har har8 h2
-  obtain ⟨t2, st2, p2, m48, m56, r2, f2⟩ := blk2074_spec t1 p1 ar ret har har8 hsep
-    (by rw [r1.get (by decide), h2]) (by rw [r1.get (by decide), h4]) x30
-  refine ⟨t2, st1.trans st2, p2, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [f2.get (by simp only [ENC]; omega) (by simp only [ENC]; omega), m0]
-  · rw [f2.get (by simp only [ENC]; omega) (by simp only [ENC]; omega), m8]
-  · rw [m48, f1.get (by omega) (by simp only [ENC] at hsep ⊢; omega)]
-  · rw [m56, f1.get (by omega) (by simp only [ENC] at hsep ⊢; omega)]
-  · exact (r1.trans r2).mono (by decide)
-  · exact (f1.trans f2).mono (fun A _ h => by rcases h with (h | h) | (h | h) <;> simp [h])
-end SigGolfCandidate.T3M.Sign
+  obtain ⟨u, su, upc, u30, ur, uf⟩ := entry_spec s hpc
+  obtain ⟨t, ut, tpc, m0, m8, m48, m56, tr, tf⟩ := pair_spec u upc ar ret har har8 hsep
+    (by rw [ur.get (by simp), h2]) (by rw [ur.get (by simp), h4]) u30
+  refine ⟨t, su.trans ut, tpc, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [m0, uf.get (by omega) (by simp)]
+  · rw [m8, uf.get (by omega) (by simp)]
+  · rw [m48, uf.get (by omega) (by simp)]
+  · rw [m56, uf.get (by omega) (by simp)]
+  · exact (ur.trans tr).mono (by decide)
+  · exact (uf.trans tf).mono (by intro A hA h; simpa using h)
+#print axioms blk1214_pair_spec
+end SigGolfCandidate.T3M.Sign.BCBlocks
 end
+
 section
+
+
+
+
+
+
+
 namespace SigGolfCandidate.T3M.Sign
 open RiscvZkvm.Rv64 SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv SigGolfCandidate.Rv OracleComp
 open SigGolfCandidate.T3 (Layer Digest buildLeaf buildLevels buildTree height chainCount width)
@@ -430,7 +454,7 @@ structure BtPre (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel 
   x26 : s.getReg .x26 = BitVec.ofNat 64 43
   x27 : s.getReg .x27 = BitVec.ofNat 64 0
   x31 : s.getReg .x31 = BitVec.ofNat 64 0
-  base : BaseL sk cache s
+  base : Base sk cache s
   hlay : lay ≠ 0
   htree : tree < 2 ^ 32
   hroute : ∀ l < 2 ^ height lay, tree * 2 ^ height lay + l < 2 ^ 31
@@ -484,8 +508,8 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
     fun r hr' => hr.get hr'
   have m : ∀ X, X < 2 ^ 64 → ¬ BtW sb (height lay) X → t.getMem (BitVec.ofNat 64 X) = s1.getMem (BitVec.ofNat 64 X) :=
     fun X hX hn' => hf.get hX hn'
-  have hz : ∀ X, X < 2 ^ 64 → NeverWL X → t.getMem (BitVec.ofNat 64 X) = 0 := fun X hX hnw =>
-    (m X hX (by unfold NeverWL at hnw; unfold BtW; rcases hH with h | h <;> rw [h] <;> sgo)).trans
+  have hz : ∀ X, X < 2 ^ 64 → NeverW X → t.getMem (BitVec.ofNat 64 X) = 0 := fun X hX hnw =>
+    (m X hX (by unfold NeverW at hnw; unfold BtW; rcases hH with h | h <;> rw [h] <;> sgo)).trans
       (hs.base.zero X hX hnw)
   refine
     { x1 := h1
@@ -510,10 +534,10 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
       p40 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p40]
       p48 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p48]
       p56 := by rw [m _ (by decide) (by unfold BtW; sgo), hs.base.p56]
-      z0 := hz _ (by decide) (by unfold NeverWL; simp)
-      z8 := hz _ (by decide) (by unfold NeverWL; simp)
-      z32 := hz _ (by decide) (by unfold NeverWL; simp)
-      z40 := hz _ (by decide) (by unfold NeverWL; simp)
+      z0 := hz _ (by decide) (by unfold NeverW; simp)
+      z8 := hz _ (by decide) (by unfold NeverW; simp)
+      z32 := hz _ (by decide) (by unfold NeverW; simp)
+      z40 := hz _ (by decide) (by unfold NeverW; simp)
       ztail := fun h => by rw [hn] at h; exact absurd h (by norm_num)
       hdig := fun i hi => by
         rw [hn] at hi
@@ -525,7 +549,7 @@ theorem bt_leafPre {l : Nat} (hl : l < 2 ^ height lay) {t : MachineState}
           exact hs.digits i hi
         · simp only [hls, if_false, List.getD_nil]
           rw [hf.getByte (by sgo) (by unfold BtW; rcases hH with h | h <;> rw [h] <;> sgo),
-            getByte_eq_word s1 _ (by sgo), hs.base.zero _ (by sgo) (by unfold NeverWL; sgo), extractByte_zero']
+            getByte_eq_word s1 _ (by sgo), hs.base.zero _ (by sgo) (by unfold NeverW; sgo), extractByte_zero']
           rfl
       hdigb := fun i hi => by
         rw [hn] at hi
@@ -743,9 +767,9 @@ structure BtPost (sk : SecretKey) (cache : Bytes 131072) (lay : Layer) (tree sel
   vlen : r.2.length = 43
   vals : DigsAt u sb r.2
   path : DigsAt u (sb + 16 * 43) ((List.range (height lay)).map fun j => (r.1.getD j []).getD (sel / 2 ^ j ^^^ 1) 0)
-  root : DigAt u ENC ((r.1.getD (height lay - 1) []).getD 0 0)
-  rootR : DigAt u (ENC + 48) ((r.1.getD (height lay - 1) []).getD 1 0)
-  base : BaseL sk cache u
+  left : DigAt u ENC (ClaudeWCT.WCT9.topPair lay r.1).1
+  right : DigAt u (ENC + 48) (ClaudeWCT.WCT9.topPair lay r.1).2
+  base : Base sk cache u
   regs : RegsExcept s u btAllRegs
   frame : Frame s u (BtAllW lay tree sb)
 def btCost : Nat := 2127776
@@ -821,10 +845,10 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
       has := Or.inl (by show NOUT + 32 ≤ LOW; decide)
       z32 := by
         rw [f2.get (by sgo) (by unfold BtW; sgo)]
-        exact hs.base.zero _ (by sgo) (by unfold NeverWL; simp)
+        exact hs.base.zero _ (by sgo) (by unfold NeverW; simp)
       z40 := by
         rw [f2.get (by sgo) (by unfold BtW; sgo)]
-        exact hs.base.zero _ (by sgo) (by unfold NeverWL; simp)
+        exact hs.base.zero _ (by sgo) (by unfold NeverW; simp)
       hlen := ht.len
       hleaves := by
         show DigsAt t2 (LOW + 16 * 2 ^ height lay) st.1
@@ -832,7 +856,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
           rcases h with h | h <;> exact h) }
   have hlev := buildLevels_tsim subAt_sign sk hlp t2pc
   obtain ⟨hlk, hlc⟩ := btLev_costs lay hlay tree
-  refine TBSim.mono (TBSim.steps (st1.trans st2) (TBSim.bind (W₂ := 110) (TSim.toTBSim hlev hlk)
+  refine TBSim.mono (TBSim.steps (st1.trans st2) (TBSim.bind (W₂ := 120) (TSim.toTBSim hlev hlk)
     (fun levels u hu => ?_))) (by omega) (fun _ _ h => h)
   obtain ⟨upc, uheap, ur, uf⟩ := hu
   have gu : ∀ r, r ∉ btRegs ++ [.x6] ++ [.x1, .x21] ++ levRegs → u.getReg r = s1.getReg r := fun r hr =>
@@ -846,12 +870,11 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     (by rw [pow_succ]; omega) (height lay) 0 (by omega) v (sb + 16 * 43) vpc vx13
     (by rw [gv _ (by decide), hs.x15]) vx19 (by rw [gv _ (by decide), hs.x2]) vx24 (by omega) (by sgo)
     (fun A h1 h2 => vf.get (by sgo) (fun h => h))
-  obtain ⟨x, stx, xpc, xm0, xm8, xm48, xm56, xr, xf⟩ := blk1214_full w wpc LOW ret (by decide) (by decide)
-    (by decide) (by rw [wr.get (by simp), gv _ (by decide), hs.x2])
+  obtain ⟨x, stx, xpc, xm0, xm8, xm48, xm56, xr, xf⟩ := BCBlocks.blk1214_pair_spec w wpc LOW ret (by decide) (by decide) (by decide)
+    (by rw [wr.get (by simp), gv _ (by decide), hs.x2])
     (by rw [wr.get (by simp), gv _ (by decide), h4])
   refine TBSim.mono (TBSim.pure_steps (stv.trans (stw.trans stx)) ?_) (by omega) (fun _ _ h => h)
-  have fux : Frame u x (fun A => (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨
-      A = ENC + 56) :=
+  have fux : Frame u x (fun A => (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨ A = ENC + 56) :=
     ((vf.trans wf).trans xf).mono (fun A _ h => by
       rcases h with (h | h) | h
       · exact h.elim
@@ -863,9 +886,9 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
     · exact Or.inr (Or.inl h)
     · exact Or.inr (Or.inr (Or.inl ⟨h.1, by omega⟩))
     · exact Or.inr (Or.inr (Or.inr h)))
-  have hW : ∀ A, A < 2 ^ 64 → BaseAL A → ¬ BtAllW lay tree sb A := by
+  have hW : ∀ A, A < 2 ^ 64 → BaseA A → ¬ BtAllW lay tree sb A := by
     intro A _ hb hw
-    unfold BaseAL NeverWL Search.TOP_DATA at hb
+    unfold BaseA NeverW Search.TOP_DATA at hb
     unfold BtAllW BtW LevW at hw
     simp only [btLev] at hw
     rcases hH with h | h <;> rw [h] at hw <;> sgo
@@ -877,8 +900,7 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
   ·
     obtain ⟨hl2, hv⟩ := ht.vals hsel
     have ftx : Frame t x (fun A => LevW (btLev lay tree) A ∨
-        (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨
-      A = ENC + 56) :=
+        (sb + 16 * 43 ≤ A ∧ A < sb + 16 * 43 + 16 * height lay) ∨ A = ENC ∨ A = ENC + 8 ∨ A = ENC + 48 ∨ A = ENC + 56) :=
       ((t1f.trans t2f).trans (uf.trans fux)).mono (fun A _ h => by
         rcases h with (h | h) | h
         · exact h.elim
@@ -906,18 +928,20 @@ theorem bt_tail {sk : SecretKey} {cache : Bytes 131072} {lay : Layer} {tree sel 
       LOW + 16 * 2 ^ (height lay - i) + 16 * (sel / 2 ^ i ^^^ 1) by ring, memDig_eq hdi] at he
     exact he.frame xf (by sgo) (by sgo) (by sgo)
   ·
-    obtain ⟨hl0, hd⟩ := hlv (height lay - 1) (by simp only [btLev]; omega)
-    have h1 : height lay - (height lay - 1) = 1 := by omega
-    have hd0 := hd 0 (by rw [hl0]; simp [btLev, h1])
-    simp only [btLev, h1, pow_one, Nat.mul_zero, Nat.add_zero] at hd0
+    obtain ⟨hl0, hd⟩ := hlv (height lay - 1) (by change height lay - 1 ≤ height lay; omega)
+    have he : height lay - (height lay - 1) = 1 := by rcases hH with h | h <;> omega
+    have hd0 := hd 0 (by rw [hl0]; simp only [btLev, he]; norm_num)
+    simp only [btLev, he, pow_one, Nat.mul_zero, Nat.add_zero] at hd0
+    change DigAt x ENC ((levels.getD (height lay - 1) []).getD 0 0)
     refine ⟨?_, ?_⟩
     · rw [xm0, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd0.1
     · rw [xm8, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd0.2
   ·
-    obtain ⟨hl0, hd⟩ := hlv (height lay - 1) (by simp only [btLev]; omega)
-    have h1 : height lay - (height lay - 1) = 1 := by omega
-    have hd1 := hd 1 (by rw [hl0]; simp [btLev, h1])
-    simp only [btLev, h1, pow_one, Nat.mul_one] at hd1
+    obtain ⟨hl0, hd⟩ := hlv (height lay - 1) (by change height lay - 1 ≤ height lay; omega)
+    have he : height lay - (height lay - 1) = 1 := by rcases hH with h | h <;> omega
+    have hd1 := hd 1 (by rw [hl0]; simp only [btLev, he]; norm_num)
+    simp only [btLev, he, pow_one, Nat.mul_one] at hd1
+    change DigAt x (ENC + 48) ((levels.getD (height lay - 1) []).getD 1 0)
     refine ⟨?_, ?_⟩
     · rw [xm48, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd1.1
     · rw [xm56, wf.get (by sgo) (by sgo), vf.get (by sgo) (fun h => h)]; exact hd1.2

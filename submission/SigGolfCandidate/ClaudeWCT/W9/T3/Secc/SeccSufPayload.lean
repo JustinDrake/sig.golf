@@ -1,5 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccSufRoute
 import SigGolfCandidate.T3.Secc.SeccSufPayload
+
 namespace ClaudeWCT.W9.T3.Security.BSuf
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3.Correctness (Answers treeValue)
@@ -11,8 +12,8 @@ theorem expandN_unfold (answers : Answers) (m : Message) (pk : Digest) (σ : WCT
     (wit : WCT9.Witness) (he : evalWithAnswerFn answers (expandN m pk σ) = some (N, wit)) :
     ∃ counter cs,
       evalWithAnswerFn answers (WCT9.digestSearch σ.rho m 0 WCT9.digestAttemptLimit) = some (counter, N) ∧
-      evalWithAnswerFn answers (expandLayers (WCT9.toT3Signature σ) (N.toNat % 2 ^ 31) 4
-        (evalWithAnswerFn answers (WCT9.recoverFts σ (N.toNat % 2 ^ 31) N), 0, 0)) = some (pk, cs) ∧
+      evalWithAnswerFn answers (WCT9.expandLayersBC σ (N.toNat % 2 ^ 31) 4
+        (.forest (evalWithAnswerFn answers (WCT9.recoverFts σ (N.toNat % 2 ^ 31) N)))) = some (pk, cs) ∧
       wit = ⟨σ, counter, fun lay => cs.getD lay.val 0⟩ := by
   simp only [expandN, evalWithAnswerFn_bind] at he
   cases hd : evalWithAnswerFn answers (WCT9.digestSearch σ.rho m 0 WCT9.digestAttemptLimit) with
@@ -20,8 +21,8 @@ theorem expandN_unfold (answers : Answers) (m : Message) (pk : Digest) (σ : WCT
   | some found =>
       obtain ⟨counter, output⟩ := found
       simp only [hd, evalWithAnswerFn_bind] at he
-      cases hl : evalWithAnswerFn answers (expandLayers (WCT9.toT3Signature σ) (output.toNat % 2 ^ 31) 4
-          (evalWithAnswerFn answers (WCT9.recoverFts σ (output.toNat % 2 ^ 31) output), 0, 0)) with
+      cases hl : evalWithAnswerFn answers (WCT9.expandLayersBC σ (output.toNat % 2 ^ 31) 4
+          (.forest (evalWithAnswerFn answers (WCT9.recoverFts σ (output.toNat % 2 ^ 31) output)))) with
       | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some layers =>
           obtain ⟨root, cs⟩ := layers
@@ -49,104 +50,131 @@ theorem layers_payload (answers : Answers) (published : SigGolfCandidate.T3.Cach
     (hcache : published.region = Correctness.cacheRegion (Correctness.maskedTop answers))
     (N : HashOutput) (wit : WCT9.Witness)
     (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers (witEnc N wit) (N.toNat % 2 ^ 31) lay) :
-    ∀ n, n ≤ 4 → ∀ (value : Digest × BitVec 96 × Digest) (root : Digest) (cs : List (BitVec 32)),
-      (∀ k, n = k + 1 → value = ClaudeWCT.W9.T3M.Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k)) →
-      evalWithAnswerFn answers (expandLayers (WCT9.toT3Signature wit.signature) (N.toNat % 2 ^ 31) n value) =
-        some (root, cs) →
+    ∀ n, n ≤ 4 → ∀ (msg : WCT9.LayerMsg) (root : Digest) (cs : List (BitVec 32)),
+      (∀ k, n = k + 1 → msg = ClaudeWCT.W9.T3M.Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k)) →
+      evalWithAnswerFn answers (WCT9.expandLayersBC wit.signature (N.toNat % 2 ^ 31) n msg) = some (root, cs) →
       (∀ lay : Layer, lay.val < n → wit.counters lay = cs.getD lay.val 0) →
-      ∃ pieces, evalWithAnswerFn answers (signLayers published (N.toNat % 2 ^ 31) n value) = some pieces ∧
+      ∃ pieces, evalWithAnswerFn answers (WCT9.signLayersBC published (N.toNat % 2 ^ 31) n msg) = some pieces ∧
         pieces.length = n ∧ ∀ lay : Layer, lay.val < n →
           wit.signature.layers lay = piecesSignature lay (pieces.getD lay.val ([], [])) := by
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by decide)
   intro n
   induction n with
   | zero =>
-      intro _ value root cs _ _ _
-      refine ⟨[], by simp [signLayers], rfl, fun lay h => absurd h (Nat.not_lt_zero _)⟩
+      intro _ msg root cs _ hexp _
+      simp [WCT9.expandLayersBC] at hexp
   | succ n ih =>
-      intro hn value root cs hval hexp hctr
+      intro hn msg root cs hval hexp hctr
       have hv : (Fin.ofNat 4 n : Layer).val = n := Nat.mod_eq_of_lt (by omega)
       have hmsg := hval n rfl
-      simp only [expandLayers, evalWithAnswerFn_bind] at hexp
-      cases hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n) (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).2
-          (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).1 value 0 counterLimit) with
+      have hlenAll := (WCT9.expandLayersBC_verified answers wit.signature (N.toNat % 2 ^ 31) (n + 1) hn msg root cs
+        hexp).1
+      simp only [WCT9.expandLayersBC, evalWithAnswerFn_bind] at hexp
+      cases hs : evalWithAnswerFn answers (WCT9.layerCounterSearch (Fin.ofNat 4 n)
+          (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).2 (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).1 msg 0
+          counterLimit) with
       | none => simp only [hs, evalWithAnswerFn_pure, reduceCtorEq] at hexp
       | some found =>
           obtain ⟨counter, digits⟩ := found
-          have hsome := Correctness.counterSearch_some answers (Fin.ofNat 4 n)
+          have hsome := WCT9.layerCounterSearch_some answers (Fin.ofNat 4 n)
             (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).2
-            (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).1 value counterLimit 0 counter digits (by decide) hs
+            (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 n)).1 msg counterLimit 0 counter digits (by decide) hs
           have hvalid := Cost.validDigits_decode hsome.2.2
-          simp only [hs, evalWithAnswerFn_bind] at hexp
-          cases hr : evalWithAnswerFn answers (expandLayers (WCT9.toT3Signature wit.signature) (N.toNat % 2 ^ 31) n
-              (evalWithAnswerFn answers (expandNext (WCT9.toT3Signature wit.signature) (N.toNat % 2 ^ 31) n
-                (Fin.ofNat 4 n) digits))) with
-          | none => simp only [hr, evalWithAnswerFn_pure, reduceCtorEq] at hexp
-          | some res =>
-              obtain ⟨root', cs'⟩ := res
-              simp only [hr, evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at hexp
+          simp only [hs] at hexp
+          have hcounter : wit.counters (Fin.ofNat 4 n) = counter := by
+            by_cases hn0 : n = 0
+            · subst hn0
+              simp only [if_true, evalWithAnswerFn_bind, evalWithAnswerFn_pure, Option.some.injEq,
+                Prod.mk.injEq] at hexp
               obtain ⟨-, hcs⟩ := hexp
-              have hlen := SigGolfCandidate.T3.Security.BSuf.expandLayers_length answers
-                (WCT9.toT3Signature wit.signature) (N.toNat % 2 ^ 31) n _ _ _ hr
-              have hcounter : wit.counters (Fin.ofNat 4 n) = counter := by
-                rw [hctr _ (by rw [hv]; omega), ← hcs, hv, List.getD_append_right _ _ _ _ (by omega), hlen]
+              rw [hctr _ (by rw [hv]; omega), ← hcs, hv]
+              rfl
+            · simp only [hn0, if_false, evalWithAnswerFn_bind] at hexp
+              generalize evalWithAnswerFn answers (WCT9.expandLayersBC wit.signature (N.toNat % 2 ^ 31) n
+                (.pair (evalWithAnswerFn answers (WCT9.recoverLayerPair wit.signature (N.toNat % 2 ^ 31)
+                  (Fin.ofNat 4 n) digits)).1 (evalWithAnswerFn answers (WCT9.recoverLayerPair wit.signature
+                    (N.toNat % 2 ^ 31) (Fin.ofNat 4 n) digits)).2)) = res at hexp
+              rcases res with _ | ⟨root', cs'⟩
+              · simp at hexp
+              · simp only [evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at hexp
+                obtain ⟨-, hcs⟩ := hexp
+                have hlen' : cs'.length = n := by rw [← hcs] at hlenAll; simpa using hlenAll
+                rw [hctr _ (by rw [hv]; omega), ← hcs, hv, List.getD_append_right _ _ _ _ (by omega), hlen']
                 simp
-              obtain ⟨digitsG, ⟨_, hdec⟩, hshape⟩ := hgood (Fin.ofNat 4 n)
-              rw [ClaudeWCT.W9.T3M.wctr_witEnc, hcounter, ← hmsg, hsome.2.2, Option.some.injEq] at hdec
-              subst hdec
-              rename' digits => digitsG
-              have hlayer := layer_of_shaped answers N wit (Fin.ofNat 4 n) digitsG hshape
-              have hrec := Correctness.recoverPair_honestPieces answers (WCT9.toT3Signature wit.signature)
-                (N.toNat % 2 ^ 31) (Fin.ofNat 4 n) digitsG hvalid hlayer
-              by_cases hn0 : n = 0
-              · subst hn0
-                have ht : (route (N.toNat % 2 ^ 31) 0).2 = 0 := route_top_tree (N.toNat % 2 ^ 31) hidx
-                have htop := Correctness.eval_signTop_honest answers published (route (N.toNat % 2 ^ 31) 0).1
-                  digitsG hcache (route_leaf_bound (N.toNat % 2 ^ 31) 0) hvalid
-                refine ⟨[Correctness.honestPieces answers 0 0 (route (N.toNat % 2 ^ 31) 0).1 digitsG], ?_, rfl, ?_⟩
-                · simp only [signLayers, evalWithAnswerFn_bind, hs, ite_true, evalWithAnswerFn_pure]
-                  rw [show (Fin.ofNat 4 0 : Layer) = 0 from rfl, htop]
-                · intro lay hlay
-                  have hl0 : lay = 0 := Fin.ext (by simp at hlay ⊢; omega)
-                  subst hl0
-                  rw [show (Fin.ofNat 4 0 : Layer) = 0 from rfl, ht] at hlayer
-                  exact hlayer
-              · obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
-                have hnext : evalWithAnswerFn answers (expandNext (WCT9.toT3Signature wit.signature)
-                    (N.toNat % 2 ^ 31) (k + 1) (Fin.ofNat 4 (k + 1)) digitsG) =
-                    ClaudeWCT.W9.T3M.Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k) := by
-                  rw [Correctness.eval_expandNext, Correctness.eval_recoverNext, if_neg (by omega), hrec,
-                    ClaudeWCT.W9.T3.Security.BPB.honestMsg_lower answers (N.toNat % 2 ^ 31) k (by omega)]
-                obtain ⟨pieces, hpieces, hplen, hpagree⟩ := ih (by omega) _ root' cs'
-                  (fun k' hk' => by rw [hnext]; congr; omega) hr
-                  (fun lay hlay => by
-                    rw [hctr lay (by omega), ← hcs, List.getD_append _ _ _ _ (by omega)])
-                have htree := Correctness.eval_buildTree_result answers (Fin.ofNat 4 (k + 1))
-                  (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2
-                  (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).1 digitsG hvalid
-                  (route_leaf_bound (N.toNat % 2 ^ 31) _)
-                refine ⟨pieces ++ [Correctness.honestPieces answers (Fin.ofNat 4 (k + 1))
-                  (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2
-                  (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).1 digitsG], ?_,
-                  by simp [hplen], ?_⟩
-                · rw [signLayers]
-                  simp only [evalWithAnswerFn_bind, hs, htree, show k + 1 ≠ 0 by omega, ite_false]
-                  have hroot : (((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-                      (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 0 0, 0, ((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-                      (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 1 0) =
-                      evalWithAnswerFn answers (expandNext (WCT9.toT3Signature wit.signature) (N.toNat % 2 ^ 31) (k + 1)
-                        (Fin.ofNat 4 (k + 1)) digitsG) := by
-                    rw [Correctness.eval_expandNext, Correctness.eval_recoverNext, if_neg (by omega), hrec]
-                    rfl
-                  rw [hroot, hpieces]
-                  rfl
-                · intro lay hlay
-                  by_cases hlt : lay.val < k + 1
-                  · rw [hpagree lay hlt, List.getD_append _ _ _ _ (by omega)]
-                  · have hle : lay = Fin.ofNat 4 (k + 1) := Fin.ext (by rw [hv]; omega)
-                    subst hle
-                    rw [hlayer, hv, List.getD_append_right _ _ _ _ (by omega), hplen]
-                    simp
+          obtain ⟨digitsG, ⟨_, hdec⟩, hshape⟩ := hgood (Fin.ofNat 4 n)
+          rw [ClaudeWCT.W9.T3M.wbcCtr_witEnc, ClaudeWCT.W9.T3M.wbcPad_witEnc, hcounter, ← hmsg,
+            ClaudeWCT.W9.T3M.BC.layerEncodingInputP_zero] at hdec
+          rw [hsome.2.2, Option.some.injEq] at hdec
+          subst hdec
+          rename' digits => digitsG
+          have hlayer := layer_of_shaped answers N wit (Fin.ofNat 4 n) digitsG hshape
+          by_cases hn0 : n = 0
+          · subst hn0
+            have ht : (route (N.toNat % 2 ^ 31) 0).2 = 0 := route_top_tree (N.toNat % 2 ^ 31) hidx
+            have htop := Correctness.eval_signTop_honest answers published (route (N.toNat % 2 ^ 31) 0).1
+              digitsG hcache (route_leaf_bound (N.toNat % 2 ^ 31) 0) hvalid
+            refine ⟨[Correctness.honestPieces answers 0 0 (route (N.toNat % 2 ^ 31) 0).1 digitsG], ?_, rfl, ?_⟩
+            · simp only [WCT9.signLayersBC, evalWithAnswerFn_bind, hs, ite_true, evalWithAnswerFn_pure]
+              rw [show (Fin.ofNat 4 0 : Layer) = 0 from rfl, htop]
+            · intro lay hlay
+              have hl0 : lay = 0 := Fin.ext (by simp at hlay ⊢; omega)
+              subst hl0
+              rw [show (Fin.ofNat 4 0 : Layer) = 0 from rfl, ht] at hlayer
+              exact hlayer
+          · obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+            have hrecover : evalWithAnswerFn answers (WCT9.recoverLayerPair wit.signature (N.toNat % 2 ^ 31)
+                (Fin.ofNat 4 (k + 1)) digitsG) =
+                WCT9.builtPair answers (Fin.ofNat 4 (k + 1)) (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2 := by
+              apply WCT9.eval_recoverLayerPair_honest answers wit.signature _ _ digitsG hvalid
+              · intro i
+                rw [hlayer]
+                simp [piecesSignature, Correctness.honestPieces, List.getD_eq_getElem, i.isLt]
+              · intro j
+                rw [hlayer]
+                simp [piecesSignature, Correctness.honestPieces, List.getD_eq_getElem, j.isLt]
+            have hnext : WCT9.LayerMsg.pair (WCT9.builtPair answers (Fin.ofNat 4 (k + 1))
+                (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).1
+                (WCT9.builtPair answers (Fin.ofNat 4 (k + 1)) (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).2 =
+                ClaudeWCT.W9.T3M.Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k) := by
+              rw [ClaudeWCT.W9.T3.Security.BPB.honestMsg_lower answers (N.toNat % 2 ^ 31) k (by omega)]
+              rfl
+            simp only [show k + 1 ≠ 0 by omega, if_false, evalWithAnswerFn_bind, hrecover] at hexp
+            generalize hres : evalWithAnswerFn answers (WCT9.expandLayersBC wit.signature (N.toNat % 2 ^ 31) (k + 1)
+              (.pair (WCT9.builtPair answers (Fin.ofNat 4 (k + 1)) (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).1
+                (WCT9.builtPair answers (Fin.ofNat 4 (k + 1))
+                  (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).2)) = res at hexp
+            rcases res with _ | ⟨root', cs'⟩
+            · simp at hexp
+            simp only [evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at hexp
+            obtain ⟨-, hcs⟩ := hexp
+            have hlen' : cs'.length = k + 1 := by rw [← hcs] at hlenAll; simpa using hlenAll
+            obtain ⟨pieces, hpieces, hplen, hpagree⟩ := ih (by omega) _ root' cs'
+              (fun k' hk' => by rw [hnext]; congr; omega) hres
+              (fun lay hlay => by
+                rw [hctr lay (by omega), ← hcs, List.getD_append _ _ _ _ (by omega)])
+            have htree := Correctness.eval_buildTree_result answers (Fin.ofNat 4 (k + 1))
+              (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2
+              (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).1 digitsG hvalid
+              (route_leaf_bound (N.toNat % 2 ^ 31) _)
+            refine ⟨pieces ++ [Correctness.honestPieces answers (Fin.ofNat 4 (k + 1))
+              (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2
+              (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).1 digitsG], ?_,
+              by simp [hplen], ?_⟩
+            · rw [WCT9.signLayersBC]
+              simp only [evalWithAnswerFn_bind, hs, htree, show k + 1 ≠ 0 by omega, ite_false]
+              have hpair : WCT9.topPair (Fin.ofNat 4 (k + 1)) (Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
+                  (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2) =
+                  WCT9.builtPair answers (Fin.ofNat 4 (k + 1)) (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2 :=
+                rfl
+              rw [hpair, hpieces]
+              rfl
+            · intro lay hlay
+              by_cases hlt : lay.val < k + 1
+              · rw [hpagree lay hlt, List.getD_append _ _ _ _ (by omega)]
+              · have hle : lay = Fin.ofNat 4 (k + 1) := Fin.ext (by rw [hv]; omega)
+                subst hle
+                rw [hlayer, hv, List.getD_append_right _ _ _ _ (by omega), hplen]
+                simp
 theorem opening_ext {a b : WCT9.Opening} (hv : ∀ t, a.values t = b.values t) (hp : ∀ l, a.path l = b.path l) :
     a = b := by
   cases a
@@ -190,7 +218,7 @@ theorem caseC_expansion_is_payload (answers : Answers) (published : SigGolfCandi
       WCT9.honestForest answers (N.toNat % 2 ^ 31) :=
     WCT9.recoverFts_honest answers signature _ N hopen
   obtain ⟨pieces, hpieces, -, hpagree⟩ := layers_payload answers published hcache N wit hgood 4 le_rfl
-    (WCT9.honestForest answers (N.toNat % 2 ^ 31), 0, 0) pk cs
+    (.forest (WCT9.honestForest answers (N.toNat % 2 ^ 31))) pk cs
     (fun k hk => by
       obtain rfl : k = 3 := by omega
       exact (ClaudeWCT.W9.T3.Security.BPB.honestMsg_three answers _).symm)
@@ -266,7 +294,8 @@ theorem gameCaseC_signed_false (adversary : ClaudeWCT.W9.T3M.Final.AdversaryP) (
             rw [← hN', wrho_witEnc, wdc_witEnc, F.sig, hm]
             exact F.digest
           subst hNN
-          have hpayσ := BSuf.caseC_expansion_is_payload answers generated.value.2 m _ σ N' wit hcache hx hgood hfts
+          have hpayσ := BSuf.caseC_expansion_is_payload answers generated.value.2 m _ σ N' wit hcache hx
+            (fun lay => (hgood lay).good) hfts
           have hrhoσ : σm.rho = σ.rho := by rw [hrho, wrho_witEnc, F.sig]
           rw [hmsg, hrhoσ, hm, hpayσ, Option.some.injEq] at hpay
           subst hpay

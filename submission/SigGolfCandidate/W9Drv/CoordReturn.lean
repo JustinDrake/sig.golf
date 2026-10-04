@@ -1,177 +1,150 @@
-import SigGolfCandidate.W9Machine.WctMerkle
-import SigGolfCandidate.W9Machine.WctRootGood
-import SigGolfCandidate.ClaudeWCT.W9.New.Machine.Merkle.CodexCheck.Interface
-import SigGolfCandidate.W9Machine.WctChainContract
+import SigGolfCandidate.W9Machine.WctFetch
 import SigGolfCandidate.W9Drv.GateDefs
-import SigGolfCandidate.W9Machine.WctDriverCheck
+import SigGolfCandidate.W9Drv.SourceBridge
+import SigGolfCandidate.W9Machine.WctChainContract
 import SigGolfCandidate.W9Machine.WctJTImageLink
 import SigGolfCandidate.W9Drv.Gate
 
 section
 
+set_option autoImplicit false
 namespace W9Machine
-open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv
-open RiscvZkvm.Rv64 SigGolfCandidate.Rv SigGolfCandidate.T3M
-open SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (Digest HashOutput M)
-def CoordinateContract (L : Layout) (b : Budget) (sig : ClaudeWCT.WCT9.Signature)
-    (index : Nat) (a : HashOutput) (k : Fin 9) (pre : MachineState → Prop)
-    (post : Digest → MachineState → Prop) : Prop :=
-  RefinesPiece L b pre post (ClaudeWCT.WCT9.recoverCoordinate sig index a k)
-def ForestContract (L : Layout) (b : Budget) (index : Nat) (roots : List Digest)
-    (pre : MachineState → Prop) (post : Digest → MachineState → Prop) : Prop :=
-  roots.length = 9 → RefinesPiece L b pre post (ClaudeWCT.WCT9.forestPk index roots)
+open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
+def coordDispatch (p bit coord : Nat) (advance reload : Bool) : Result :=
+  let dig : E := if reload then .ld (.c (BitVec.ofNat 64 (96 + 8 * (bit / 64)))) else .reg .x16
+  let child := mkBin .and (if bit % 64 = 0 then dig else
+    mkBin .srl dig (.c (BitVec.ofNat 64 (bit % 64)))) (.c 127)
+  let route := mkBin .or (mkBin .sll child (.c 32)) (.reg .x22)
+  let pre := if advance then mkAdd (.reg .x15) (.reg .x6) else .reg .x15
+  let packed := mkBin .or (mkBin .sll child (.c 20)) pre
+  let childPc := mkAdd (mkBin .sll child (.c 8)) (.reg .x29)
+  let hb := if advance then addC (.reg .x28) 512 else .reg .x28
+  let key := norm (addC hb (-1600))
+  let field := mkAdd (mkBin .and
+    (mkBin .srl dig (.c (BitVec.ofNat 64 (bit % 64 + 5)))) (.reg .x2)) (.reg .x24)
+  let n := if advance then 18 else 16
+  let regs := if reload then RegFile.init.set .x16 dig else RegFile.init
+  let regs := (regs.set .x3 child).set .x4 route
+  let regs := if advance then regs.set .x15 pre else regs
+  let regs := (regs.set .x31 packed).set .x23 childPc
+  let regs := if advance then (regs.set .x8 (addC (.reg .x8) 1024)).set .x28 hb else regs
+  let regs := (((regs.set .x27 (mkBin .or (.ld (addC hb (-1600))) (.reg .x17))).set
+    .x14 field).set .x9 (.c (BitVec.ofNat 64 (0x420 + 32 * coord)))).set
+    .x1 (.c (pcOf (p + n)))
+  ⟨⟨regs, [], [.valid key 8]⟩, mkBin .and field (.c (~~~1#64)), .jump, n, n⟩
 end W9Machine
 end
 
 section
 
-
 namespace W9Machine
-open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
-open SigGolfCandidate.Rv OracleComp SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (M shortHash Digest)
-open ClaudeWCT.W9.Machine.Merkle
-def childRootProg (k index j : Nat) (leaf pads sibs : Nat → Digest) : M Digest := do
-  let v ← childProg k index j leaf pads sibs
-  shortHash (rootIn k index j v (pads 6) (sibs 6))
-theorem child_root_good (k : Fin 9) (j B index : Nat) (leaf pads sibs : Nat → Digest)
-    (u : MachineState) (hj : j < 128) (hidx : index < 2 ^ 32)
-    (hu : ChildPre j B k.val index leaf pads sibs u)
-    (hpad : DigAt u (B + padO 6) (pads 6)) (hsib : DigAt u (B + sibO 6 j) (sibs 6))
-    (hret : u.getReg .x1 &&& ~~~1#64 = pcOf (rootPc k))
-    (N C A : Nat) (Q : Prop) (K : Digest → OracleComp HashSpec Obs)
-    (h : ∀ v t, ChildPost j B k.val index u v t → ∀ ans : BitVec 256,
-      GoodQFor Frozen.image (writeHash (rootPrepared k t) ans)
-        N C Q A (K (ans.extractLsb' 0 128))) :
-    GoodQFor Frozen.image u (N + 47) (C + 111) Q (A + 111)
-      (ccM (childRootProg k.val index j leaf pads sibs) K) := by
-  have hc := (CodexCheck.frozen_children j hj).1 B k.val index leaf pads sibs u
-    (N + 2) (C + 9) (A + 9) Q
-    (fun v => ccM (shortHash (rootIn k.val index j v (pads 6) (sibs 6))) K) hidx hu
-    (fun v t ht => root_good k j B index u t v (pads 6) (sibs 6) hj hidx
-      hu.base8 hu.baseHi ht hpad hsib (ht.pc.trans hret) hu.t0 N C A Q K (h v t ht))
-  simpa only [childRootProg, ccM_bind, Nat.add_assoc, GoodQFor, GoodQIm] using hc
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords8 : List (BitVec 32) := [22565267,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,27809555,2586419,25626419,0x52000493,458983]
+theorem dispatch8_checked : rOK (symRun {} dispatchWords8 (pcOf 199) 18) (coordDispatch 199 213 8 true false) = true := by decide +kernel
+theorem dispatch8_linked : sliceChecked 199 dispatchWords8 = true := by decide +kernel
 end W9Machine
 end
 
 section
 
-
 namespace W9Machine
-set_option maxRecDepth 10000
-open SigGolfCandidate.T3M OracleComp
-open SigGolfCandidate.T3 (Digest HashOutput M shortHash)
-open ClaudeWCT.W9.Machine.Merkle
-theorem rootIn_zero (k index j : Nat) (v sib : Digest) :
-    shortHash (rootIn k index j v 0 sib) =
-      (let pair := if j / 2 ^ 6 % 2 = 0 then (v, sib) else (sib, v)
-       SigGolfCandidate.T3.nodeHash 11 k index 1 pair.1 pair.2) := by
-  simp only [rootIn, bitAt, Verify.nodeHash_eq]
-  rfl
-theorem childRootProg_canon (sig : ClaudeWCT.WCT9.Signature) (index : Nat)
-    (a : HashOutput) (k : Fin 9) (ends : List Digest) (hends : ends.length = 7) :
-    childRootProg k.val index (ClaudeWCT.WCT9.child a k).val
-      (leafFields k.val index (ClaudeWCT.WCT9.child a k).val ends) (fun _ => 0)
-      (finPath (sig.openings k).path) =
-      (ClaudeWCT.WCT9.leafHash index k.val (ClaudeWCT.WCT9.child a k).val ends >>=
-        recoverPath sig index a k) := by
-  unfold childRootProg
-  rw [childCanon k.val index (ClaudeWCT.WCT9.child a k).val ends
-    (finPath (sig.openings k).path) hends, bind_assoc]
-  apply congrArg (fun f : Digest → M Digest =>
-    ClaudeWCT.WCT9.leafHash index k.val (ClaudeWCT.WCT9.child a k).val ends >>= f)
-  funext root
-  rw [CodexCheck.recoverPath_split]
-  simp only [rootIn_zero, finPath, dif_pos (show 6 < 7 by decide)]
-  rfl
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords6 : List (BitVec 32) := [44585363,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,49829651,2586419,25626419,0x4e000493,458983]
+theorem dispatch6_checked : rOK (symRun {} dispatchWords6 (pcOf 163) 18) (coordDispatch 163 170 6 true false) = true := by decide +kernel
+theorem dispatch6_linked : sliceChecked 163 dispatchWords6 = true := by decide +kernel
 end W9Machine
 end
 
 section
 
-
-namespace W9Drv
-open OracleComp SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (Digest HashOutput M shortHash)
-open ClaudeWCT.W9.Machine.Merkle
-open W9Machine
-def coordTail (w : WBytes) (index : Nat) (k : Fin 9) (j : Fin 128)
-    (ends : List Digest) : M Digest := do
-  let leaf ← ClaudeWCT.WCT9.leafHash index k.val j.val ends
-  (List.finRange 7).foldlM (fun value level => do
-    let other := ClaudeWCT.W9.T3M.wsib w k.val j.val level.val
-    let pair := if j.val / 2 ^ level.val % 2 = 0 then (value, other) else (other, value)
-    nodeHashP 11 k.val index (2 ^ (6 - level.val) + j.val / 2 ^ (level.val + 1))
-      pair.1 (ClaudeWCT.W9.T3M.wmpad w k.val level.val) pair.2) leaf
-theorem childRootProg_arbitrary (w : WBytes) (index : Nat) (k : Fin 9) (j : Fin 128)
-    (ends : List Digest) (hends : ends.length = 7) :
-    childRootProg k.val index j.val (leafFields k.val index j.val ends)
-      (ClaudeWCT.W9.T3M.wmpad w k.val) (ClaudeWCT.W9.T3M.wsib w k.val j.val) =
-      coordTail w index k j ends := by
-  simp only [childRootProg, childProg, coordTail, leafBytes_canon _ _ _ _ hends,
-    ClaudeWCT.WCT9.leafHash, bind_assoc]
-  apply congrArg (fun f : Digest → M Digest =>
-    shortHash (SphincsSecurity.bytesLE 16 (ends.getD 0 0) ++
-      SphincsSecurity.bytesLE 16 (ClaudeWCT.WCT9.wctHeader 6 k.val index 0 j.val) ++
-      (ends.drop 1).flatMap (SphincsSecurity.bytesLE 16)) >>= f)
-  funext leaf
-  change _ = (List.finRange 7).foldlM
-    (fun value level => childLevelP k.val index j.val
-      (ClaudeWCT.W9.T3M.wmpad w k.val) (ClaudeWCT.W9.T3M.wsib w k.val j.val)
-      value level.val) leaf
-  rw [← List.foldlM_map (f := Fin.val), finRange_map_val]
-  rw [show List.range 7 = List.range 6 ++ [6] from List.range_succ (n := 6),
-    List.foldlM_append]
-  simp only [List.foldlM_cons, List.foldlM_nil, bind_pure]
-  apply congrArg (fun f : Digest → M Digest =>
-    (List.range 6).foldlM (childLevelP k.val index j.val
-      (ClaudeWCT.W9.T3M.wmpad w k.val) (ClaudeWCT.W9.T3M.wsib w k.val j.val)) leaf >>= f)
-  funext value
-  simp only [childLevelP, heapOf,
-    show j.val / 2 ^ (6 + 1) = 0 from Nat.div_eq_of_lt j.isLt]
-  rfl
-theorem wctCoordP_split (w : WBytes) (index : Nat) (k : Fin 9) (j : Fin 128)
-    (rank : Fin 728) :
-    ClaudeWCT.W9.T3M.wctCoordP w index k j rank =
-      (Chain.program w index k j rank >>= coordTail w index k j) := by
-  rfl
-end W9Drv
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords5 : List (BitVec 32) := [22565267,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,27809555,2586419,25626419,0x4c000493,458983]
+theorem dispatch5_checked : rOK (symRun {} dispatchWords5 (pcOf 145) 18) (coordDispatch 145 149 5 true false) = true := by decide +kernel
+theorem dispatch5_linked : sliceChecked 145 dispatchWords5 = true := by decide +kernel
+end W9Machine
 end
 
 section
 
-namespace W9Drv
-open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
-open SigGolfCandidate.Rv SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
-open SigGolfCandidate.T3 (Digest M)
-open ClaudeWCT.W9.Machine.Merkle W9Machine
-theorem coord_core_good (chains : Chain.AllGood)
-    (w : WBytes) (index : Nat) (k : Fin 9) (j : Fin 128) (rank : Fin 728)
-    (u : MachineState) (N C A : Nat) (Q : Prop)
-    (K : Digest → OracleComp HashSpec Obs) (hu : Chain.Pre w index k j rank u)
-    (hnext : ∀ ends entry, Chain.Post w index k j u ends entry →
-      ∀ v t, ChildPost j.val (Chain.base k) k.val index entry v t →
-      ∀ ans : BitVec 256, GoodQFor Frozen.image (writeHash (rootPrepared k t) ans)
-        N C Q A (K (ans.extractLsb' 0 128))) :
-    GoodQFor Frozen.image u (N + 136) (C + 200) Q (A + 200)
-      (ccM (ClaudeWCT.W9.T3M.wctCoordP w index k j rank) K) := by
-  rw [wctCoordP_split, ccM_bind]
-  have hc := chains rank w index k j u (N + 47) (C + 111) (A + 111) Q
-    (fun ends => ccM (coordTail w index k j ends) K) hu
-  apply (show GoodQFor Frozen.image u (N + 136) (C + 200) Q (A + 200)
-    (ccM (Chain.program w index k j rank) (fun ends => ccM (coordTail w index k j ends) K))
-    from ?_)
-  apply (show GoodQFor Frozen.image u ((N + 47) + 89) ((C + 111) + 89) Q
-    ((A + 111) + 89) _ from hc ?_)
-  intro ends entry hp
-  rw [← childRootProg_arbitrary w index k j ends hp.length]
-  apply child_root_good k j.val (Chain.base k) index _ _ _ entry j.isLt
-    (by have := hu.indexBound; omega) hp.child hp.rootPad hp.rootSibling
-    ?_ N C A Q K (hnext ends entry hp)
-  rw [hp.keep .x1 (by decide), hu.returnPC]
-  fin_cases k <;> decide
-end W9Drv
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords3 : List (BitVec 32) := [44585363,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,49829651,2586419,25626419,0x48000493,458983]
+theorem dispatch3_checked : rOK (symRun {} dispatchWords3 (pcOf 109) 18) (coordDispatch 109 106 3 true false) = true := by decide +kernel
+theorem dispatch3_linked : sliceChecked 109 dispatchWords3 = true := by decide +kernel
+end W9Machine
+end
+
+section
+
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords7 : List (BitVec 32) := [0x7803803,0x7f87193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,5789459,2586419,25626419,0x50000493,458983]
+theorem dispatch7_checked : rOK (symRun {} dispatchWords7 (pcOf 181) 18) (coordDispatch 181 192 7 true true) = true := by decide +kernel
+theorem dispatch7_linked : sliceChecked 181 dispatchWords7 = true := by decide +kernel
+end W9Machine
+end
+
+section
+
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords4 : List (BitVec 32) := [0x7003803,0x7f87193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,5789459,2586419,25626419,0x4a000493,458983]
+theorem dispatch4_checked : rOK (symRun {} dispatchWords4 (pcOf 127) 18) (coordDispatch 127 128 4 true true) = true := by decide +kernel
+theorem dispatch4_linked : sliceChecked 127 dispatchWords4 = true := by decide +kernel
+end W9Machine
+end
+
+section
+
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords2 : List (BitVec 32) := [22565267,0x7f1f193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,27809555,2586419,25626419,0x46000493,458983]
+theorem dispatch2_checked : rOK (symRun {} dispatchWords2 (pcOf 91) 18) (coordDispatch 91 85 2 true false) = true := by decide +kernel
+theorem dispatch2_linked : sliceChecked 91 dispatchWords2 = true := by decide +kernel
+end W9Machine
+end
+
+section
+
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords1 : List (BitVec 32) := [0x6803803,0x7f87193,33657363,23224883,6784947,21077907,0xffefb3,8493971,31165363,0x40040413,537792019,0x9c0e3d83,18738611,5789459,2586419,25626419,0x44000493,458983]
+theorem dispatch1_checked : rOK (symRun {} dispatchWords1 (pcOf 73) 18) (coordDispatch 73 64 1 true true) = true := by decide +kernel
+theorem dispatch1_linked : sliceChecked 73 dispatchWords1 = true := by decide +kernel
+end W9Machine
+end
+
+section
+
+namespace W9Machine
+open SigGolfCandidate.T3M SigGolfCandidate.Rv
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+def dispatchWords0 : List (BitVec 32) := [0x6003803,45633939,0x7f1f193,33657363,23224883,21077907,0xffefb3,8493971,31165363,0x9c0e3d83,18738611,50878227,2586419,25626419,0x42000493,458983]
+theorem dispatch0_checked : rOK (symRun {} dispatchWords0 (pcOf 57) 16) (coordDispatch 57 43 0 false true) = true := by decide +kernel
+theorem dispatch0_linked : sliceChecked 57 dispatchWords0 = true := by decide +kernel
+end W9Machine
+end
+
+section
+
 end
 
 section
@@ -186,9 +159,10 @@ def dispatchCode (k : Fin 9) : List (BitVec 32) :=
   [dispatchWords0, dispatchWords1, dispatchWords2, dispatchWords3, dispatchWords4,
     dispatchWords5, dispatchWords6, dispatchWords7, dispatchWords8].getD k.val []
 def dispatchBit (k : Fin 9) : Nat := [43,64,85,106,128,149,170,192,213].getD k.val 0
-def dispatchLen (k : Fin 9) : Nat := dispatchCost (dispatchBit k) (decide (k.val ≠ 0))
+def dispatchLen (k : Fin 9) : Nat := if k.val = 0 then 16 else 18
 def dispatchResult (k : Fin 9) : Result :=
-  coordDispatch (dispatchPc k.val) (dispatchBit k) (decide (k.val ≠ 0))
+  coordDispatch (dispatchPc k.val) (dispatchBit k) k.val (decide (k.val ≠ 0))
+    (decide (k.val = 0 ∨ k.val = 1 ∨ k.val = 4 ∨ k.val = 7))
 theorem dispatch_checked (k : Fin 9) :
     rOK (symRun {} (dispatchCode k) (pcOf (dispatchPc k.val)) (dispatchLen k))
       (dispatchResult k) = true := by
@@ -218,7 +192,7 @@ theorem dispatch_mem (k : Fin 9) (u : MachineState) (A : Word) :
     ((dispatchResult k).toState u).getMem A = u.getMem A := by
   rfl
 theorem dispatch_steps (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
-    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
+    (roots : List (Digest × Digest)) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
     Steps Frozen.image u (dispatchLen k) (dispatchLen k) ((dispatchResult k).toState u) := by
   have hs := symRun_sound (rOK_eq (dispatch_checked k))
     (slice_at _ _ (dispatch_linked k)) u hu.pc
@@ -240,14 +214,17 @@ end
 
 section
 
+
+
+set_option maxRecDepth 10000
 namespace W9Drv
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
 open SigGolfCandidate.Rv SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput)
-open ClaudeWCT.W9.Machine.Merkle W9Machine
+open W9Machine
 def chainEntryState (a : HashOutput) (k : Fin 9) (u : MachineState) : MachineState :=
   { (dispatchResult k).toState u with
-    pc := pcOf (chainEntries.getD (ClaudeWCT.WCT9.rank a k).val 0) }
+    pc := pcOf (Frozen.layout.chainWord (ClaudeWCT.WCT9.rank a k)) }
 theorem dispatch_child (a : HashOutput) (k : Fin 9) :
     (a.extractLsb' (64 * (dispatchBit k / 64)) 64 >>> (dispatchBit k % 64)) &&& 127#64 =
       BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val := by
@@ -258,113 +235,149 @@ theorem dispatch_child (a : HashOutput) (k : Fin 9) :
   rw [Nat.and_two_pow_sub_one_eq_mod]
   fin_cases k <;> simp [dispatchBit, ClaudeWCT.WCT9.child, ClaudeWCT.WCT9.coordBase,
     BitVec.toNat_ofNat] <;> omega
+def dispatchDig (k : Fin 9) : E :=
+  if decide (k.val = 0 ∨ k.val = 1 ∨ k.val = 4 ∨ k.val = 7) then
+    .ld (.c (BitVec.ofNat 64 (96 + 8*(dispatchBit k/64)))) else .reg .x16
 theorem dispatchDig_eval (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
-    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
-    (dispatchDig (dispatchBit k)).eval u = a.extractLsb' (64 * (dispatchBit k / 64)) 64 := by
-  fin_cases k
-  all_goals first
-    | exact hu.digest _ (by decide)
-    | exact hu.digestWord
+    (pairs : List (Digest × Digest)) (u : MachineState) (hu : CoordPre pk w a k.val pairs u) :
+    (dispatchDig k).eval u = a.extractLsb' (64*(dispatchBit k/64)) 64 := by
+  have hd := hu.digest (dispatchBit k/64) (by fin_cases k <;> decide)
+  fin_cases k <;> first | exact hd | exact hu.cached (by decide)
+def dispatchChild (k : Fin 9) : E := mkBin .and
+  (if dispatchBit k % 64 = 0 then dispatchDig k else
+    mkBin .srl (dispatchDig k) (.c (BitVec.ofNat 64 (dispatchBit k % 64)))) (.c 127)
 theorem dispatchChild_eval (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
-    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
-    (dispatchChild (dispatchBit k)).eval u = BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val := by
-  have hl := dispatchDig_eval pk w a k roots u hu
+    (pairs : List (Digest × Digest)) (u : MachineState) (hu : CoordPre pk w a k.val pairs u) :
+    (dispatchChild k).eval u = BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val := by
+  have hd := dispatchDig_eval pk w a k pairs u hu
   have hs : (BitVec.ofNat 64 (dispatchBit k % 64)).toNat % 64 = dispatchBit k % 64 := by
     simp only [BitVec.toNat_ofNat]; omega
-  have h := dispatch_child a k
   unfold dispatchChild
-  split_ifs with hz
-  · simp only [mkBin_eval, E.eval, BinOp.eval, hl]
-    convert h using 1 <;> simp only [hz, BitVec.ushiftRight_zero] <;> rfl
-  · simp only [mkBin_eval, E.eval, BinOp.eval, hl, hs]
-    exact h
+  split
+  · rename_i he
+    simp only [mkBin_eval, E.eval, BinOp.eval, hd]
+    have hc := dispatch_child a k
+    simp only [he, BitVec.ushiftRight_zero] at hc
+    exact hc
+  · simp only [mkBin_eval, E.eval, BinOp.eval, hd, hs]
+    exact dispatch_child a k
+theorem dispatch_keep (k : Fin 9) (u : MachineState) (r : Reg)
+    (hr : r ∉ [.x1,.x3,.x4,.x8,.x9,.x14,.x15,.x16,.x23,.x27,.x28,.x31]) :
+    ((dispatchResult k).toState u).getReg r = u.getReg r := by
+  rw [Result.toState_getReg]
+  fin_cases k <;> cases r <;> first | rfl | exact False.elim (hr (by decide))
+theorem dispatch_route (k : Fin 9) (u : MachineState) :
+    ((dispatchResult k).toState u).getReg .x4 =
+      ((dispatchChild k).eval u <<< 32) ||| u.getReg .x22 := by
+  fin_cases k <;> rfl
+theorem dispatch_childPC (k : Fin 9) (u : MachineState) :
+    ((dispatchResult k).toState u).getReg .x23 =
+      ((dispatchChild k).eval u <<< 8) + u.getReg .x29 := by
+  fin_cases k <;> rfl
+theorem dispatch_prefix (k : Fin 9) (u : MachineState) :
+    ((dispatchResult k).toState u).getReg .x31 =
+      ((dispatchChild k).eval u <<< 20) |||
+        (if k.val = 0 then u.getReg .x15 else u.getReg .x15 + u.getReg .x6) := by
+  fin_cases k <;> rfl
+theorem packedPrefix_eval (i k j : Nat) (hk : k < 9) :
+    (BitVec.ofNat 64 j <<< 20) ||| BitVec.ofNat 64 (i*2^27 + 65536*k) =
+      BitVec.ofNat 64 (V3.chainPrefix i k j) := by
+  have hc : 65536*k < 2^27 := by omega
+  have hp : i*2^27 + 65536*k = (i <<< 27) ||| (k <<< 16) := by
+    rw [← Nat.shiftLeft_add_eq_or_of_lt (by simpa [Nat.shiftLeft_eq, Nat.mul_comm] using hc)]
+    simp [Nat.shiftLeft_eq, Nat.mul_comm]
+  rw [hp, BitVec.ofNat_or]
+  have hs (x n : Nat) : BitVec.ofNat 64 x <<< n = BitVec.ofNat 64 (x <<< n) := by
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, Nat.mul_mod]
+  rw [hs, ← BitVec.ofNat_or, ← BitVec.ofNat_or]
+  unfold V3.chainPrefix
+  rw [Nat.or_comm]
 theorem dispatch_chain_pre (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
-    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
-    Chain.Pre w (idxOf a) k (ClaudeWCT.WCT9.child a k) (ClaudeWCT.WCT9.rank a k)
+    (pairs : List (Digest × Digest)) (u : MachineState) (hu : CoordPre pk w a k.val pairs u) :
+    Chain.Pre Frozen.layout w (idxOf a) k (ClaudeWCT.WCT9.child a k) (ClaudeWCT.WCT9.rank a k)
       (chainEntryState a k u) := by
   have hm (A : Word) : (chainEntryState a k u).getMem A = u.getMem A := rfl
-  have hr (r : Reg) (h : r ∉ [.x1, .x3, .x4, .x8, .x11, .x14, .x16, .x23, .x27, .x28]) :
-      (chainEntryState a k u).getReg r = u.getReg r := by
-    change ((dispatchResult k).toState u).getReg r = u.getReg r
-    apply Keeps.reg (ws := [.x1,.x3,.x4,.x8,.x11,.x14,.x16,.x23,.x27,.x28]) ?_ u h
-    intro r hr
-    simp only [List.mem_cons, not_or] at hr
-    simp only [dispatchResult, coordDispatch]
-    split <;> simp [RegFile.get_set_ne, hr, RegFile.init]
-  have hload := dispatchDig_eval pk w a k roots u hu
-  have hshift : (BitVec.ofNat 64 (dispatchBit k % 64)).toNat % 64 = dispatchBit k % 64 := by
-    simp only [BitVec.toNat_ofNat]
-    omega
+  have hr (r : Reg) (h : r ∉ [.x1,.x3,.x4,.x8,.x9,.x14,.x15,.x16,.x23,.x27,.x28,.x31]) :
+      (chainEntryState a k u).getReg r = u.getReg r := dispatch_keep k u r h
+  have hc := dispatchChild_eval pk w a k pairs u hu
+  have hi : idxOf a < 2^31 := Nat.mod_lt _ (by decide)
+  have hj := (ClaudeWCT.WCT9.child a k).isLt
   refine {
-    indexBound := Nat.mod_lt _ (by decide)
+    indexBound := hi
     pc := rfl
     baseReg := ?_
     headerReg := ?_
+    prefixReg := ?_
     route := ?_
     hashMode := (hr .x5 (by decide)).trans (hu.glob.1 (.x5, 0) (by simp [baseK]))
-    stepOne := (hr .x6 (by decide)).trans hu.stepOne
-    stepTwo := (hr .x7 (by decide)).trans hu.stepTwo
-    hashLen := ?_
+    stepOne := (hr .x7 (by decide)).trans hu.stepOne
+    stepTwo := (hr .x13 (by decide)).trans hu.stepTwo
+    hashLen := (hr .x11 (by decide)).trans hu.hashLen
     childPC := ?_
     returnPC := ?_
     indexReg := (hr .x22 (by decide)).trans hu.index
     nodeHeader := ?_
+    forestPointer := ?_
     heaps := ?_
-    headers := fun t ht d hd => (hm _).trans (hu.bank.chain k t ht d hd)
-    leafHeader := (hm _).trans (hu.bank.leaf k)
-    witness := hu.coords k (Nat.le_refl _) }
+    leafHeader := ?_
+    witness := by
+      intro off ho h8
+      have hw := hu.coords k (Nat.le_refl _) off ho h8
+      rw [hm]
+      simpa only [OrigW, Chain.base, coordinateBase, V3.regionOffset,
+        show 2112 + 1024*k.val + off - 2048 = 64 + 1024*k.val + off by omega] using hw }
   · change ((dispatchResult k).toState u).getReg .x8 = _
     fin_cases k <;> simp [dispatchResult, coordDispatch, Result.toState_getReg,
-      RegFile.get, RegFile.set, RegFile.init, addC_eval, E.eval, hu.baseReg, Chain.base]
+      RegFile.get, RegFile.set, RegFile.init, addC_eval, E.eval, hu.baseReg, Chain.base, coordinateBase]
   · change ((dispatchResult k).toState u).getReg .x28 = _
     fin_cases k <;> simp [dispatchResult, coordDispatch, Result.toState_getReg,
-      RegFile.get, RegFile.set, RegFile.init, addC_eval, E.eval, hu.headerReg, Chain.table]
+      RegFile.get, RegFile.set, RegFile.init, addC_eval, E.eval, hu.headerReg, Chain.table, headerTable]
+  · change ((dispatchResult k).toState u).getReg .x31 = _
+    rw [dispatch_prefix, hc, hu.prefixReg, hu.coordStep]
+    have he : (if k.val = 0 then BitVec.ofNat 64 (idxOf a*2^27+65536*(k.val-1))
+        else BitVec.ofNat 64 (idxOf a*2^27+65536*(k.val-1)) + 65536) =
+        BitVec.ofNat 64 (idxOf a*2^27+65536*k.val) := by
+      fin_cases k <;> simp [← BitVec.ofNat_add, Nat.add_assoc]
+    rw [he]
+    exact packedPrefix_eval _ _ _ k.isLt
   · change ((dispatchResult k).toState u).getReg .x4 = _
-    simp only [dispatchResult, coordDispatch, Result.toState_getReg]
-    split <;> simp only [RegFile.get, RegFile.set]
-    all_goals
-      simp only [mkBin_eval, E.eval, BinOp.eval]
-      rw [dispatchChild_eval pk w a k roots u hu, hu.index]
-    all_goals
-      change (BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val <<< 32) |||
-        BitVec.ofNat 64 (idxOf a) = _
-      apply BitVec.eq_of_toNat_eq
-      simp only [BitVec.toNat_or, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat,
-        Nat.shiftLeft_eq]
-      have hj := (ClaudeWCT.WCT9.child a k).isLt
-      have hi : idxOf a < 2 ^ 31 := Nat.mod_lt _ (by decide)
-      have hor := (Nat.two_pow_add_eq_or_of_lt (i := 32) (by omega : idxOf a < 2 ^ 32)
-        (ClaudeWCT.WCT9.child a k).val).symm
-      rw [show (ClaudeWCT.WCT9.child a k).val % 2 ^ 64 * 2 ^ 32 % 2 ^ 64 =
-        2 ^ 32 * (ClaudeWCT.WCT9.child a k).val by omega,
-        Nat.mod_eq_of_lt (by omega : idxOf a < 2 ^ 64), hor]
-      unfold hdr1
-      omega
-  · change ((dispatchResult k).toState u).getReg .x11 = 64
-    fin_cases k <;> exact hu.hashLen
+    rw [dispatch_route, hc, hu.index]
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_or, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+    rw [Nat.mod_eq_of_lt (by omega : (ClaudeWCT.WCT9.child a k).val < 2^64),
+      Nat.mod_eq_of_lt (by omega : (ClaudeWCT.WCT9.child a k).val * 2^32 < 2^64),
+      Nat.mod_eq_of_lt (by omega : idxOf a < 2^64)]
+    rw [Nat.mul_comm, ← Nat.two_pow_add_eq_or_of_lt (by omega : idxOf a < 2^32)]
+    omega
   · change ((dispatchResult k).toState u).getReg .x23 = _
-    simp only [dispatchResult, coordDispatch, Result.toState_getReg]
-    split <;> simp only [RegFile.get, RegFile.set]
-    all_goals
-      simp only [mkAdd_eval, mkBin_eval, E.eval, BinOp.eval]
-      rw [dispatchChild_eval pk w a k roots u hu, hu.childBlock]
-    all_goals
-      change (BitVec.ofNat 64 (ClaudeWCT.WCT9.child a k).val <<< 8) +
-        BitVec.ofNat 64 0xce800 = _
-      apply BitVec.eq_of_toNat_eq
-      simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat,
-        Nat.shiftLeft_eq, pcOf, childBase]
-      have hj := (ClaudeWCT.WCT9.child a k).isLt
-      omega
+    rw [dispatch_childPC, hc, hu.childBlock]
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq,
+      Frozen.layout, pcOf]
+    omega
   · change ((dispatchResult k).toState u).getReg .x1 = _
     fin_cases k <;> rfl
   · change ((dispatchResult k).toState u).getReg .x27 = _
     have hb := hu.bank.node k
-    fin_cases k <;> simp [dispatchResult, coordDispatch, Result.toState_getReg,
-      RegFile.get, RegFile.set, addC_eval, E.eval, hu.headerReg] <;>
-      simpa [Chain.table] using hb
-  · intro h h1 h7
-    exact (hr (heapReg h) (by interval_cases h <;> decide)).trans (hu.heaps h h1 h7)
+    have he : ((dispatchResult k).toState u).getReg .x27 =
+        BitVec.ofNat 64 (1+3*256+(4+k.val)*65536) ||| BitVec.ofNat 64 (idxOf a*2^32) := by
+      fin_cases k <;> simp [dispatchResult, coordDispatch, Result.toState_getReg,
+        RegFile.get, RegFile.set, RegFile.init, addC_eval, E.eval, mkBin_eval,
+        hu.headerReg, hu.nodeIndex, BinOp.eval] <;>
+        norm_num at hb <;> rw [hb]
+    rw [he, nodeLow_add]
+    rw [BitVec.or_comm, ofNat_or_disjoint _ _ 32
+      (by have := k.isLt; omega) (by simp)]
+    rw [Nat.add_comm]
+  · change ((dispatchResult k).toState u).getReg .x9 = _
+    fin_cases k <;> rfl
+  · intro h h2 h7
+    exact (hr (Child.heapReg h) (by interval_cases h <;> decide)).trans (hu.heaps h h2 h7)
+  · rw [hm, header_lo, if_neg (by decide)]
+    rw [hdr0_eq 6 k.val (idxOf a) 0 (by decide) (by have := k.isLt; omega)
+      (by omega) (by decide)]
+    simpa [Chain.table, headerTable, Nat.mul_comm] using hu.bank.leaf k
 end W9Drv
 end
 
@@ -405,12 +418,15 @@ theorem dispatch_field (a : HashOutput) (k : Fin 9) :
   fin_cases k <;> simp [dispatchBit, ClaudeWCT.WCT9.field, ClaudeWCT.WCT9.coordBase,
     BitVec.toNat_ofNat] <;> omega
 theorem dispatch_pc (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
-    (roots : List Digest) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
+    (roots : List (Digest × Digest)) (u : MachineState) (hu : CoordPre pk w a k.val roots u) :
     ((dispatchResult k).toState u).pc = pcOf (jtStart + ClaudeWCT.WCT9.field a k) := by
-  change (mkBin .and (mkAdd (mkBin .and
-    (mkBin .srl (dispatchDig (dispatchBit k))
+  have he : ((dispatchResult k).toState u).pc =
+      (mkBin .and (mkAdd (mkBin .and
+    (mkBin .srl (dispatchDig k)
       (.c (BitVec.ofNat 64 (dispatchBit k % 64 + 5)))) (.reg .x2)) (.reg .x24))
-      (.c (~~~1#64))).eval u = _
+      (.c (~~~1#64))).eval u := by
+    fin_cases k <;> rfl
+  rw [he]
   simp only [mkBin_eval, mkAdd_eval, E.eval, BinOp.eval, hu.mask, hu.jt]
   rw [dispatchDig_eval pk w a k roots u hu]
   have hshift : (BitVec.ofNat 64 (dispatchBit k % 64 + 5)).toNat % 64 =
@@ -607,70 +623,85 @@ end
 section
 
 
+set_option maxHeartbeats 400000
+namespace W9Drv
+open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
+open SigGolfCandidate.Rv SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
+open SigGolfCandidate.T3 (Digest M)
+open W9Machine
+theorem coord_core_good (chains : Chain.AllGood Frozen.layout)
+    (w : WBytes) (index : Nat) (k : Fin 9) (j : Fin 128) (rank : Fin 728)
+    (u : MachineState) (N C A : Nat) (Q : Prop)
+    (K : (Digest × Digest) → OracleComp HashSpec Obs)
+    (hu : Chain.Pre Frozen.layout w index k j rank u)
+    (hnext : ∀ ends entry, Chain.Post Frozen.layout w index k j u ends entry →
+      ∀ pair t, Child.Post Frozen.layout k entry pair t →
+        GoodQFor Frozen.image t N C Q A (K (pair.left, pair.right))) :
+    GoodQFor Frozen.image u (N + 131) (C + 188) Q (A + 183)
+      (ccM (ClaudeWCT.W9.T3M.wctCoordP w index k j rank) K) := by
+  rw [wctCoordP_split w index k j rank hu.indexBound, ccM_bind]
+  have hcont (ends : List Digest) (entry : MachineState)
+      (hp : Chain.Post Frozen.layout w index k j u ends entry) :
+      GoodQFor Frozen.layout.image entry (N+42) (C+99) Q (A+99)
+        (ccM (coordTail w index k j ends) K) := by
+    have hg := ChildProof.child_good j w index k ends entry N C A Q
+      (fun pair => K (pair.left, pair.right)) hp.child (hnext ends entry hp)
+    rw [← childProgram_canonical w index k j ends hp.length hu.indexBound]
+    simp only [ccM_bind, ccM_pure]
+    exact hg
+  have hc := chains rank w index k j u (N+42) (C+99) (A+99) Q
+    (fun ends => ccM (coordTail w index k j ends) K) hu hcont
+  simp only [Nat.add_assoc] at hc
+  exact hc
+#print axioms coord_core_good
+end W9Drv
+end
+
+section
+
+
 
 
 namespace W9Drv
 open OracleComp SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64
 open SigGolfCandidate.Rv SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.T3 (Digest HashOutput)
-open ClaudeWCT.W9.Machine.Merkle W9Machine
+open W9Machine
 theorem coord_frame (w : WBytes) (a : HashOutput) (k : Fin 9) (u entry t : MachineState)
-    (ends : List Digest) (v : Digest) (ans : BitVec 256)
-    (hp : Chain.Post w (idxOf a) k (ClaudeWCT.WCT9.child a k)
+    (ends : List Digest) (pair : V3.RootPair)
+    (hp : Chain.Post Frozen.layout w (idxOf a) k (ClaudeWCT.WCT9.child a k)
       (chainEntryState a k u) ends entry)
-    (ht : ChildPost (ClaudeWCT.WCT9.child a k).val (Chain.base k) k.val
-      (idxOf a) entry v t) :
-    Frame u (writeHash (rootPrepared k t) ans) (fun A =>
-      (Chain.base k ≤ A ∧ A < Chain.base k + 1024) ∨
-      (W9Machine.forestSlot k.val ≤ A ∧ A < W9Machine.forestSlot k.val + 32)) := by
+    (ht : Child.Post Frozen.layout k entry pair t) :
+    Frame u t (fun A => (coordinateBase k ≤ A ∧ A < coordinateBase k + 1024) ∨
+      (pairAddress k ≤ A ∧ A < pairAddress k + 48)) := by
   intro A hA hn
-  have hk := k.isLt
-  have hf := frame_writeHash4 (rootPrepared k t) ans (W9Machine.forestSlot k.val)
-    (coordRoot_dest (rootPc k) k.val t)
-    (by unfold W9Machine.forestSlot; split_ifs <;> omega)
-  rw [hf A hA (by intro h; exact hn (Or.inr (by rcases h with h | h | h | h <;> omega)))]
-  change t.getMem _ = _
-  rw [ht.frame A hA (by
-    rintro ⟨off, hoff, he⟩
-    have hb := childWrites_bound hoff
-    exact hn (Or.inl (by omega)))]
-  exact hp.frame A hA (by unfold Chain.writes; intro h; exact hn (Or.inl (by omega)))
+  rw [ht.frame A hA (by unfold Child.writes; dsimp at hn; omega)]
+  exact hp.frame A hA (by unfold Chain.writes Chain.base; dsimp at hn; omega)
 theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
-    (roots : List Digest) (u entry t : MachineState) (ends : List Digest)
-    (v : Digest) (ans : BitVec 256) (hu : CoordPre pk w a k.val roots u)
-    (hp : Chain.Post w (idxOf a) k (ClaudeWCT.WCT9.child a k)
+    (pairs : List (Digest × Digest)) (u entry t : MachineState) (ends : List Digest)
+    (pair : V3.RootPair) (hu : CoordPre pk w a k.val pairs u)
+    (hp : Chain.Post Frozen.layout w (idxOf a) k (ClaudeWCT.WCT9.child a k)
       (chainEntryState a k u) ends entry)
-    (ht : ChildPost (ClaudeWCT.WCT9.child a k).val (Chain.base k) k.val
-      (idxOf a) entry v t) :
-    CoordPre pk w a (k.val + 1) (roots ++ [ans.extractLsb' 0 128])
-      (writeHash (rootPrepared k t) ans) := by
+    (ht : Child.Post Frozen.layout k entry pair t) :
+    CoordPre pk w a (k.val+1) (pairs ++ [(pair.left,pair.right)]) t := by
   have hk := k.isLt
-  have hc := dispatch_chain_pre pk w a k roots u hu
-  have hf := coord_frame w a k u entry t ends v ans hp ht
-  have hm (A : Nat) (hA : A < 2 ^ 64)
-      (hs : A < 1792 ∨ (1984 ≤ A ∧ A < 2112) ∨ 11328 ≤ A) :
-      (writeHash (rootPrepared k t) ans).getMem (BitVec.ofNat 64 A) =
-        u.getMem (BitVec.ofNat 64 A) := by
+  have hc := dispatch_chain_pre pk w a k pairs u hu
+  have hf := coord_frame w a k u entry t ends pair hp ht
+  have hm (A : Nat) (hA : A < 2^64)
+      (hs : A < 1056 ∨ (1360 ≤ A ∧ A < 2112) ∨ 11328 ≤ A) :
+      t.getMem (BitVec.ofNat 64 A) = u.getMem (BitVec.ofNat 64 A) := by
     apply hf A hA
-    unfold Chain.base W9Machine.forestSlot
-    split_ifs <;> omega
+    unfold coordinateBase pairAddress
+    omega
   have hr (r : Reg) (h : r ∉ [.x3,.x10,.x11,.x12,.x14,.x25]) :
-      (writeHash (rootPrepared k t) ans).getReg r = (chainEntryState a k u).getReg r := by
-    rw [writeHash_getReg, rootPrepared, (coordRoot_keeps (rootPc k) k.val).reg t (x := r)
-      (by simp only [List.mem_singleton]; intro hx; exact h (by simp [hx]))]
-    rw [ht.keep r (by intro hx; exact h (by simp [hx]))
-      (by intro hx; exact h (by simp [hx])) (by intro hx; exact h (by simp [hx]))
-      (by intro hx; exact h (by simp [hx]))]
+      t.getReg r = (chainEntryState a k u).getReg r := by
+    rw [ht.keep r (by
+      simp only [Child.clobbers, List.mem_cons, List.not_mem_nil, or_false] at *
+      tauto)]
     exact hp.keep r h
-  have hd (r : Reg) (h : r ∉ [.x1,.x3,.x4,.x8,.x11,.x14,.x16,.x23,.x27,.x28]) :
-      (chainEntryState a k u).getReg r = u.getReg r := by
-    change ((dispatchResult k).toState u).getReg r = u.getReg r
-    apply Keeps.reg (ws := [.x1,.x3,.x4,.x8,.x11,.x14,.x16,.x23,.x27,.x28]) ?_ u h
-    intro r hr
-    simp only [List.mem_cons, not_or] at hr
-    simp only [dispatchResult, coordDispatch]
-    split <;> simp [RegFile.get_set_ne, hr, RegFile.init]
-  have hg : Glob baseK w pk (writeHash (rootPrepared k t) ans) := by
+  have hd (r : Reg) (h : r ∉ [.x1,.x3,.x4,.x8,.x9,.x14,.x15,.x16,.x23,.x27,.x28,.x31]) :
+      (chainEntryState a k u).getReg r = u.getReg r := dispatch_keep k u r h
+  have hg : Glob baseK w pk t := by
     obtain ⟨hreg, hh, hpk, hz, hhalf, hdata⟩ := hu.glob
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
     · intro p hp
@@ -684,9 +715,9 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     · exact ⟨(hm 160 (by decide) (by omega)).trans hpk.1,
         (hm 168 (by decide) (by omega)).trans hpk.2⟩
     · intro A hA
-      have hb : A < 1792 := by simp [pSlots] at hA; omega
+      have hb : A < 1056 := by simp [pSlots] at hA; omega
       exact (hm A (by omega) (Or.inl hb)).trans (hz A hA)
-    · change ((writeHash (rootPrepared k t) ans).getMem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
+    · change (t.getMem (BitVec.ofNat 64 CTRW)).toNat / 2 ^ 32 = 0
       rw [hm CTRW (by decide) (Or.inl (by decide))]
       exact hhalf
     · exact hdata.congr (fun A hA hB => hm A (by omega) (Or.inr (Or.inr (by unfold TAB at hA; omega))))
@@ -698,76 +729,69 @@ theorem coord_next (pk : Digest) (w : WBytes) (a : HashOutput) (k : Fin 9)
     digest := fun i hi => (hm _ (by omega) (Or.inl (by omega))).trans (hu.digest i hi)
     bank := ?_
     index := (hr .x22 (by decide)).trans hc.indexReg
-    digestWord := by
-      have he : (chainEntryState a k u).getReg .x16 = (dispatchDig (dispatchBit k)).eval u := by
-        fin_cases k <;> rfl
-      rw [hr .x16 (by decide), he, dispatchDig_eval pk w a k roots u hu]
-      fin_cases k <;> rfl
     heaps := ?_
-    stepOne := (hr .x6 (by decide)).trans hc.stepOne
-    stepTwo := (hr .x7 (by decide)).trans hc.stepTwo
+    stepOne := (hr .x7 (by decide)).trans hc.stepOne
+    stepTwo := (hr .x13 (by decide)).trans hc.stepTwo
+    hashLen := ht.hashLen
+    coordStep := (hr .x6 (by decide)).trans ((hd .x6 (by decide)).trans hu.coordStep)
+    prefixReg := ?_
+    nodeIndex := (hr .x17 (by decide)).trans ((hd .x17 (by decide)).trans hu.nodeIndex)
+    cached := ?_
     mask := (hr .x2 (by decide)).trans ((hd .x2 (by decide)).trans hu.mask)
     jt := (hr .x24 (by decide)).trans ((hd .x24 (by decide)).trans hu.jt)
     childBlock := (hr .x29 (by decide)).trans ((hd .x29 (by decide)).trans hu.childBlock)
-    baseReg := by simpa [Chain.base] using (hr .x8 (by decide)).trans hc.baseReg
-    headerReg := by simpa [Chain.table, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+    baseReg := by simpa [Chain.base, coordinateBase] using (hr .x8 (by decide)).trans hc.baseReg
+    headerReg := by simpa [Chain.table, headerTable, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
       using (hr .x28 (by decide)).trans hc.headerReg
-    roots := ?_
+    pairs := ?_
     coords := ?_
-    layer := ?_
-    forestZero := fun A hA => (hf A (by rcases hA with rfl | rfl <;> decide) (by
-      unfold Chain.base W9Machine.forestSlot
-      split_ifs <;> rcases hA with rfl | rfl <;> omega)).trans (hu.forestZero A hA)
-    hashLen := by
-      rw [writeHash_getReg, rootPrepared, (coordRoot_keeps (rootPc k) k.val).reg t (x := .x11) (by decide)]
-      exact ht.a1 }
-  · rw [writeHash_pc]
-    change pcOf (rootPc k + 1) + 4 = _
+    layer := ?_ }
+  · rw [ht.pc]
     fin_cases k <;> rfl
-  · refine ⟨?_, ?_, ?_⟩
-    · intro l t ht d hd
-      exact (hm _ (by have := l.isLt; unfold Chain.table; omega)
-        (Or.inr (Or.inr (by unfold Chain.table; omega)))).trans (hu.bank.chain l t ht d hd)
+  · refine ⟨?_, ?_⟩
     · intro l
-      exact (hm _ (by have := l.isLt; unfold Chain.table; omega)
-        (Or.inr (Or.inr (by unfold Chain.table; omega)))).trans (hu.bank.node l)
+      exact (hm _ (by have := l.isLt; omega) (Or.inr (Or.inr (by omega)))).trans (hu.bank.node l)
     · intro l
-      exact (hm _ (by have := l.isLt; unfold Chain.table; omega)
-        (Or.inr (Or.inr (by unfold Chain.table; omega)))).trans (hu.bank.leaf l)
-  · intro h h1 h7
-    exact (hr (heapReg h) (by interval_cases h <;> decide)).trans (hc.heaps h h1 h7)
+      exact (hm _ (by have := l.isLt; omega) (Or.inr (Or.inr (by omega)))).trans (hu.bank.leaf l)
+  · intro h h2 h7
+    exact (hr (Child.heapReg h) (by interval_cases h <;> decide)).trans (hc.heaps h h2 h7)
+  · rw [hr .x15 (by decide)]
+    change ((dispatchResult k).toState u).getReg .x15 = _
+    fin_cases k <;> simp [dispatchResult, coordDispatch, Result.toState_getReg,
+      RegFile.get, RegFile.set, RegFile.init, mkAdd_eval, E.eval, hu.prefixReg, hu.coordStep,
+      ← BitVec.ofNat_add, Nat.add_assoc]
+  · intro _
+    rw [hr .x16 (by decide)]
+    have he : (chainEntryState a k u).getReg .x16 = (dispatchDig k).eval u := by
+      fin_cases k <;> rfl
+    rw [he, dispatchDig_eval pk w a k pairs u hu]
+    fin_cases k <;> rfl
   · intro i hi
     by_cases he : i = k.val
     · subst i
       rw [List.getD_append_right _ _ _ _ (by rw [hu.length]), hu.length, Nat.sub_self]
-      exact writeHash_lo (rootPrepared k t) ans (W9Machine.forestSlot k.val)
-        (coordRoot_dest (rootPc k) k.val t)
-        (by unfold W9Machine.forestSlot; split_ifs <;> omega)
+      exact ⟨ht.left, ht.right⟩
     · rw [List.getD_append _ _ _ _ (by rw [hu.length]; omega)]
-      apply DigAt.of_eq (hu.roots i (by omega))
-      · apply hf _ (by unfold W9Machine.forestSlot; split_ifs <;> omega)
-        unfold Chain.base W9Machine.forestSlot
-        split_ifs <;> omega
-      · apply hf _ (by unfold W9Machine.forestSlot; split_ifs <;> omega)
-        unfold Chain.base W9Machine.forestSlot
-        split_ifs <;> omega
+      have old := hu.pairs i (by omega)
+      refine ⟨ChildProof.DigAt.of_eq old.1 ?_ ?_, ChildProof.DigAt.of_eq old.2 ?_ ?_⟩
+      all_goals apply hf _ (by omega); unfold coordinateBase pairAddress; omega
   · intro l hl off hoff halign
     unfold OrigW
-    rw [hf _ (by have := l.isLt; unfold Chain.base; omega) (by
+    rw [hf _ (by have := l.isLt; unfold coordinateBase; omega) (by
       have := l.isLt
-      unfold Chain.base W9Machine.forestSlot
-      split_ifs <;> omega)]
+      unfold coordinateBase pairAddress
+      omega)]
     exact hu.coords l (by omega) off hoff halign
   · exact hu.layer.frame (fun j hj h => hm _ (by unfold WIT WX at *; omega)
       (by unfold WIT; omega))
-theorem coord_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a : HashOutput)
-    (k : Fin 9) (roots : List Digest) (u : MachineState) (N C A : Nat) (Q : Prop)
-    (K : Option (List Digest) → OracleComp HashSpec Obs)
+theorem coord_good (chains : Chain.AllGood Frozen.layout) (pk : Digest) (w : WBytes) (a : HashOutput)
+    (k : Fin 9) (roots : List (Digest × Digest)) (u : MachineState) (N C A : Nat) (Q : Prop)
+    (K : Option (List (Digest × Digest)) → OracleComp HashSpec Obs)
     (hu : CoordPre pk w a k.val roots u) (hnone : K none = pure (false, 0))
     (hnext : ∀ root t, CoordPre pk w a (k.val + 1) (roots ++ [root]) t →
       GoodQFor Frozen.image t N C Q A (K (some (roots ++ [root])))) :
-    GoodQFor Frozen.image u (N + (dispatchLen k + 201))
-      (C + (dispatchLen k + 201)) Q (A + (dispatchLen k + 201))
+    GoodQFor Frozen.image u (N + (if k.val = 0 then 205 else 207))
+      (C + (if k.val = 0 then 205 else 207)) Q (A + (if k.val = 0 then 200 else 202))
       (ccM (ClaudeWCT.W9.T3M.wctStep w a (some roots) k) K) := by
   have ds := dispatch_steps pk w a k roots u hu
   let f : Fin 16384 := ⟨ClaudeWCT.WCT9.field a k, Nat.mod_lt _ (by decide)⟩
@@ -782,13 +806,13 @@ theorem coord_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a : Hash
     have core := coord_core_good chains w (idxOf a) k (ClaudeWCT.WCT9.child a k)
       (ClaudeWCT.WCT9.rank a k) (chainEntryState a k u) N C A Q
       (fun root => K (some (roots ++ [root]))) (dispatch_chain_pre pk w a k roots u hu)
-      (fun ends entry hp v t ht ans => hnext _ _ (coord_next pk w a k roots u entry t ends v ans hu hp ht))
+      (fun ends entry hp pair t ht => hnext _ _ (coord_next pk w a k roots u entry t ends pair hu hp ht))
     have full := (core.steps js).steps ds
     simp only [ClaudeWCT.W9.T3M.wctStep, hok, Bool.not_true, Bool.false_eq_true,
       ↓reduceIte, ccM_bind, ccM_pure]
-    exact full.mono (by omega)
-      (by omega)
-      (fun hq => ⟨hq, by omega⟩)
+    exact full.mono (by unfold dispatchLen; split_ifs <;> omega)
+      (by unfold dispatchLen; split_ifs <;> omega)
+      (fun hq => ⟨hq, by unfold dispatchLen; split_ifs <;> omega⟩)
   · have hfield : ¬ ClaudeWCT.WCT9.field a k < 16016 := by
       intro hh
       exact hok (show decide (ClaudeWCT.WCT9.field a k < 16016) = true from decide_eq_true hh)
@@ -803,8 +827,8 @@ theorem coord_good (chains : Chain.AllGood) (pk : Digest) (w : WBytes) (a : Hash
     dsimp only [gReject] at full
     have hfalse : ClaudeWCT.W9.T3M.fieldOk a k = false := Bool.eq_false_iff.mpr hok
     simp only [ClaudeWCT.W9.T3M.wctStep, hfalse, Bool.not_false, ↓reduceIte, ccM_pure, hnone]
-    exact full.mono (by omega)
-      (by omega)
-      (fun hq => ⟨hq, by omega⟩)
+    exact full.mono (by unfold dispatchLen; split_ifs <;> omega)
+      (by unfold dispatchLen; split_ifs <;> omega)
+      (fun hq => ⟨hq, by unfold dispatchLen; split_ifs <;> omega⟩)
 end W9Drv
 end

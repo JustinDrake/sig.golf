@@ -4,11 +4,11 @@ namespace ClaudeWCT.W9.Machine.Sign
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Verify
 local macro "so" : tactic => `(tactic| ((try simp only [SIG, MEMORY_BYTES] at *) <;> omega))
-def cHook : PRes := ⟨⟨RegFile.init, [], []⟩, pcOf 10931, false, 1, 1, [], none⟩
+def cHook : PRes := ⟨⟨RegFile.init, [], []⟩, pcOf 10978, false, 1, 1, [], none⟩
 def cSetupRegs : RegFile :=
   ((RegFile.init.set .x28 (.c (BitVec.ofNat 64 (SIG + 2192)))).set .x29 (.c (BitVec.ofNat 64 (SIG + 2032)))).set
     .x30 (.c (BitVec.ofNat 64 (SIG + 5616)))
-def cSetup : PRes := ⟨⟨cSetupRegs, [], []⟩, pcOf 10937, false, 6, 6, [], none⟩
+def cSetup : PRes := ⟨⟨cSetupRegs, [], []⟩, pcOf 10984, false, 6, 6, [], none⟩
 def cLoopRegs : RegFile :=
   (((RegFile.init.set .x6 (.ld (.reg .x28))).set .x7 (.ld (.bin .add (.reg .x28) (.c (BitVec.ofNat 64 8))))).set .x28
     (.bin .add (.reg .x28) (.c (BitVec.ofNat 64 16)))).set .x29 (.bin .add (.reg .x29) (.c (BitVec.ofNat 64 16)))
@@ -18,13 +18,13 @@ def cLoopObl : List Oblig :=
   [.valid ⟨some (.reg .x29), BitVec.ofNat 64 8⟩ 8, .valid ⟨some (.reg .x29), BitVec.ofNat 64 0⟩ 8, .valid ⟨some (.reg .x28), BitVec.ofNat 64 8⟩ 8,
     .valid ⟨some (.reg .x28), BitVec.ofNat 64 0⟩ 8]
 def cBr (d : Bool) : Br := ⟨.ltu, .bin .add (.reg .x28) (.c (BitVec.ofNat 64 16)), .reg .x30, d⟩
-def cBack : PRes := ⟨⟨cLoopRegs, cLoopMem, cLoopObl⟩, pcOf 10937, false, 7, 7, [cBr true], none⟩
+def cBack : PRes := ⟨⟨cLoopRegs, cLoopMem, cLoopObl⟩, pcOf 10984, false, 7, 7, [cBr true], none⟩
 def cExit : PRes :=
-  ⟨⟨(cLoopRegs.set .x5 (.c (BitVec.ofNat 64 1))).set .x10 (.c (BitVec.ofNat 64 0)), cLoopMem, cLoopObl⟩, pcOf 10946, true, 9, 9, [cBr false], none⟩
-theorem run_cHook : run hookLook [10931] 540 [] = some cHook := optBeq_eq (by decide +kernel)
-theorem run_cSetup : run tailLook [10937] 10931 [] = some cSetup := optBeq_eq (by decide +kernel)
-theorem run_cBack : run tailLook [10937] 10937 [.br true] = some cBack := optBeq_eq (by decide +kernel)
-theorem run_cExit : run tailLook [10937] 10937 [.br false] = some cExit := optBeq_eq (by decide +kernel)
+  ⟨⟨(cLoopRegs.set .x5 (.c (BitVec.ofNat 64 1))).set .x10 (.c (BitVec.ofNat 64 0)), cLoopMem, cLoopObl⟩, pcOf 10993, true, 9, 9, [cBr false], none⟩
+theorem run_cHook : run hookLook [10978] 540 [] = some cHook := optBeq_eq (by decide +kernel)
+theorem run_cSetup : run tailLook [10984] 10978 [] = some cSetup := optBeq_eq (by decide +kernel)
+theorem run_cBack : run tailLook [10984] 10984 [.br true] = some cBack := optBeq_eq (by decide +kernel)
+theorem run_cExit : run tailLook [10984] 10984 [.br false] = some cExit := optBeq_eq (by decide +kernel)
 theorem cLoopMem_get (s : MachineState) (S D A : Nat) (hD : D + 16 < 2 ^ 64)
     (hA : A < 2 ^ 64) (h28 : s.getReg .x28 = BitVec.ofNat 64 S) (h29 : s.getReg .x29 = BitVec.ofNat 64 D) :
     memEval s cLoopMem (BitVec.ofNat 64 A) =
@@ -61,7 +61,7 @@ theorem cBr_holds (s : MachineState) (S : Nat) (d : Bool) (hS : S + 16 < 2 ^ 64)
   simp only [BitVec.ult, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hS, Nat.mod_eq_of_lt (show SIG + 5616 < 2 ^ 64 by
     decide)]
 structure CInv (s0 : MachineState) (k : Nat) (t : MachineState) : Prop where
-  pc : t.pc = pcOf 10937
+  pc : t.pc = pcOf 10984
   x28 : t.getReg .x28 = BitVec.ofNat 64 (SIG + 2192 + 16 * k)
   x29 : t.getReg .x29 = BitVec.ofNat 64 (SIG + 2032 + 16 * k)
   x30 : t.getReg .x30 = BitVec.ofNat 64 (SIG + 5616)
@@ -77,7 +77,7 @@ theorem cIter_mem {s0 t : MachineState} {k : Nat} (hk : k < 214) (h : CInv s0 k 
   rw [h.frame.get (by so) (by so), h.frame.get (by so) (by so)]
 theorem cIter_inv {s0 t : MachineState} {k : Nat} (hk : k < 214) (h : CInv s0 k t) (r : PRes)
     (hmem : r.st.mem = cLoopMem) (u : MachineState) (hu : u = r.toState t)
-    (hpc : u.pc = pcOf 10937) (h28 : u.getReg .x28 = BitVec.ofNat 64 (SIG + 2192 + 16 * (k + 1)))
+    (hpc : u.pc = pcOf 10984) (h28 : u.getReg .x28 = BitVec.ofNat 64 (SIG + 2192 + 16 * (k + 1)))
     (h29 : u.getReg .x29 = BitVec.ofNat 64 (SIG + 2032 + 16 * (k + 1)))
     (h30 : u.getReg .x30 = BitVec.ofNat 64 (SIG + 5616)) : CInv s0 (k + 1) u := by
   subst hu
@@ -122,7 +122,7 @@ theorem compactGood (im : Image) : CompactGood im := by
   have hlh := hookLook_ok hhooks
   obtain ⟨s1, -⟩ := run_sound hlh run_cHook s hpc (by intro o ho; cases ho) (by intro b hb; cases hb)
   set u1 := cHook.toState s with hu1
-  have u1pc : u1.pc = pcOf 10931 := PRes.toState_pc' _ _ rfl
+  have u1pc : u1.pc = pcOf 10978 := PRes.toState_pc' _ _ rfl
   have u1mem : ∀ a, u1.getMem a = s.getMem a := fun a => rfl
   obtain ⟨s2, -⟩ := run_sound hlt run_cSetup u1 u1pc (by intro o ho; cases ho) (by intro b hb; cases hb)
   set u2 := cSetup.toState u1 with hu2

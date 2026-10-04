@@ -1,6 +1,8 @@
 import SigGolfCandidate.T3.Secc.WotsTransportShort
 import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
+import SigGolfCandidate.ClaudeWCT.W9.New.BC.Respects
+
 namespace ClaudeWCT.W9.T3.Security.Wots.Ref
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -13,9 +15,9 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unnecessarySimpa false
 attribute [local instance] Classical.propDecidable
-theorem forestPk_respects (index : Nat) (roots : List Digest) (hlen : roots.length ≤ 200) :
-    ShortRespects (ClaudeWCT.WCT9.forestPk index roots) :=
-  ClaudeWCT.WCT9.Wots.Ref.forestPk_respects index roots hlen
+theorem forestPk_respects (index : Nat) (pairs : List (Digest × Digest)) (hlen : pairs.length ≤ 100) :
+    ShortRespects (ClaudeWCT.WCT9.forestPk index pairs) :=
+  ClaudeWCT.WCT9.Wots.Ref.forestPk_respects index pairs hlen
 theorem signForest_respects (index : Nat) (output : HashOutput) :
     ShortRespects (ClaudeWCT.WCT9.signForest index output) :=
   ClaudeWCT.WCT9.Wots.Ref.signForest_respects index output
@@ -33,9 +35,9 @@ theorem ftsLevels_short (index coord : Nat) (hc : coord < 9) :
   have h3 := ClaudeWCT.WCT9.Wots.coordNodes_congr (index := index)
     (fun _ hq => hAT _ (ClaudeWCT.WCT9.Wots.ftsQuery_short hq)) ⟨coord, hc⟩
   rw [show Extract.ftsNodes A index coord = Extract.ftsNodes T index coord from h1.trans (h3.trans h2.symm)]
-theorem ftsRootsHonest_short (index : Nat) : Extract.ftsRootsHonest A index = Extract.ftsRootsHonest T index := by
-  rw [Extract.ftsRootsHonest_eq, Extract.ftsRootsHonest_eq]
-  exact congrArg List.ofFn (funext fun coord => ClaudeWCT.WCT9.Wots.coordinateRoot_congr (index := index)
+theorem ftsPairsHonest_short (index : Nat) : Extract.ftsPairsHonest A index = Extract.ftsPairsHonest T index := by
+  rw [Extract.ftsPairsHonest_eq, Extract.ftsPairsHonest_eq]
+  exact congrArg List.ofFn (funext fun coord => ClaudeWCT.WCT9.Wots.coordinatePair_congr (index := index)
     (fun _ hq => hAT _ (ClaudeWCT.WCT9.Wots.ftsQuery_short hq)) coord)
 theorem wctValue_short (index coord child chain step : Nat) (hc : coord < 9) (hch : child < 128) (ht : chain < 7)
     (hs : step ≤ 3) :
@@ -51,11 +53,11 @@ theorem leafMsg_short (L : LeafAddr) : leafMsg A L = leafMsg T L := by
   split_ifs
   · unfold Extract.honestPair
     rw [builtTree_short hAT]
-  · rw [honestForest_short hAT _]
+  · rw [honestForest_short hAT]
 theorem referenceSearch_short (L : LeafAddr) : referenceSearch A L = referenceSearch T L := by
   unfold referenceSearch
   rw [leafMsg_short hAT]
-  exact counterSearch_respects _ _ _ _ _ _ A T hAT
+  exact layerCounterSearch_respects _ _ _ _ _ _ A T hAT
 theorem referenceDigits_short (L : LeafAddr) : referenceDigits A L = referenceDigits T L := by
   unfold referenceDigits
   rw [referenceSearch_short hAT]
@@ -83,7 +85,7 @@ theorem honestInput_short (position : Extract.Pos) (hb : position.Bounded) :
       rw [builtTree_short hAT]
   | forest index =>
       simp only [Extract.honestInput]
-      rw [ftsRootsHonest_short hAT]
+      rw [ftsPairsHonest_short hAT]
   | wctChain index coord child t step =>
       obtain ⟨-, hc, hch, ht, hs⟩ := hb
       simp only [Extract.honestInput]
@@ -113,12 +115,12 @@ theorem honestInput_length (answers : Answers) (position : Extract.Pos) :
       simp [nodeInputP]
   | forest index =>
       apply short_of_le
-      rw [Extract.forestInput, Extract.listInput_length']
-      simp only [List.length_drop, Extract.ftsRootsHonest_length]
+      rw [Extract.forestInput, ClaudeWCT.WCT9.forestInput_length _ _ (Extract.ftsPairsHonest_length _ _)]
       omega
   | wctChain index coord child t step =>
       apply short_of_le
-      rw [ClaudeWCT.WCT9.chainInput_length]; omega
+      simp only [ClaudeWCT.WCT9.chainInput, zero16, List.length_append, List.length_replicate, bytesLE_length]
+      omega
   | wctLeaf index coord child =>
       apply short_of_le
       simp only [Extract.wctLeafInput, Extract.listInput_length', List.length_drop, Extract.wctEnds,

@@ -13,13 +13,13 @@ theorem codeChunks_le : (codeChunks.all fun c ↦ decide (c.length ≤ 256)) = t
   decide +kernel
 def codeFrom (p : Nat) : List (BitVec 32) :=
   (codeChunks.drop (p / 256)).flatten.drop (p % 256)
-theorem codeFrom_eq (p : Nat) (hp : p < 242393) : codeFrom p = image.code.drop p := by
+theorem codeFrom_eq (p : Nat) (hp : p < 242202) : codeFrom p = image.code.drop p := by
   simpa only [codeFrom, image, List.drop_drop,
     show 256 * (p / 256) + p % 256 = p by omega] using
       (congrArg (List.drop (p % 256))
         (drop_chunks' codeChunks (p / 256) codeChunks_ok
           (by rw [codeChunks_length]; omega))).symm
-theorem codeFrom_at (p : Nat) (hp : p < 242393) : CodeAt image (pcOf p) (codeFrom p) := by
+theorem codeFrom_at (p : Nat) (hp : p < 242202) : CodeAt image (pcOf p) (codeFrom p) := by
   have hl : image.code.length ≤ 256 * 947 := by
     simpa only [image, codeChunks_length] using flatten_len_le' codeChunks codeChunks_le
   have hp' : (pcOf p).toNat = 0x1000 + 4 * p := by

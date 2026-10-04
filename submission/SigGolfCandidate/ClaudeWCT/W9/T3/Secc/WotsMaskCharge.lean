@@ -1,5 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMask
 import SigGolfCandidate.T3.Secc.WotsMaskCharge
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -49,22 +50,22 @@ variable (answers : Answers) (a : ChainAddr)
 theorem count_signLayers_maskAt (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.leaf < 2 ^ 32) (cache : Cache)
     (index : Nat) (hindex : index < 2 ^ 31) :
     ∀ n, n ≤ 4 → ∀ msg, (∀ m, n = m + 1 → msg = leafMsg answers (routeLeaf index (Fin.ofNat 4 m))) →
-      (SourceReplay.queried (maskAt answers a) (signLayers cache index n msg)).length =
-        (SourceReplay.queried answers (signLayers cache index n msg)).length := by
+      (SourceReplay.queried (maskAt answers a) (WCT9.signLayersBC cache index n msg)).length =
+        (SourceReplay.queried answers (WCT9.signLayersBC cache index n msg)).length := by
   intro n
   induction n with
   | zero => intro _ _ _; rfl
   | succ n ih =>
       intro hn msg hmsg
-      simp only [signLayers]
-      refine count_bind_of (eval_maskAt_of_respects answers a (respects_counterSearch a _ _ _ _ _ _))
-        (count_maskAt_of_respects answers a (respects_counterSearch a _ _ _ _ _ _)) ?_
-      cases hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+      simp only [WCT9.signLayersBC]
+      refine count_bind_of (eval_maskAt_of_respects answers a (respects_layerCounterSearch a _ _ _ _ _ _))
+        (count_maskAt_of_respects answers a (respects_layerCounterSearch a _ _ _ _ _ _)) ?_
+      cases hs : evalWithAnswerFn answers (WCT9.layerCounterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
         (route index (Fin.ofNat 4 n)).1 msg 0 counterLimit) with
       | none => rfl
       | some found =>
           obtain ⟨counter, digits⟩ := found
-          have hd := (Correctness.counterSearch_some answers _ _ _ msg counterLimit 0 counter digits
+          have hd := (WCT9.layerCounterSearch_some answers _ _ _ msg counterLimit 0 counter digits
             (by decide) hs).2.2
           have hvalid := Cost.validDigits_decode hd
           have hsearch : referenceSearch answers (routeLeaf index (Fin.ofNat 4 n)) = some (counter, digits) := by
@@ -81,15 +82,17 @@ theorem count_signLayers_maskAt (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.lea
             rw [Correctness.eval_buildTree_result answers _ _ _ digits hvalid (route_leaf_bound index _)]
             dsimp only
             obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
-            have hmsg' : ∀ m', m + 1 = m' + 1 → (((builtTree answers (Fin.ofNat 4 (m + 1))
-                (route index (Fin.ofNat 4 (m + 1))).2).getD (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 0 0, 0, ((builtTree answers (Fin.ofNat 4 (m + 1))
-                (route index (Fin.ofNat 4 (m + 1))).2).getD (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 1 0) =
+            have hmsg' : ∀ m', m + 1 = m' + 1 → WCT9.LayerMsg.pair
+                (WCT9.topPair (Fin.ofNat 4 (m + 1)) (builtTree answers (Fin.ofNat 4 (m + 1))
+                  (route index (Fin.ofNat 4 (m + 1))).2)).1
+                (WCT9.topPair (Fin.ofNat 4 (m + 1)) (builtTree answers (Fin.ofNat 4 (m + 1))
+                  (route index (Fin.ofNat 4 (m + 1))).2)).2 =
                 leafMsg answers (routeLeaf index (Fin.ofNat 4 m')) := fun m' hm' => by
-              obtain rfl : m = m' := by omega
+              rw [show m' = m by omega]
               exact signedMsg_succ answers index m (by omega)
             refine count_bind_of (eval_signLayers_maskAt answers a htree hleaf cache index hindex (m + 1) (by omega)
               _ hmsg') (ih (by omega) _ hmsg') ?_
-            cases evalWithAnswerFn answers (signLayers cache index (m + 1) _) <;> rfl
+            cases evalWithAnswerFn answers (WCT9.signLayersBC cache index (m + 1) _) <;> rfl
 end Mask
 theorem queried_length_maskAt_signPayload (answers : Answers) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40)
     (hleaf : a.key.leaf < 2 ^ 32) (cache : Cache) (message : Message) :
@@ -111,15 +114,15 @@ theorem queried_length_maskAt_signPayload (answers : Answers) (a : ChainAddr) (h
       (Mask.count_maskAt_of_respects answers a (Mask.respects_signForest a _ _)) ?_
     rw [ClaudeWCT.WCT9.eval_signForest]
     dsimp only
-    have hmsg : ∀ m, 4 = m + 1 → ((ClaudeWCT.WCT9.honestForest answers (output.toNat % 2 ^ 31), 0, 0) : Digest × BitVec 96 × Digest) =
+    have hmsg : ∀ m, 4 = m + 1 → WCT9.LayerMsg.forest (ClaudeWCT.WCT9.honestForest answers (output.toNat % 2 ^ 31)) =
         leafMsg answers (Mask.routeLeaf (output.toNat % 2 ^ 31) (Fin.ofNat 4 m)) := fun m hm => by
       obtain rfl : m = 3 := by omega
-      exact (congrArg (fun x => ((x, 0, 0) : Digest × BitVec 96 × Digest))
-        (Extract.honestForest_eq_wct9 answers _).symm).trans (Mask.signedMsg_top answers _)
+      rw [← Extract.honestForest_eq_wct9]
+      exact Mask.signedMsg_top answers _ (Nat.mod_lt _ (by decide))
     refine Mask.count_bind_of (Mask.eval_signLayers_maskAt answers a htree hleaf cache _ (Nat.mod_lt _ (by decide))
       4 le_rfl _ hmsg) (Mask.count_signLayers_maskAt answers a htree hleaf cache _ (Nat.mod_lt _ (by decide)) 4
       le_rfl _ hmsg) ?_
-    generalize evalWithAnswerFn answers (signLayers cache (output.toNat % 2 ^ 31) 4 _) = pieces
+    generalize evalWithAnswerFn answers (WCT9.signLayersBC cache (output.toNat % 2 ^ 31) 4 _) = pieces
     rcases pieces with _ | pieces <;> rfl
 theorem queried_length_maskAt_coreSign (answers : Answers) (a : ChainAddr) (htree : a.key.tree < 2 ^ 40)
     (hleaf : a.key.leaf < 2 ^ 32) (cache : Cache) (message : Message) :

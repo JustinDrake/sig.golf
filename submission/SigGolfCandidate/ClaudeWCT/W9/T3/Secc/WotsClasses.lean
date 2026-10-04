@@ -28,15 +28,37 @@ theorem posOf_chainRow (a : ChainAddr) (s : Nat) (v : Digest) (htree : a.key.tre
         bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) from
       SigGolfCandidate.T3.Security.Wots.SmallA.hdrBlock_chainRow a s v)
 end SmallA
-open SigGolfCandidate.T3.Security.Wots.SmallA (chainRow_ne_encodingRow chainRow_ne_digest encodingRow_ne_digest sourceChain_bounds)
+open SigGolfCandidate.T3.Security.Wots.SmallA (chainRow_ne_digest sourceChain_bounds)
+namespace SmallA
+theorem chainRow_ne_encRow (a : ChainAddr) (s : Nat) (v : Digest) (L : LeafAddr) (m : WCT9.LayerMsg)
+    (c : BitVec 32) (pad : BitVec 96) : chainRow a s v ≠ encRow L m c pad := by
+  intro h
+  have hb := congrArg ClaudeWCT.W9.T3M.Extract.hdrBlock h
+  have h1 : ClaudeWCT.W9.T3M.Extract.hdrBlock (chainRow a s v) =
+      bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) :=
+    SigGolfCandidate.T3.Security.Wots.SmallA.hdrBlock_chainRow a s v
+  rw [h1, show encRow L m c pad = pad64 (layerEncodingInputP L.lay L.tree L.leaf m c pad) from rfl,
+    ClaudeWCT.W9.T3M.BC.hdrBlock_layerEncodingInputP] at hb
+  exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hb)
+theorem encRow_ne_digest (L : LeafAddr) (m : WCT9.LayerMsg) (c : BitVec 32) (pad : BitVec 96) (rho : Digest)
+    (m' : Message) (c' : BitVec 32) : encRow L m c pad ≠ pad64 (digestInput rho m' c') := by
+  intro h
+  have hb := congrArg ClaudeWCT.W9.T3M.Extract.hdrBlock h
+  have h2 : ClaudeWCT.W9.T3M.Extract.hdrBlock (pad64 (digestInput rho m' c')) =
+      bytesLE 16 (header 12 0 0 0 c'.toNat) :=
+    SigGolfCandidate.T3.Security.Wots.SmallA.hdrBlock_digest rho m' c'
+  rw [h2, show encRow L m c pad = pad64 (layerEncodingInputP L.lay L.tree L.leaf m c pad) from rfl,
+    ClaudeWCT.W9.T3M.BC.hdrBlock_layerEncodingInputP] at hb
+  exact SigGolfCandidate.T3.Security.Wots.Mask.header_ne_of_tag (by decide) (bytesLE_injective hb)
+end SmallA
 theorem prefixRow_encodingRow_disjoint (T : Answers) (input : SigGolfCandidate.T3.Spec.Domain) :
     ¬(PrefixRow T input ∧ EncodingRow T input) := by
   rintro ⟨hP, hE⟩
   rcases input with (n | x) | c
   · exact hP
   · obtain ⟨a, -, s, v, -, rfl⟩ := hP
-    obtain ⟨L, m, c, hx⟩ := hE
-    exact chainRow_ne_encodingRow a s v L m c hx
+    obtain ⟨L, m, c, pad, -, hx⟩ := hE
+    exact SmallA.chainRow_ne_encRow a s v L m c pad hx
   · exact hP
 theorem prefixRow_digest_disjoint (T : Answers) (input : SigGolfCandidate.T3.Spec.Domain) :
     ¬(PrefixRow T input ∧ IsDigestQuery input) := by
@@ -48,9 +70,9 @@ theorem encodingRow_otherQuery_disjoint (T : Answers) (input : SigGolfCandidate.
   rintro ⟨hE, hO⟩
   rcases input with (n | x) | c
   · exact hE
-  · obtain ⟨L, m, c, rfl⟩ := hE
+  · obtain ⟨L, m, c, pad, -, rfl⟩ := hE
     obtain ⟨position, hpos, -⟩ := hO
-    have hnone : Extract.posOf (encodingRow L m c) = none := Structural.posOf_encoding _ _ _ _ _
+    have hnone : Extract.posOf (encRow L m c pad) = none := Structural.posOf_layerEncodingP _ _ _ _ _ _
     rw [hnone] at hpos
     cases hpos
   · exact hE
@@ -114,8 +136,8 @@ theorem ftsRow_not_prefixRow (T : Answers) {x : HashInput} {p : Extract.Pos} (hp
   exact hp
 theorem ftsRow_not_encodingRow (T : Answers) {x : HashInput} {p : Extract.Pos} (hpos : Extract.posOf x = some p) :
     ¬EncodingRow T (.inl (.inr x)) := by
-  rintro ⟨L, m, c, rfl⟩
-  have hnone : Extract.posOf (encodingRow L m c) = none := Structural.posOf_encoding _ _ _ _ _
+  rintro ⟨L, m, c, pad, -, rfl⟩
+  have hnone : Extract.posOf (encRow L m c pad) = none := Structural.posOf_layerEncodingP _ _ _ _ _ _
   rw [hnone] at hpos
   cases hpos
 theorem ftsRow_not_digest {x : HashInput} {p : Extract.Pos} (hpos : Extract.posOf x = some p) :
@@ -127,6 +149,14 @@ theorem ftsRow_not_digest {x : HashInput} {p : Extract.Pos} (hpos : Extract.posO
 theorem fts_tags_disjoint {tag : Nat} (h : tag = 5 ∨ tag = 6 ∨ tag = 11 ∨ tag = 15) :
     tag % 256 ≠ 1 ∧ tag % 256 ≠ 4 ∧ tag % 256 ≠ 12 := by
   rcases h with rfl | rfl | rfl | rfl <;> decide
+theorem encodingRow_digest_disjoint (T : Answers) (input : SigGolfCandidate.T3.Spec.Domain) :
+    ¬(EncodingRow T input ∧ IsDigestQuery input) := by
+  rintro ⟨hE, rho, m, c, rfl⟩
+  obtain ⟨L, m', c', pad, -, hx⟩ := hE
+  exact SmallA.encRow_ne_digest L m' c' pad rho m c hx.symm
+theorem shortCongruent_encodingRow : ShortCongruent EncodingRow := by
+  intro A T _ input
+  rcases input with (n | x) | c <;> exact Iff.rfl
 theorem shortCongruent_prefixRow : ShortCongruent PrefixRow := by
   intro A T hAT input
   have hdepth : depth A = depth T := funext (Ref.depth_short hAT)

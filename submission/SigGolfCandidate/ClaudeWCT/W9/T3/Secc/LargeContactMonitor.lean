@@ -1,5 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.LargeCouplingSplit
 import SigGolfCandidate.T3.Secc.LargeContactMonitor
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -21,7 +22,8 @@ def Clear (A : Answers) (K : Coord → Prop) (X : HashInput) (y : HashOutput) : 
       ¬(X ≠ Extract.honestInput A N.toPos ∧ y.extractLsb' 0 128 = honestValue A (.inl N))) ∧
   (∀ N : CanonGraph.Node, Extract.posOf X = some N.toPos → ∀ c b, childSlots N = [(c, b)] →
       slotValue X b = honestValue A c → K c) ∧
-  (∀ (L : CanonEncoding.EncLeaf) (m : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32), X = Wots.encodingRow L.toWots m ctr →
+  (∀ (L : CanonEncoding.EncLeaf) (m : WCT9.LayerMsg) (ctr : BitVec 32) (pad : BitVec 96),
+      Extract.msgFits L.1.lay m → X = Wots.encRow L.toWots m ctr pad →
       ¬(Wots.referenceInput A L.toWots ≠ some X ∧
         decode L.1.lay (y.extractLsb' 0 128) = some (Wots.referenceDigits A L.toWots)))
 theorem firstUnknown_single (K : Coord → Prop) (N : CanonGraph.Node) (c : Coord) (b : Nat)
@@ -32,7 +34,7 @@ theorem firstUnknown_single (K : Coord → Prop) (N : CanonGraph.Node) (c : Coor
 theorem clear_of_not_contact {A : Answers} {K : Coord → Prop} {X : HashInput} {y : HashOutput}
     (h : ¬ContactTest A K X y) : Clear A K X y := by
   refine ⟨fun N hpos hhit => h (Or.inl ⟨N, hpos, Or.inr hhit⟩), fun N hpos c b hs hv => ?_,
-    fun L m ctr hX hhit => h (Or.inr ⟨L, m, ctr, hX, Or.inr hhit⟩)⟩
+    fun L m ctr pad hfit hX hhit => h (Or.inr ⟨L, m, ctr, pad, hfit, hX, Or.inr hhit⟩)⟩
   by_contra hk
   exact h (Or.inl ⟨N, hpos, Or.inl ⟨(c, b), firstUnknown_single K N c b hs hk, hv⟩⟩)
 theorem Clear.mono {A : Answers} {K K' : Coord → Prop} {X : HashInput} {y : HashOutput}

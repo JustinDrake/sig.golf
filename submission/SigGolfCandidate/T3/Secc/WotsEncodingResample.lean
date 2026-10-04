@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsEncodingCongr
+
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -130,7 +131,7 @@ theorem uniform_resample_tsum {Ω K : Type} [Fintype Ω] [Nonempty Ω] {X : K �
   rw [tsum_bind_mul]
   refine tsum_congr fun ω => ?_
   rw [tsum_map_mul]
-abbrev EncIndex := CanonGraph.LeafPos × (Digest × BitVec 96 × Digest) × BitVec 32
+abbrev EncIndex := CanonGraph.LeafPos × Digest × BitVec 32
 def encInput (e : EncIndex) : HashInput := encodingRow (leafOf e.1) e.2.1 e.2.2
 theorem encInput_length (e : EncIndex) : (encInput e).length = 64 := by
   simp [encInput, encodingRow, encodingInput, pad64, bytesLE_length]

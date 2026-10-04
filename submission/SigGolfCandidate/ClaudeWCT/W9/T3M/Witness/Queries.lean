@@ -5,12 +5,12 @@ namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M (PubGood isHash isPublic allQ_pure allQ_bind allQ_map allQ_ite allQ_foldlM allQ_mapM
   allQ_mono pubGood_shortHash pubGood_publicHash pubGood_nodeHashP pubGood_nodeHash pubGood_digest
-  pubGood_layersP pubGood_expandLayers layersP)
+  pubGood_chainP pubGood_layerP pubGood_recoverLayer)
 open SphincsSecurity (bytesLE bytesLE_length)
 set_option linter.unusedSimpArgs false
 set_option maxRecDepth 10000
-theorem pubGood_wctChainP (index coord child t start count : Nat) (p0 p1 v : Digest) :
-    AllQueriesSatisfy (wctChainP index coord child t start count p0 p1 v) PubGood :=
+theorem pubGood_wctChainP (index coord child t start count : Nat) (pa : Digest) (pb : BitVec 64) (pc v : Digest) :
+    AllQueriesSatisfy (wctChainP index coord child t start count pa pb pc v) PubGood :=
   allQ_foldlM _ _ (fun _ _ => pubGood_shortHash _ (by simp [wctChainInputP, bytesLE_length])) _
 theorem pubGood_chain (index coord child t start count : Nat) (v : Digest) :
     AllQueriesSatisfy (WCT9.chain index coord child t start count v) PubGood :=
@@ -18,15 +18,47 @@ theorem pubGood_chain (index coord child t start count : Nat) (v : Digest) :
 theorem pubGood_leafHash (index coord child : Nat) (ends : List Digest) :
     AllQueriesSatisfy (WCT9.leafHash index coord child ends) PubGood :=
   pubGood_shortHash _ (by simp [bytesLE_length])
-theorem pubGood_forestPk (index : Nat) (roots : List Digest) :
-    AllQueriesSatisfy (WCT9.forestPk index roots) PubGood :=
-  pubGood_shortHash _ (by simp [bytesLE_length])
+theorem pubGood_forestPk (index : Nat) (pairs : List (Digest × Digest)) :
+    AllQueriesSatisfy (WCT9.forestPk index pairs) PubGood :=
+  pubGood_shortHash _ (by simp [WCT9.forestInput, bytesLE_length, zero16])
+theorem pubGood_wctNodeHashP (coord index heap : Nat) (l p r : Digest) :
+    AllQueriesSatisfy (wctNodeHashP coord index heap l p r) PubGood := pubGood_nodeHashP _ _ _ _ _ _ _
+theorem pubGood_wctNodeHash (coord index heap : Nat) (l r : Digest) :
+    AllQueriesSatisfy (WCT9.wctNodeHash coord index heap l r) PubGood := pubGood_nodeHash _ _ _ _ _ _
+theorem pubGood_layerEncodingInputP (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (c : BitVec 32)
+    (pad : BitVec 96) : AllQueriesSatisfy (shortHash (layerEncodingInputP lay tree leaf msg c pad)) PubGood := by
+  apply pubGood_shortHash
+  cases msg <;> simp [layerEncodingInputP, encodingInput, WCT9.pairEncodingInputP, bytesLE_length]
+theorem pubGood_layerEncodingInput (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (c : BitVec 32) :
+    AllQueriesSatisfy (shortHash (WCT9.layerEncodingInput lay tree leaf msg c)) PubGood := by
+  apply pubGood_shortHash
+  cases msg <;> simp [WCT9.layerEncodingInput, encodingInput, WCT9.pairEncodingInputP, bytesLE_length]
+theorem pubGood_layerPairP (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat) :
+    AllQueriesSatisfy (layerPairP w index lay digits) PubGood := by
+  unfold layerPairP
+  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chainP _ _ _ _ _ _ _ _ _ _) fun _ =>
+    allQ_bind (pubGood_shortHash _ (by simp [bytesLE_length])) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _) fun _ => allQ_pure _
+theorem pubGood_layersBC (w : WBytes) (index : Nat) : ∀ n msg,
+    AllQueriesSatisfy (layersBC w index n msg) PubGood := by
+  intro n
+  induction n with
+  | zero => intro msg; exact allQ_pure _
+  | succ n ih =>
+      intro msg
+      unfold layersBC
+      refine allQ_ite _ (allQ_pure _) (allQ_bind (pubGood_layerEncodingInputP _ _ _ _ _ _) fun ans => ?_)
+      rcases decode (Fin.ofNat 4 n) ans with _ | digits
+      · exact allQ_pure _
+      · exact allQ_ite _ (allQ_map _ (pubGood_layerP _ _ _ _))
+          (allQ_bind (pubGood_layerPairP _ _ _ _) fun _ => ih _)
 theorem pubGood_wctCoordP (w : WBytes) (index : Nat) (coord : WCT9.Coord) (child : WCT9.Child)
     (word : WCT9.Rank) : AllQueriesSatisfy (wctCoordP w index coord child word) PubGood := by
   unfold wctCoordP
-  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_wctChainP _ _ _ _ _ _ _ _ _) fun _ =>
-    allQ_bind (pubGood_leafHash _ _ _ _) fun _ => allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _
-theorem pubGood_wctStep (w : WBytes) (N : HashOutput) (st : Option (List Digest)) (coord : WCT9.Coord) :
+  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_wctChainP _ _ _ _ _ _ _ _ _ _) fun _ =>
+    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_wctNodeHashP _ _ _ _ _ _) _) fun _ => allQ_pure _
+theorem pubGood_wctStep (w : WBytes) (N : HashOutput) (st : Option (List (Digest × Digest))) (coord : WCT9.Coord) :
     AllQueriesSatisfy (wctStep w N st coord) PubGood := by
   unfold wctStep
   rcases st with _ | roots
@@ -48,7 +80,7 @@ theorem pubGood_verifyP (m : Message) (pk : Digest) (w : WBytes) : AllQueriesSat
     refine allQ_ite _ (allQ_pure _) (allQ_bind (pubGood_wctP _ _) fun r => ?_)
     rcases r with _ | root
     · exact allQ_pure _
-    refine allQ_bind (pubGood_layersP _ _ _ _) fun r => ?_
+    refine allQ_bind (pubGood_layersBC _ _ _ _) fun r => ?_
     rcases r with _ | root <;> exact allQ_pure _
 theorem pubGood_digestSearch (rho : Digest) (m : Message) : ∀ fuel counter,
     AllQueriesSatisfy (WCT9.digestSearch rho m counter fuel) PubGood := by
@@ -63,7 +95,8 @@ theorem pubGood_recoverCoordinate (sig : WCT9.Signature) (index : Nat) (output :
     AllQueriesSatisfy (WCT9.recoverCoordinate sig index output coord) PubGood := by
   unfold WCT9.recoverCoordinate
   exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_chain _ _ _ _ _ _ _) fun _ =>
-    allQ_bind (pubGood_leafHash _ _ _ _) fun _ => allQ_foldlM _ _ (fun _ _ => pubGood_nodeHash _ _ _ _ _ _) _
+    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_wctNodeHash _ _ _ _ _) _) fun _ => allQ_pure _
 theorem pubGood_recoverFts (sig : WCT9.Signature) (index : Nat) (output : HashOutput) :
     AllQueriesSatisfy (WCT9.recoverFts sig index output) PubGood := by
   unfold WCT9.recoverFts
@@ -71,8 +104,41 @@ theorem pubGood_recoverFts (sig : WCT9.Signature) (index : Nat) (output : HashOu
 theorem pubGood_recoverCoordinateP (sig : WCT9.Signature) (pads : Pads) (index : Nat) (output : HashOutput)
     (coord : WCT9.Coord) : AllQueriesSatisfy (recoverCoordinateP sig pads index output coord) PubGood := by
   unfold recoverCoordinateP
-  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_wctChainP _ _ _ _ _ _ _ _ _) fun _ =>
-    allQ_bind (pubGood_leafHash _ _ _ _) fun _ => allQ_foldlM _ _ (fun _ _ => pubGood_nodeHashP _ _ _ _ _ _ _) _
+  exact allQ_bind (allQ_mapM _ _ fun _ => pubGood_wctChainP _ _ _ _ _ _ _ _ _ _) fun _ =>
+    allQ_bind (pubGood_leafHash _ _ _ _) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_wctNodeHashP _ _ _ _ _ _) _) fun _ => allQ_pure _
+theorem pubGood_layerCounterSearch (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) : ∀ fuel counter,
+    AllQueriesSatisfy (WCT9.layerCounterSearch lay tree leaf msg counter fuel) PubGood := by
+  intro fuel
+  induction fuel with
+  | zero => intro counter; exact allQ_pure _
+  | succ fuel ih =>
+      intro counter
+      unfold WCT9.layerCounterSearch
+      refine allQ_bind (pubGood_layerEncodingInput _ _ _ _ _) fun ans => ?_
+      rcases decode lay ans with _ | digits
+      · exact ih _
+      · exact allQ_pure _
+theorem pubGood_recoverLayerPair (sig : WCT9.Signature) (index : Nat) (lay : Layer) (digits : List Nat) :
+    AllQueriesSatisfy (WCT9.recoverLayerPair sig index lay digits) PubGood := by
+  unfold WCT9.recoverLayerPair
+  exact allQ_bind (allQ_mapM _ _ fun _ => SigGolfCandidate.T3M.pubGood_chain _ _ _ _ _ _ _) fun _ =>
+    allQ_bind (pubGood_shortHash _ (by simp [bytesLE_length])) fun _ =>
+      allQ_bind (allQ_foldlM _ _ (fun _ _ => pubGood_nodeHash _ _ _ _ _ _) _) fun _ => allQ_pure _
+theorem pubGood_expandLayersBC (sig : WCT9.Signature) (index : Nat) : ∀ n msg,
+    AllQueriesSatisfy (WCT9.expandLayersBC sig index n msg) PubGood := by
+  intro n
+  induction n with
+  | zero => intro msg; exact allQ_pure _
+  | succ n ih =>
+      intro msg
+      unfold WCT9.expandLayersBC
+      refine allQ_bind (pubGood_layerCounterSearch _ _ _ _ _ _) fun r => ?_
+      rcases r with _ | ⟨counter, digits⟩
+      · exact allQ_pure _
+      · exact allQ_ite _ (allQ_bind (pubGood_recoverLayer _ _ _ _) fun _ => allQ_pure _)
+          (allQ_bind (pubGood_recoverLayerPair _ _ _ _) fun _ => allQ_bind (ih _) fun r => by
+            rcases r with _ | ⟨root, cs⟩ <;> exact allQ_pure _)
 theorem pubGood_recoverFtsP (sig : WCT9.Signature) (pads : Pads) (index : Nat) (output : HashOutput) :
     AllQueriesSatisfy (recoverFtsP sig pads index output) PubGood := by
   unfold recoverFtsP
@@ -84,7 +150,7 @@ theorem pubGood_expandN (m : Message) (pk : Digest) (σ : WCT9.Signature) :
   rcases r with _ | ⟨c, N⟩
   · exact allQ_pure _
   refine allQ_bind (pubGood_recoverFts _ _ _) fun root => ?_
-  refine allQ_bind (pubGood_expandLayers _ _ _ _) fun r => ?_
+  refine allQ_bind (pubGood_expandLayersBC _ _ _ _) fun r => ?_
   rcases r with _ | ⟨root', cs⟩
   · exact allQ_pure _
   exact allQ_ite _ (allQ_pure _) (allQ_pure _)

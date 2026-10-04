@@ -38,7 +38,7 @@ theorem referenceDigits_spec (answers : Answers) (L : LeafAddr) :
   | none => exact dummyDigits_spec L.lay
   | some found =>
       obtain ⟨counter, digits⟩ := found
-      have hd := (Correctness.counterSearch_some answers L.lay L.tree L.leaf (leafMsg answers L)
+      have hd := (WCT9.layerCounterSearch_some answers L.lay L.tree L.leaf (leafMsg answers L)
         counterLimit 0 counter digits (by decide) h).2.2
       exact ⟨(decode_length_sum hd).1, Cost.validDigits_decode hd⟩
 theorem referenceDigits_of_search {answers : Answers} {L : LeafAddr} {counter : BitVec 32} {digits : List Nat}
@@ -142,9 +142,9 @@ theorem queried_maskAt_of_respects (answers : Answers) (a : ChainAddr) {α : Typ
   (h _ _ fun _ hq => maskAt_untouched answers a hq).2
 section Programs
 variable (a : ChainAddr)
-theorem respects_forestPk (index : Nat) (roots : List Digest) :
-    Respects (Untouched a) (ClaudeWCT.WCT9.forestPk index roots) :=
-  ClaudeWCT.WCT9.Wots.Mask.respects_forestPk a index roots
+theorem respects_forestPk (index : Nat) (pairs : List (Digest × Digest)) :
+    Respects (Untouched a) (ClaudeWCT.WCT9.forestPk index pairs) :=
+  ClaudeWCT.WCT9.Wots.Mask.respects_forestPk a index pairs
 theorem respects_signForest (index : Nat) (output : HashOutput) :
     Respects (Untouched a) (ClaudeWCT.WCT9.signForest index output) :=
   ClaudeWCT.WCT9.Wots.Mask.respects_signForest a index output

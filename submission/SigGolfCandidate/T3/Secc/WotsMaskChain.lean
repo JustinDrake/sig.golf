@@ -1,4 +1,5 @@
 import SigGolfCandidate.T3.Secc.WotsMaskBase
+
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -135,10 +136,6 @@ theorem honestRoot_maskAt (lay : Layer) (tree : Nat) :
     Extract.honestRoot (maskAt answers a) lay tree = Extract.honestRoot answers lay tree := by
   unfold Extract.honestRoot
   rw [builtTree_maskAt]
-theorem honestPair_maskAt (lay : Layer) (tree : Nat) :
-    Extract.honestPair (maskAt answers a) lay tree = Extract.honestPair answers lay tree := by
-  unfold Extract.honestPair
-  rw [builtTree_maskAt]
 theorem eval_buildFts_maskAt (index coord : Nat) :
     evalWithAnswerFn (maskAt answers a) (buildFts index coord) = evalWithAnswerFn answers (buildFts index coord) :=
   eval_maskAt_of_respects answers a (respects_buildFts a index coord)
@@ -164,8 +161,8 @@ theorem leafMsg_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     leafMsg (maskAt answers a) L = leafMsg answers L := by
   unfold leafMsg
   split
-  · exact honestPair_maskAt answers a _ _
-  · rw [honestForest_maskAt answers a _]
+  · exact honestRoot_maskAt answers a _ _
+  · exact honestForest_maskAt answers a _
 open Mask in
 theorem referenceSearch_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     referenceSearch (maskAt answers a) L = referenceSearch answers L := by

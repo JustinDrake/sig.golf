@@ -1,7 +1,10 @@
 import SigGolfCandidate.T3.Proofs
 import SigGolfCandidate.T3.FullCache.KeySplit
 import SigGolfCandidate.T3.FullCache.CountedSigner
+
 section
+
+
 namespace SiggolfT3Mac4.Source
 open OracleComp OracleSpec ENNReal SphincsSecurity
 set_option autoImplicit false
@@ -49,7 +52,10 @@ theorem nonce_coordinate_other (message : SigGolfCandidate.T3.Message) :
   constructor <;> intro h <;> cases h
 end SiggolfT3Mac4.Source
 end
+
 section
+
+
 namespace SiggolfT3Mac4.Source.Payload
 open OracleComp OracleSpec
 open SigGolfCandidate.T3
@@ -150,7 +156,7 @@ theorem buildTree_allowed (lay : Layer) (tree selected : Nat) (digits : List Nat
 attribute [local aesop safe apply] buildTree_allowed
 theorem keygenPayload_allowed : AllQueriesSatisfy keygenPayload NonMac := by
   unfold keygenPayload maskedLevel pairedMask; source_queries
-theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat) :
+theorem counterSearch_allowed (lay : Layer) (tree leaf : Nat) (message : Digest) (counter fuel : Nat) :
     AllQueriesSatisfy (counterSearch lay tree leaf message counter fuel) NonMac := by
   induction fuel generalizing counter with
   | zero => unfold counterSearch; source_queries
@@ -184,7 +190,7 @@ theorem signTop_allowed (cache : SigGolfCandidate.T3.Cache) (leaf : Nat) (digits
     AllQueriesSatisfy (signTop cache leaf digits) NonMac := by
   unfold signTop; source_queries
 attribute [local aesop safe apply] signTop_allowed
-theorem signLayers_allowed (cache : SigGolfCandidate.T3.Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
+theorem signLayers_allowed (cache : SigGolfCandidate.T3.Cache) (index n : Nat) (message : Digest) :
     AllQueriesSatisfy (signLayers cache index n message) NonMac := by
   induction n generalizing message with
   | zero => unfold signLayers; source_queries

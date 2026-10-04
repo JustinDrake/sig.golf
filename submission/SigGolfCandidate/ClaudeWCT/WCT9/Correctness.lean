@@ -1,10 +1,12 @@
 import SigGolfCandidate.ClaudeWCT.WCT9.Basic
+
 namespace ClaudeWCT.WCT9
 open OracleComp OracleSpec SigGolfCandidate.T3 SigGolfCandidate.T3.Correctness
 open SphincsSecurity (bytesLE bytesLE_length)
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
+set_option linter.unusedSimpArgs false
 def shortAnswer (answers : Answers) (input : HashInput) : Digest :=
   (answers (.inl (.inr input))).extractLsb' 0 128
 theorem chain_add (index coord selected i start a b : Nat) (initial : Digest) :
@@ -237,16 +239,12 @@ theorem childRoot_word_independent (answers : Answers) (index coord selected : N
     (evalWithAnswerFn answers (buildChild index coord selected left)).1 =
       (evalWithAnswerFn answers (buildChild index coord selected right)).1 := by
   rw [buildChild_result, buildChild_result]
-def heapBuild (index coord : Nat) (leaves : List Digest) : M (Array Digest) :=
-  (List.range' 1 127).reverse.foldlM (fun nodes heap => do
-    let value ← nodeHash 11 coord index heap (nodes.getD (2 * heap) 0) (nodes.getD (2 * heap + 1) 0)
-    pure (nodes.set! heap value)) ((List.replicate 128 (0 : Digest) ++ leaves).toArray)
 def HeapInv (answers : Answers) (index coord : Nat) (leaves : List Digest)
     (done : Nat) (nodes : Array Digest) : Prop :=
   nodes.size = 256 ∧
     (∀ i, 128 ≤ i → i < 256 → nodes.getD i 0 = leaves.getD (i - 128) 0) ∧
-    (∀ i, 1 ≤ i → i < 128 → 128 - done ≤ i → nodes.getD i 0 =
-      evalWithAnswerFn answers (nodeHash 11 coord index i
+    (∀ i, 2 ≤ i → i < 128 → 128 - done ≤ i → nodes.getD i 0 =
+      evalWithAnswerFn answers (wctNodeHash coord index i
         (nodes.getD (2 * i) 0) (nodes.getD (2 * i + 1) 0)))
 theorem getD_set_self (nodes : Array Digest) (i : Nat) (v : Digest) (hi : i < nodes.size) :
     (nodes.set! i v).getD i 0 = v := by
@@ -256,8 +254,8 @@ theorem getD_set_other (nodes : Array Digest) (i j : Nat) (v : Digest) (hij : i 
     (nodes.set! i v).getD j 0 = nodes.getD j 0 := by
   simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
     Array.getElem?_setIfInBounds_ne hij]
-theorem heap_order (i : Nat) (hi : i < 127) :
-    ((List.range' 1 127).reverse)[i]'(by simpa using hi) = 127 - i := by
+theorem heap_order (i : Nat) (hi : i < 126) :
+    ((List.range' 2 126).reverse)[i]'(by simpa using hi) = 127 - i := by
   rw [List.getElem_reverse]
   simp only [List.length_range', List.getElem_range', Nat.one_mul]
   omega
@@ -273,17 +271,17 @@ theorem heap_initial (answers : Answers) (index coord : Nat) (leaves : List Dige
   · intro i _ hi hlo
     omega
 theorem heap_step (answers : Answers) (index coord : Nat) (leaves : List Digest) (done : Nat)
-    (hdone : done < 127) (nodes : Array Digest)
+    (hdone : done < 126) (nodes : Array Digest)
     (hinv : HeapInv answers index coord leaves done nodes) :
     HeapInv answers index coord leaves (done + 1)
-      (nodes.set! (127 - done) (evalWithAnswerFn answers (nodeHash 11 coord index (127 - done)
+      (nodes.set! (127 - done) (evalWithAnswerFn answers (wctNodeHash coord index (127 - done)
         (nodes.getD (2 * (127 - done)) 0) (nodes.getD (2 * (127 - done) + 1) 0)))) := by
   let heap := 127 - done
-  let v := evalWithAnswerFn answers (nodeHash 11 coord index heap
+  let v := evalWithAnswerFn answers (wctNodeHash coord index heap
     (nodes.getD (2 * heap) 0) (nodes.getD (2 * heap + 1) 0))
   change HeapInv answers index coord leaves (done + 1) (nodes.set! heap v)
   rcases hinv with ⟨hsize, hleaf, hnode⟩
-  have hh : 1 ≤ heap ∧ heap < 128 := by dsimp only [heap]; omega
+  have hh : 2 ≤ heap ∧ heap < 128 := by dsimp only [heap]; omega
   refine ⟨by rw [Array.size_set!, hsize], ?_, ?_⟩
   · intro i hlo hhi
     rw [getD_set_other nodes heap i v (by omega)]
@@ -302,12 +300,12 @@ theorem heap_step (answers : Answers) (index coord : Nat) (leaves : List Digest)
       exact hnode i hlo hhi (by dsimp only [heap] at he hheap; omega)
 theorem heap_complete (answers : Answers) (index coord : Nat) (leaves : List Digest)
     (hlen : leaves.length = 128) :
-    HeapInv answers index coord leaves 127 (evalWithAnswerFn answers (heapBuild index coord leaves)) := by
+    HeapInv answers index coord leaves 126 (evalWithAnswerFn answers (heapBuild index coord leaves)) := by
   unfold heapBuild
-  refine eval_foldlM_list_inv answers (List.range' 1 127).reverse _
+  refine eval_foldlM_list_inv answers (List.range' 2 126).reverse _
     (HeapInv answers index coord leaves) _ (heap_initial answers index coord leaves hlen) ?_
   intro done hdone nodes hinv
-  have hd : done < 127 := by simpa only [List.length_reverse, List.length_range'] using hdone
+  have hd : done < 126 := by simpa only [List.length_reverse, List.length_range'] using hdone
   rw [heap_order done hd]
   simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure]
   exact heap_step answers index coord leaves done hd nodes hinv
@@ -323,15 +321,12 @@ def CoordRows (answers : Answers) (index : Nat) (coord : Coord) (selected : Chil
     rows.2 = if selected.val < done then
       List.ofFn (fun i : Fin 7 => chainValue answers index coord.val selected.val word i)
       else []
-def heapLevels (heap : Array Digest) : List (List Digest) :=
-  (List.range 8).map fun level =>
-    (List.range (2 ^ (7 - level))).map fun i => heap.getD (2 ^ (7 - level) + i) 0
 def coordLeaves (answers : Answers) (index : Nat) (coord : Coord) : List Digest :=
   List.ofFn (fun j : Fin 128 => childRoot answers index coord.val j.val)
 def coordNodes (answers : Answers) (index : Nat) (coord : Coord) : Array Digest :=
   evalWithAnswerFn answers (heapBuild index coord.val (coordLeaves answers index coord))
-def coordinateRoot (answers : Answers) (index : Nat) (coord : Coord) : Digest :=
-  (coordNodes answers index coord).getD 1 0
+def coordinatePair (answers : Answers) (index : Nat) (coord : Coord) : Digest × Digest :=
+  ((coordNodes answers index coord).getD 2 0, (coordNodes answers index coord).getD 3 0)
 theorem coordRows_step (answers : Answers) (index : Nat) (coord : Coord)
     (selected : Child) (word : Rank) (done : Nat) (rows : List Digest × List Digest)
     (hrows : CoordRows answers index coord selected word done rows) :
@@ -392,10 +387,10 @@ theorem buildCoordinate_result (answers : Answers) (index : Nat) (coord : Coord)
   rw [hroots, hvalues]
   rfl
 theorem coordNodes_graph (answers : Answers) (index : Nat) (coord : Coord) :
-    HeapInv answers index coord.val (coordLeaves answers index coord) 127
+    HeapInv answers index coord.val (coordLeaves answers index coord) 126
       (coordNodes answers index coord) :=
   heap_complete answers index coord.val _ (by simp [coordLeaves])
-theorem heapLevels_value (heap : Array Digest) (level j : Nat) (hl : level < 8)
+theorem heapLevels_value (heap : Array Digest) (level j : Nat) (hl : level < 7)
     (hj : j < 2 ^ (7 - level)) :
     treeValue (heapLevels heap) level j = heap.getD (2 ^ (7 - level) + j) 0 := by
   unfold treeValue heapLevels
@@ -404,7 +399,7 @@ theorem heapLevels_value (heap : Array Digest) (level j : Nat) (hl : level < 8)
   rw [List.getD_eq_getElem _ _ (by simp only [List.length_map, List.length_range]; exact hj)]
   simp only [List.getElem_map, List.getElem_range]
 theorem coordinate_treeLevels (answers : Answers) (index : Nat) (coord : Coord) :
-    TreeLevels answers 11 coord.val index 7 (coordLeaves answers index coord) 7
+    TreeLevels answers 3 (nodeLayer coord.val) index 7 (coordLeaves answers index coord) 6
       (heapLevels (coordNodes answers index coord)) := by
   have hg := coordNodes_graph answers index coord
   refine ⟨⟨by simp only [heapLevels, List.length_map, List.length_range], ?_⟩, ?_, ?_⟩
@@ -426,7 +421,9 @@ theorem coordinate_treeLevels (answers : Answers) (index : Nat) (coord : Coord) 
     have hpow : 2 ^ (7 - level) = 2 * 2 ^ (7 - (level + 1)) := by
       rw [show 7 - level = 7 - (level + 1) + 1 by omega, pow_succ]
       omega
-    have hpos : 1 ≤ 2 ^ (7 - (level + 1)) := Nat.one_le_two_pow
+    have hpos : 2 ≤ 2 ^ (7 - (level + 1)) := by
+      calc 2 = 2 ^ 1 := by norm_num
+        _ ≤ 2 ^ (7 - (level + 1)) := Nat.pow_le_pow_right (by decide) (by omega)
     have hle : 2 ^ (7 - (level + 1)) ≤ 64 :=
       Nat.pow_le_pow_right (by decide) (by omega : 7 - (level + 1) ≤ 6) |>.trans (by decide)
     have hv := heapLevels_value (coordNodes answers index coord) (level + 1) node (by omega) hnode
@@ -442,15 +439,43 @@ theorem coordinate_treeLevels (answers : Answers) (index : Nat) (coord : Coord) 
     rw [hn]
     have e1 : 2 * (2 ^ (7 - (level + 1)) + node) = 2 ^ (7 - level) + 2 * node := by omega
     simp only [e1, Nat.add_assoc]
-theorem built_root (answers : Answers) (index : Nat) (coord : Coord) (selected : Child)
+    rfl
+theorem built_pair (answers : Answers) (index : Nat) (coord : Coord) (selected : Child)
     (word : Rank) :
-    ((evalWithAnswerFn answers (buildCoordinate index coord selected word)).1.getD 7 []).getD 0 0 =
-      coordinateRoot answers index coord := by
+    (((evalWithAnswerFn answers (buildCoordinate index coord selected word)).1.getD 6 []).getD 0 0,
+      ((evalWithAnswerFn answers (buildCoordinate index coord selected word)).1.getD 6 []).getD 1 0) =
+      coordinatePair answers index coord := by
   rw [buildCoordinate_result]
-  have hv := heapLevels_value (coordNodes answers index coord) 7 0 (by decide) (by decide)
-  unfold treeValue at hv
-  rw [hv]
+  have h0 := heapLevels_value (coordNodes answers index coord) 6 0 (by decide) (by decide)
+  have h1 := heapLevels_value (coordNodes answers index coord) 6 1 (by decide) (by decide)
+  unfold treeValue at h0 h1
+  rw [h0, h1]
   rfl
+theorem eval_merklePath_le (answers : Answers) (tag lay tree h completed start n node : Nat)
+    (levels : List (List Digest)) (leaves : List Digest)
+    (htree : TreeLevels answers tag lay tree h leaves completed levels)
+    (hc : completed ≤ h) (hsteps : start + n ≤ completed) (hnode : node < 2 ^ (h - start))
+    (path : Fin n → Digest)
+    (hpath : ∀ j, path j = treeValue levels (start + j.val) (node / 2 ^ j.val ^^^ 1)) :
+    evalWithAnswerFn answers ((List.finRange n).foldlM (fun value j => do
+      let other := path j
+      let pair := if node / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
+      nodeHash tag lay tree (2 ^ (h - (start + j.val + 1)) + node / 2 ^ (j.val + 1)) pair.1 pair.2)
+      (treeValue levels start node)) = treeValue levels (start + n) (node / 2 ^ n) := by
+  have hi := eval_foldlM_list_inv answers (List.finRange n)
+    (fun value j => do
+      let other := path j
+      let pair := if node / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
+      nodeHash tag lay tree (2 ^ (h - (start + j.val + 1)) + node / 2 ^ (j.val + 1)) pair.1 pair.2)
+    (fun i value => value = treeValue levels (start + i) (node / 2 ^ i))
+    (treeValue levels start node) (by simp) (fun i hi value hv => ?_)
+  · simpa only [List.length_finRange] using hi
+  · simp only [List.length_finRange] at hi
+    simp only [List.getElem_finRange, Fin.val_cast, hpath, hv]
+    rw [sibling_pair, div_pow_succ]
+    have hp := htree.2.2 (start + i) (by omega) (node / 2 ^ (i + 1))
+      (div_pow_bound (start := start) (level := i + 1) (by omega) hnode)
+    simpa only [treeValue, Nat.add_assoc] using hp.symm
 def honestOpening (built : List (List Digest) × List Digest) (selected : Child) : Opening :=
   let path := (List.range 7).map fun level =>
     (built.1.getD level []).getD (selected.val / 2 ^ level ^^^ 1) 0
@@ -459,11 +484,19 @@ def expectedOpening (answers : Answers) (index : Nat) (output : HashOutput) (coo
     Opening :=
   honestOpening (evalWithAnswerFn answers
     (buildCoordinate index coord (child output coord) (rank output coord))) (child output coord)
+theorem order_pair (levels : List (List Digest)) (selected : Nat) (hs : selected < 128) :
+    (if selected / 2 ^ 6 % 2 = 0 then (treeValue levels 6 (selected / 2 ^ 6), treeValue levels 6 (selected / 2 ^ 6 ^^^ 1))
+      else (treeValue levels 6 (selected / 2 ^ 6 ^^^ 1), treeValue levels 6 (selected / 2 ^ 6))) =
+      (treeValue levels 6 0, treeValue levels 6 1) := by
+  have hq : selected / 2 ^ 6 < 2 := by
+    apply (Nat.div_lt_iff_lt_mul (by positivity)).mpr
+    norm_num; omega
+  rcases (show selected / 2 ^ 6 = 0 ∨ selected / 2 ^ 6 = 1 by omega) with h | h <;> rw [h] <;> rfl
 theorem recoverCoordinate_honest (answers : Answers) (sig : Signature) (index : Nat)
     (output : HashOutput) (coord : Coord)
     (hopen : sig.openings coord = expectedOpening answers index output coord) :
     evalWithAnswerFn answers (recoverCoordinate sig index output coord) =
-      coordinateRoot answers index coord := by
+      coordinatePair answers index coord := by
   let selected := child output coord
   let word := rank output coord
   let levels := heapLevels (coordNodes answers index coord)
@@ -477,8 +510,8 @@ theorem recoverCoordinate_honest (answers : Answers) (sig : Signature) (index : 
     rw [hbuilt]
     change (List.ofFn _).getD i.val 0 = _
     rw [List.getD_eq_getElem _ _ (by simp only [List.length_ofFn]; exact i.isLt), List.getElem_ofFn]
-  have hpath : ∀ j : Fin 7, (sig.openings coord).path j =
-      treeValue levels (0 + j.val) (selected.val / 2 ^ j.val ^^^ 1) := by
+  have hpath7 : ∀ j : Fin 7, (sig.openings coord).path j =
+      treeValue levels j.val (selected.val / 2 ^ j.val ^^^ 1) := by
     intro j
     rw [hopen]
     simp only [expectedOpening, honestOpening]
@@ -488,6 +521,11 @@ theorem recoverCoordinate_honest (answers : Answers) (sig : Signature) (index : 
     rw [hbuilt]
     rw [List.getD_eq_getElem _ _ (by simp)]
     simp [treeValue, levels]
+  have hpath : ∀ j : Fin 6, (sig.openings coord).path j.castSucc =
+      treeValue levels (0 + j.val) (selected.val / 2 ^ j.val ^^^ 1) := by
+    intro j
+    rw [hpath7, Nat.zero_add]
+    rfl
   have hends : (List.finRange 7).map (fun i => evalWithAnswerFn answers
       (chain index coord.val selected.val i.val (3 - digit word i) (digit word i)
         ((sig.openings coord).values i))) =
@@ -502,50 +540,248 @@ theorem recoverCoordinate_honest (answers : Answers) (sig : Signature) (index : 
     unfold coordLeaves
     rw [List.getD_eq_getElem _ _ (by simp only [List.length_ofFn]; exact selected.isLt),
       List.getElem_ofFn]
-  have hmerkle := eval_merklePath answers 11 coord.val index 7 0 7 selected.val levels
+  have hmerkle := eval_merklePath_le answers 3 (nodeLayer coord.val) index 7 6 0 6 selected.val levels
     (coordLeaves answers index coord) (coordinate_treeLevels answers index coord)
-    (by decide) (by simp only [Nat.sub_zero]; exact selected.isLt) (fun j => (sig.openings coord).path j) hpath
-  have hfun : (fun (value : Digest) (level : Fin 7) => do
-      let other := (sig.openings coord).path level
+    (by decide) (by decide) (by simp only [Nat.sub_zero]; exact selected.isLt)
+    (fun j => (sig.openings coord).path j.castSucc) hpath
+  have hfun : (fun (value : Digest) (level : Fin 6) => do
+      let other := (sig.openings coord).path level.castSucc
       let pair := if selected.val / 2 ^ level.val % 2 = 0 then (value, other) else (other, value)
-      nodeHash 11 coord.val index (2 ^ (6 - level.val) + selected.val / 2 ^ (level.val + 1))
+      wctNodeHash coord.val index (2 ^ (6 - level.val) + selected.val / 2 ^ (level.val + 1))
         pair.1 pair.2) =
       (fun value j => do
-      let other := (fun j => (sig.openings coord).path j) j
+      let other := (fun j : Fin 6 => (sig.openings coord).path j.castSucc) j
       let pair := if selected.val / 2 ^ j.val % 2 = 0 then (value, other) else (other, value)
-      nodeHash 11 coord.val index (2 ^ (7 - (0 + j.val + 1)) + selected.val / 2 ^ (j.val + 1))
+      nodeHash 3 (nodeLayer coord.val) index (2 ^ (7 - (0 + j.val + 1)) + selected.val / 2 ^ (j.val + 1))
         pair.1 pair.2) := by
     funext value j
     have hj : 7 - (0 + j.val + 1) = 6 - j.val := by omega
     rw [hj]
+    rfl
+  have hother : (sig.openings coord).path 6 = treeValue levels 6 (selected.val / 2 ^ 6 ^^^ 1) := hpath7 6
+  have hroot : evalWithAnswerFn answers (leafHash index coord.val selected.val
+      (List.ofFn fun i : Fin 7 => chainEnd answers index coord.val selected.val i)) =
+      treeValue levels 0 selected.val := hleaf
+  simp only [Nat.zero_add, show ∀ j : Nat, 7 - (j + 1) = 6 - j from fun j => by omega] at hmerkle
   unfold recoverCoordinate
-  simp only [evalWithAnswerFn_bind, eval_mapM]
-  change evalWithAnswerFn answers ((List.finRange 7).foldlM _
-    (evalWithAnswerFn answers (leafHash index coord.val selected.val
-      ((List.finRange 7).map (fun i => evalWithAnswerFn answers
-        (chain index coord.val selected.val i.val (3 - digit word i) (digit word i)
-          ((sig.openings coord).values i))))))) = _
-  rw [hends]
-  change evalWithAnswerFn answers ((List.finRange 7).foldlM _
-    (childRoot answers index coord.val selected.val)) = _
-  rw [hleaf, hfun, hmerkle]
-  have hz : selected.val / 2 ^ 7 = 0 := Nat.div_eq_of_lt selected.isLt
-  rw [hz]
-  have hv := heapLevels_value (coordNodes answers index coord) 7 0 (by decide) (by decide)
-  exact hv
+  simp only [evalWithAnswerFn_bind, eval_mapM, evalWithAnswerFn_pure, wctNodeHash]
+  rw [hends, hroot, hmerkle, hother, order_pair levels selected.val selected.isLt]
+  have h0 := heapLevels_value (coordNodes answers index coord) 6 0 (by decide) (by decide)
+  have h1 := heapLevels_value (coordNodes answers index coord) 6 1 (by decide) (by decide)
+  rw [h0, h1]
+  rfl
 theorem recoverFts_honest (answers : Answers) (sig : Signature) (index : Nat)
     (output : HashOutput)
     (hopen : ∀ coord, sig.openings coord = expectedOpening answers index output coord) :
     evalWithAnswerFn answers (recoverFts sig index output) =
-      evalWithAnswerFn answers (forestPk index (List.ofFn (coordinateRoot answers index))) := by
+      evalWithAnswerFn answers (forestPk index (List.ofFn (coordinatePair answers index))) := by
   unfold recoverFts
   simp only [evalWithAnswerFn_bind, eval_mapM]
-  have hroots : (List.finRange 9).map
+  have hpairs : (List.finRange 9).map
       (fun coord => evalWithAnswerFn answers (recoverCoordinate sig index output coord)) =
-      List.ofFn (coordinateRoot answers index) := by
+      List.ofFn (coordinatePair answers index) := by
     simp_rw [fun coord => recoverCoordinate_honest answers sig index output coord (hopen coord)]
     exact List.ofFn_eq_map.symm
-  rw [hroots]
+  rw [hpairs]
+theorem layerEncodingInput_forest (lay : Layer) (tree leaf : Nat) (root : Digest) (counter : BitVec 32) :
+    layerEncodingInput lay tree leaf (.forest root) counter = encodingInput lay tree leaf root counter := rfl
+theorem layerCounterSearch_some (answers : Answers) (lay : Layer) (tree leaf : Nat) (msg : LayerMsg) :
+    ∀ fuel counter found digits, counter + fuel ≤ 2 ^ 32 →
+      evalWithAnswerFn answers (layerCounterSearch lay tree leaf msg counter fuel) = some (found, digits) →
+      counter ≤ found.toNat ∧ found.toNat < counter + fuel ∧
+        decode lay (evalWithAnswerFn answers (shortHash (layerEncodingInput lay tree leaf msg found))) =
+          some digits := by
+  intro fuel
+  induction fuel with
+  | zero =>
+      intro counter found digits _ he
+      simp [layerCounterSearch] at he
+  | succ fuel ih =>
+      intro counter found digits hlimit he
+      simp only [layerCounterSearch, evalWithAnswerFn_bind] at he
+      cases hd : decode lay (evalWithAnswerFn answers
+        (shortHash (layerEncodingInput lay tree leaf msg (BitVec.ofNat 32 counter)))) with
+      | none =>
+          simp only [hd] at he
+          obtain ⟨hlo, hhi, hgood⟩ := ih (counter + 1) found digits (by omega) he
+          exact ⟨by omega, by omega, hgood⟩
+      | some values =>
+          simp only [hd, evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at he
+          obtain ⟨rfl, rfl⟩ := he
+          have hcount : (BitVec.ofNat 32 counter).toNat = counter := by
+            rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+          exact ⟨by rw [hcount], by rw [hcount]; omega, hd⟩
+theorem ofNat_layer_val (n : Nat) (hn : n < 4) : (Fin.ofNat 4 n : Layer).val = n := Nat.mod_eq_of_lt hn
+theorem expandLayersBC_verified (answers : Answers) (sig : Signature) (index : Nat) :
+    ∀ n, n ≤ 4 → ∀ msg root counters,
+      evalWithAnswerFn answers (expandLayersBC sig index n msg) = some (root, counters) →
+      counters.length = n ∧ ∀ w : Witness, w.signature = sig →
+        (∀ lay : Layer, lay.val < n → w.counters lay = counters.getD lay.val 0) →
+        evalWithAnswerFn answers (verifyLayersBC w index n msg) = some root := by
+  intro n
+  induction n with
+  | zero =>
+      intro _ msg root counters he
+      simp [expandLayersBC] at he
+  | succ n ih =>
+      intro hn msg root counters he
+      simp only [expandLayersBC, evalWithAnswerFn_bind] at he
+      cases hs : evalWithAnswerFn answers (layerCounterSearch (Fin.ofNat 4 n)
+        (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 msg 0 counterLimit) with
+      | none => simp only [hs, evalWithAnswerFn_pure, reduceCtorEq] at he
+      | some found =>
+          obtain ⟨counter, digits⟩ := found
+          obtain ⟨_, hbound, hdecode⟩ := layerCounterSearch_some answers (Fin.ofNat 4 n)
+            (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 msg
+            counterLimit 0 counter digits (by decide) hs
+          have hnot : ¬counter.toNat ≥ counterLimit := by omega
+          have hlay := ofNat_layer_val n (by omega)
+          simp only [hs] at he
+          by_cases hn0 : n = 0
+          · subst n
+            simp only [if_true, evalWithAnswerFn_bind, evalWithAnswerFn_pure, Option.some.injEq,
+              Prod.mk.injEq] at he
+            obtain ⟨rfl, rfl⟩ := he
+            refine ⟨rfl, fun w hw hc => ?_⟩
+            have hcounter : w.counters (Fin.ofNat 4 0) = counter := by
+              rw [hc _ (by rw [hlay]; omega), hlay]; rfl
+            simp only [verifyLayersBC, hcounter, hnot, ite_false, evalWithAnswerFn_bind, hdecode, if_true,
+              evalWithAnswerFn_map, hw]
+          · simp only [hn0, if_false, evalWithAnswerFn_bind] at he
+            cases hr : evalWithAnswerFn answers (expandLayersBC sig index n
+              (.pair (evalWithAnswerFn answers (recoverLayerPair sig index (Fin.ofNat 4 n) digits)).1
+                (evalWithAnswerFn answers (recoverLayerPair sig index (Fin.ofNat 4 n) digits)).2)) with
+            | none => simp only [hr, evalWithAnswerFn_pure, reduceCtorEq] at he
+            | some previous =>
+                obtain ⟨previousRoot, previousCounters⟩ := previous
+                simp only [hr, evalWithAnswerFn_pure, Option.some.injEq, Prod.mk.injEq] at he
+                obtain ⟨rfl, rfl⟩ := he
+                obtain ⟨hlen, hverify⟩ := ih (by omega) _ _ _ hr
+                refine ⟨by simp [hlen], fun w hw hc => ?_⟩
+                have hcounter : w.counters (Fin.ofNat 4 n) = counter := by
+                  rw [hc _ (by rw [hlay]; omega), hlay,
+                    List.getD_append_right previousCounters [counter] 0 n (by omega), hlen]
+                  simp
+                simp only [verifyLayersBC, hcounter, hnot, ite_false, evalWithAnswerFn_bind, hdecode, hn0, hw]
+                apply hverify w hw
+                intro lay hsmall
+                rw [hc lay (by omega), List.getD_append previousCounters [counter] 0 lay.val (by omega)]
+def builtPair (answers : Answers) (lay : Layer) (tree : Nat) : Digest × Digest :=
+  topPair lay (builtTree answers lay tree)
+theorem height_pos (lay : Layer) : 1 ≤ height lay := by fin_cases lay <;> decide
+theorem eval_recoverLayerPair_honest (answers : Answers) (sig : Signature) (index : Nat)
+    (lay : Layer) (digits : List Nat) (hvalid : Cost.ValidDigits lay digits)
+    (hvalues : ∀ i, (sig.layers lay).values i =
+      leafValue answers lay (route index lay).2 (route index lay).1 digits i.val)
+    (hpath : ∀ j, (sig.layers lay).path j = treeValue (builtTree answers lay (route index lay).2)
+      j.val ((route index lay).1 / 2 ^ j.val ^^^ 1)) :
+    evalWithAnswerFn answers (recoverLayerPair sig index lay digits) =
+      builtPair answers lay (route index lay).2 := by
+  have hh := height_pos lay
+  have hleafB := route_leaf_bound index lay
+  have hp := eval_merklePath answers 3 lay.val (route index lay).2 (height lay) 0 (height lay - 1)
+    (route index lay).1 (builtTree answers lay (route index lay).2)
+    ((List.range (2 ^ height lay)).map (leafRoot answers lay (route index lay).2))
+    (builtTree_correct answers lay (route index lay).2) (by omega)
+    (by simpa using hleafB) (fun j => (sig.layers lay).path (Fin.castLE (Nat.sub_le _ _) j))
+    (fun j => by rw [hpath, Nat.zero_add]; rfl)
+  rw [builtTree_leaf answers lay _ _ hleafB] at hp
+  simp only [Nat.zero_add] at hp
+  have hother : (sig.layers lay).path (topLevel lay) =
+      treeValue (builtTree answers lay (route index lay).2) (height lay - 1)
+        ((route index lay).1 / 2 ^ (height lay - 1) ^^^ 1) := hpath (topLevel lay)
+  have hq : (route index lay).1 / 2 ^ (height lay - 1) < 2 := by
+    apply (Nat.div_lt_iff_lt_mul (by positivity)).mpr
+    have he : 2 ^ (height lay - 1) * 2 = 2 ^ height lay := by
+      rw [← pow_succ, Nat.sub_add_cancel hh]
+    rw [Nat.mul_comm, he]
+    exact hleafB
+  have hq2 : (route index lay).1 / 2 ^ (height lay - 1) = 0 ∨
+      (route index lay).1 / 2 ^ (height lay - 1) = 1 := by
+    generalize (route index lay).1 / 2 ^ (height lay - 1) = q at hq ⊢
+    omega
+  have hlr : evalWithAnswerFn answers (SigGolfCandidate.T3.leafHash lay (route index lay).2 (route index lay).1
+      ((List.range (chainCount lay)).map (leafEnd answers lay (route index lay).2 (route index lay).1))) =
+      leafRoot answers lay (route index lay).2 (route index lay).1 := rfl
+  unfold recoverLayerPair
+  simp only [evalWithAnswerFn_bind, evalWithAnswerFn_pure, Nat.sub_sub]
+  rw [eval_chains_honest answers lay _ _ digits hvalid _ hvalues, hlr, hp, hother]
+  unfold builtPair topPair
+  rcases hq2 with h | h <;> rw [h] <;> rfl
+theorem signLayersBC_expandLayersBC (answers : Answers) (cache : Cache) (index : Nat)
+    (hcache : cache.region = cacheRegion (maskedTop answers)) (hindex : index < 2 ^ 31) :
+    ∀ n, 1 ≤ n → n ≤ 4 → ∀ msg pieces,
+      evalWithAnswerFn answers (signLayersBC cache index n msg) = some pieces →
+      pieces.length = n ∧ ∀ sig : Signature, PiecesAgree (toT3Signature sig) pieces n →
+        ∃ counters : List (BitVec 32), counters.length = n ∧
+          evalWithAnswerFn answers (expandLayersBC sig index n msg) =
+            some (treeValue (builtTree answers 0 0) 12 0, counters) := by
+  intro n
+  induction n with
+  | zero => intro h; omega
+  | succ n ih =>
+      intro _ hn msg pieces he
+      simp only [signLayersBC, evalWithAnswerFn_bind] at he
+      cases hs : evalWithAnswerFn answers (layerCounterSearch (Fin.ofNat 4 n)
+        (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 msg 0 counterLimit) with
+      | none => simp only [hs, evalWithAnswerFn_pure, reduceCtorEq] at he
+      | some found =>
+          obtain ⟨counter, digits⟩ := found
+          have hd := (layerCounterSearch_some answers (Fin.ofNat 4 n)
+            (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 msg
+            counterLimit 0 counter digits (by decide) hs).2.2
+          have hvalid := Cost.validDigits_decode hd
+          simp only [hs] at he
+          by_cases hn0 : n = 0
+          · subst n
+            simp only [if_true, evalWithAnswerFn_bind, evalWithAnswerFn_pure, Option.some.injEq] at he
+            subst pieces
+            refine ⟨rfl, ?_⟩
+            intro sig hagree
+            have hp := hagree 0 (by decide)
+            change (toT3Signature sig).layers 0 = piecesSignature 0
+              (evalWithAnswerFn answers (signTop cache (route index 0).1 digits)) at hp
+            rw [eval_signTop_honest answers cache _ digits hcache (route_leaf_bound index 0) hvalid] at hp
+            have ht : (route index 0).2 = 0 := route_top_tree index hindex
+            have hr := recoverLayer_honestPieces answers (toT3Signature sig) index 0 digits hvalid
+              (by simpa only [ht] using hp)
+            refine ⟨[counter], rfl, ?_⟩
+            simp only [expandLayersBC, evalWithAnswerFn_bind, hs, if_true, evalWithAnswerFn_pure]
+            change some (evalWithAnswerFn answers (recoverLayer (toT3Signature sig) index 0 digits), [counter]) =
+              some (treeValue (builtTree answers 0 0) 12 0, [counter])
+            rw [hr, ht]
+            rfl
+          · simp only [hn0, if_false, evalWithAnswerFn_bind,
+              eval_buildTree_result answers (Fin.ofNat 4 n) _ _ digits hvalid (route_leaf_bound index _)] at he
+            cases hp : evalWithAnswerFn answers (signLayersBC cache index n
+              (.pair (topPair (Fin.ofNat 4 n) (builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2)).1
+                (topPair (Fin.ofNat 4 n) (builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2)).2)) with
+            | none => simp only [hp, evalWithAnswerFn_pure, reduceCtorEq] at he
+            | some previous =>
+                simp only [hp, evalWithAnswerFn_pure, Option.some.injEq] at he
+                subst pieces
+                obtain ⟨hlen, hprevious⟩ := ih (by omega) (by omega) _ previous hp
+                refine ⟨by simp [hlen], ?_⟩
+                intro sig hagree
+                change PiecesAgree (toT3Signature sig) (previous ++ [honestPieces answers (Fin.ofNat 4 n)
+                  (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits]) (n + 1) at hagree
+                have hlayer := PiecesAgree.last hlen (by omega) hagree
+                have hrecover : evalWithAnswerFn answers (recoverLayerPair sig index (Fin.ofNat 4 n) digits) =
+                    builtPair answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 := by
+                  apply eval_recoverLayerPair_honest answers sig index (Fin.ofNat 4 n) digits hvalid
+                  · intro i
+                    change ((toT3Signature sig).layers (Fin.ofNat 4 n)).values i = _
+                    rw [hlayer]
+                    simp [piecesSignature, honestPieces, List.getD_eq_getElem, i.isLt]
+                  · intro j
+                    change ((toT3Signature sig).layers (Fin.ofNat 4 n)).path j = _
+                    rw [hlayer]
+                    simp [piecesSignature, honestPieces, List.getD_eq_getElem, j.isLt]
+                obtain ⟨counters, hc, hreplay⟩ := hprevious sig (PiecesAgree.prefix hlen hagree)
+                refine ⟨counters ++ [counter], by simp [hc], ?_⟩
+                simp only [expandLayersBC, evalWithAnswerFn_bind, hs, hn0, if_false, hrecover]
+                unfold builtPair at hrecover
+                simp only [builtPair, hreplay, evalWithAnswerFn_pure]
 theorem digestSearch_some_good (answers : Answers) (rho : Digest) (message : Message) :
     ∀ fuel counter found output, counter + fuel ≤ 2 ^ 32 →
       evalWithAnswerFn answers (digestSearch rho message counter fuel) = some (found, output) →
@@ -579,8 +815,8 @@ theorem expand_implies_verify (answers : Answers) (message : Message) (pk : Dige
   | some found =>
       obtain ⟨counter, output⟩ := found
       simp only [hd, evalWithAnswerFn_bind] at he
-      cases hl : evalWithAnswerFn answers (expandLayers (toT3Signature sig) (output.toNat % 2 ^ 31) 4
-          (evalWithAnswerFn answers (recoverFts sig (output.toNat % 2 ^ 31) output), 0, 0)) with
+      cases hl : evalWithAnswerFn answers (expandLayersBC sig (output.toNat % 2 ^ 31) 4
+          (.forest (evalWithAnswerFn answers (recoverFts sig (output.toNat % 2 ^ 31) output)))) with
       | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some layers =>
           obtain ⟨root, counters⟩ := layers
@@ -594,9 +830,9 @@ theorem expand_implies_verify (answers : Answers) (message : Message) (pk : Dige
             obtain ⟨_, hcounter, houtput, hadm⟩ := digestSearch_some_good answers sig.rho message
               attemptLimit 0 counter output (by decide) hd
             have hnot : ¬counter.toNat ≥ attemptLimit := by omega
-            have hverified := (expandLayers_verified answers (toT3Signature sig)
+            have hverified := (expandLayersBC_verified answers sig
               (output.toNat % 2 ^ 31) 4 (by decide) _ root counters hl).2
-              (toT3Witness ⟨sig, counter, fun lay => counters.getD lay.val 0⟩) rfl (fun _ _ => rfl)
+              ⟨sig, counter, fun lay => counters.getD lay.val 0⟩ rfl (fun _ _ => rfl)
             simp only [verify, hnot, ite_false, evalWithAnswerFn_bind, houtput, hadm,
               Bool.not_true, Bool.false_eq_true, hverified, evalWithAnswerFn_pure, hroot,
               beq_self_eq_true]

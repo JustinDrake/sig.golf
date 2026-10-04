@@ -1,277 +1,262 @@
-import SigGolfCandidate.T3.Secc.WotsExtractSplit
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEventsGood
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractLayer
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractVerify
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsTransportSplit
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccLaw
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccSufSigned
-import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccSufPayload
-import SigGolfCandidate.ClaudeWCT.W9.New.G5.PaddedExtraction
-import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
+import SigGolfCandidate.T3.Secc.LargeContactWalk
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.LargeContactMonitor
 import SigGolfCandidate.T3.Secc.LargeContactChain
-import SigGolfCandidate.T3.Secc.LargeContactWalk
 import SigGolfCandidate.T3.Secc.LargeContactEvents
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsTransport
+import SigGolfCandidate.ClaudeWCT.W9.New.G5.PaddedExtraction
 import SigGolfCandidate.T3.Secc.LargeContactInputs
+import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccSufPayload
+import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractSplit
 import SigGolfCandidate.T3.Secc.LargeContactCase
+
 section
+
+
 namespace ClaudeWCT.W9.T3.Security.WotsExtract
-open OracleComp OracleSpec OracleComp.EvalDist ENNReal
-open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3M.SecurityExtraction
-open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3M.Final
-open SigGolfCandidate.T3M (wrho wdc)
-open ClaudeWCT.W9.T3.Security.Wots
-open SigGolfCandidate.T3.Security.Wots (Entry entriesOf)
-open SigGolfCandidate.T3.Security.WotsExtract (recordedEntries entries_recorded)
-open SigGolfCandidate.T3.Correctness (Answers)
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-attribute [local instance] Classical.propDecidable
-attribute [local irreducible] keygen verifyP expandB
-def VerifierWotsSrc (answers : Answers) (publicKey : Digest) (forgery : ForgeryP) : Prop :=
-  ∃ message witness, PaddedExtraction.WitnessOf answers publicKey forgery message witness ∧
-    evalWithAnswerFn answers (verifyP message publicKey witness) = true ∧
-    WotsPrimitiveSrc answers (entriesOf answers (queried answers (verifyP message publicKey witness)))
-theorem VerifierWotsSrc.toVerifierWots {answers : Answers} {publicKey : Digest} {forgery : ForgeryP}
-    (h : VerifierWotsSrc answers publicKey forgery) : VerifierWots answers publicKey forgery := by
-  obtain ⟨message, witness, hof, hv, hp⟩ := h
-  exact ⟨message, witness, hof, hv, hp.toPrimitive⟩
-theorem verdict_accepting (publicKey : Digest) (interaction : Option ForgeryP × QueryLog Requests)
-    (before : LazyPrivate.State) (result : FirstHit.Recorded Bool)
-    (hr : result ∈ support (FirstHit.record (GameWith.verdict PaddedGame.checker publicKey interaction) before))
-    (answers : Answers)
-    (ha : ∀ input answer, SourceReplay.known result.state input = some answer → answers input = answer)
-    (hwin : result.value = true) :
-    interaction.2.length ≤ 2 ^ 32 ∧
-    ∃ forgery, interaction.1 = some forgery ∧ PaddedExtraction.Fresh interaction.2 forgery ∧
-      ∃ message witness, PaddedExtraction.WitnessOf answers publicKey forgery message witness ∧
-        evalWithAnswerFn answers (verifyP message publicKey witness) = true ∧
-        ∀ input, (.inl (.inr input) : Spec.Domain) ∈ queried answers (verifyP message publicKey witness) →
-          ∃ prior, (⟨prior, .inl (.inr input), answers (.inl (.inr input))⟩ : FirstHit.QueryEvent) ∈
-            result.events := by
-  cases hf : interaction.1 with
-  | none =>
-      simp only [GameWith.verdict, hf, FirstHit.record_pure, support_pure, Set.mem_singleton_iff] at hr
-      subst result
-      contradiction
-  | some forgery =>
-      simp only [GameWith.verdict, hf, PaddedGame.checker] at hr
-      obtain ⟨checked, hchecked, last, hlast, hvalue, hevents, hstate⟩ :=
-        FirstHit.record_bind_support _ _ before result hr
-      rw [FirstHit.record_pure, support_pure, Set.mem_singleton_iff] at hlast
-      subst last
-      simp only [List.append_nil] at hevents
-      have hand : (decide (interaction.2.length ≤ 2 ^ 32) && checked.value) = true := hvalue.symm.trans hwin
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hand
-      obtain ⟨hlength, hcheckedWin⟩ := hand
-      have hac : ∀ input answer, SourceReplay.known checked.state input = some answer → answers input = answer := by
-        simpa only [hstate] using ha
-      have hp := PaddedExtraction.check_hashOnly publicKey interaction.2 forgery
-      have hw := (SourceReplay.resolves_of_run _ hp before (checked.value, checked.state)
-        (FirstHit.recorded_support _ _ _ hchecked)).eval answers hac
-      rw [hcheckedWin] at hw
-      obtain ⟨hfresh, message, witness, hof, hv, hsub⟩ :=
-        PaddedExtraction.check_accepting answers publicKey interaction.2 forgery hw
-      refine ⟨hlength, forgery, rfl, hfresh, message, witness, hof, hv, fun input hq => ?_⟩
-      obtain ⟨prior, hev⟩ := PaddedExtraction.public_occurrence _ hp before checked hchecked answers hac input
-        (hsub _ hq)
-      exact ⟨prior, hevents ▸ hev⟩
-theorem game_accepting_linked (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
-    (hr : result ∈ support (FirstHit.record (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)))
-    (answers : Answers)
-    (ha : ∀ input answer, SourceReplay.known result.state input = some answer → answers input = answer)
-    (hwin : result.value = true) :
-    ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-      ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-          (adversary generated.value.1 generated.value.2)) generated.state),
-        SourceReplay.Extends interaction.state result.state ∧
-        generated.value.1 = Extract.honestRoot answers 0 0 ∧
-        interaction.value.2.length ≤ 2 ^ 32 ∧
-        ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-          ∃ message witness, PaddedExtraction.WitnessOf answers generated.value.1 forgery message witness ∧
-            evalWithAnswerFn answers (verifyP message generated.value.1 witness) = true ∧
-            ∀ input, (.inl (.inr input) : Spec.Domain) ∈ queried answers (verifyP message generated.value.1 witness) →
-              ∃ prior, (⟨prior, .inl (.inr input), answers (.inl (.inr input))⟩ : FirstHit.QueryEvent) ∈
-                result.events := by
-  unfold GameWith.idealGame at hr
-  obtain ⟨generated, hgenerated, rest, hrest, hvalue, hevents, hstate⟩ :=
-    FirstHit.record_bind_support _ _ (∅, ∅) result hr
-  obtain ⟨interaction, hinteraction, checked, hchecked, hrestValue, hrestEvents, hrestState⟩ :=
-    FirstHit.record_bind_support _ _ generated.state rest hrest
-  have hgeneratedState : SourceReplay.Extends generated.state result.state := by
-    rw [hstate]
-    exact SourceReplay.run_extends _ generated.state (rest.value, rest.state)
-      (FirstHit.recorded_support _ _ _ hrest)
-  have hinteractionState : SourceReplay.Extends interaction.state result.state := by
-    rw [hstate, hrestState]
-    exact SourceReplay.run_extends _ interaction.state (checked.value, checked.state)
-      (FirstHit.recorded_support _ _ _ hchecked)
-  have hgen : evalWithAnswerFn answers keygen = generated.value :=
-    (SourceReplay.resolves_of_run keygen SourceReplay.hashOnly_keygen (∅, ∅)
-      (generated.value, generated.state) (FirstHit.recorded_support _ _ _ hgenerated)).eval answers
-        (fun input answer hk => ha input answer
-          (SourceReplay.known_mono generated.state result.state hgeneratedState hk))
-  have hpk : generated.value.1 = Extract.honestRoot answers 0 0 := by
-    rw [← hgen]
-    exact Extract.keygen_pk answers
-  have hac : ∀ input answer, SourceReplay.known checked.state input = some answer → answers input = answer := by
-    simpa only [hstate, hrestState] using ha
-  have hw : checked.value = true := hrestValue.symm.trans (hvalue.symm.trans hwin)
-  obtain ⟨hlength, forgery, hforgery, hfresh, message, witness, hof, hv, hrec⟩ :=
-    verdict_accepting generated.value.1 interaction.value interaction.state checked hchecked answers hac hw
-  refine ⟨generated, hgenerated, interaction, hinteraction, hinteractionState, hpk, hlength, forgery, hforgery,
-    hfresh, message, witness, hof, hv, fun input hq => ?_⟩
-  obtain ⟨prior, hev⟩ := hrec input hq
-  refine ⟨prior, ?_⟩
-  rw [hevents, hrestEvents]
-  exact List.mem_append_right _ (List.mem_append_right _ hev)
-def GameCaseWots (adversary : AdversaryP) (answers : Answers) (result : FirstHit.Recorded Bool) : Prop :=
-  ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-    ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-        (adversary generated.value.1 generated.value.2)) generated.state),
-      SourceReplay.Extends interaction.state result.state ∧
-      generated.value.1 = Extract.honestRoot answers 0 0 ∧
-      interaction.value.2.length ≤ 2 ^ 32 ∧
-      ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-      ∃ message witness, PaddedExtraction.WitnessOf answers generated.value.1 forgery message witness ∧
-        evalWithAnswerFn answers (verifyP message generated.value.1 witness) = true ∧
-        (∀ input, (.inl (.inr input) : Spec.Domain) ∈ queried answers (verifyP message generated.value.1 witness) →
-          ∃ prior, (⟨prior, .inl (.inr input), answers (.inl (.inr input))⟩ : FirstHit.QueryEvent) ∈
-            result.events) ∧
-        WotsPrimitiveSrc answers (entriesOf answers (queried answers (verifyP message generated.value.1 witness)))
-theorem GameCaseWots.recordedSrc {adversary : AdversaryP} {answers : Answers} {result : FirstHit.Recorded Bool}
-    (h : GameCaseWots adversary answers result) : WotsPrimitiveSrc answers (recordedEntries answers result.events) := by
-  obtain ⟨_generated, _hg, _interaction, _hi, _hext, _hpk, _hlen, _forgery, _hf, _hfresh, _message, _witness, _hof,
-    _hv, hrec, hprim⟩ := h
-  exact WotsPrimitiveSrc.mono hprim (entries_recorded hrec)
-theorem GameCaseWots.recorded {adversary : AdversaryP} {answers : Answers} {result : FirstHit.Recorded Bool}
-    (h : GameCaseWots adversary answers result) : WotsPrimitive answers (recordedEntries answers result.events) :=
-  h.recordedSrc.toPrimitive
-theorem GameCaseWots.verifierWots {adversary : AdversaryP} {answers : Answers} {result : FirstHit.Recorded Bool}
-    (h : GameCaseWots adversary answers result) :
-    ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-      ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-          (adversary generated.value.1 generated.value.2)) generated.state),
-        generated.value.1 = Extract.honestRoot answers 0 0 ∧
-        ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-          VerifierWots answers generated.value.1 forgery := by
-  obtain ⟨generated, hg, interaction, hi, -, hpk, -, forgery, hf, hfresh, message, witness, hof, hv, -, hprim⟩ := h
-  exact ⟨generated, hg, interaction, hi, hpk, forgery, hf, hfresh, message, witness, hof, hv, hprim.toPrimitive⟩
-theorem game_linked_split (adversary : AdversaryP) (result : FirstHit.Recorded Bool)
-    (hr : result ∈ support (FirstHit.record (GameWith.idealGame PaddedGame.checker adversary) (∅, ∅)))
-    (answers : Answers)
-    (ha : ∀ input answer, SourceReplay.known result.state input = some answer → answers input = answer)
-    (hwin : result.value = true) :
-    GameCaseWots adversary answers result ∨ BPB.GameCaseC adversary answers Not result ∨
-      BPB.GameCaseC adversary answers id result := by
-  obtain ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof, hv, hrec⟩ :=
-    game_accepting_linked adversary result hr answers ha hwin
-  obtain ⟨N, hdc, hN, hdq, hS, hcase⟩ := verifyP_wots_cases_src answers message generated.value.1 witness hpk hv
-  rcases hcase with hprim | ⟨hgood, hshape⟩
-  · exact Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness, hof, hv,
-      hrec, hprim⟩
-  · have hCat : BPB.CaseCAt answers message witness result.events := by
-      obtain ⟨prior, hev⟩ := hrec _ hdq
-      have hans : answers (.inl (.inr (pad64 (digestInput (wrho witness) message (wdc witness))))) = N := hN
-      exact ⟨N, hdc, hN, ⟨prior, by simpa only [hans] using hev⟩, hS, hgood, hshape⟩
-    by_cases hsd : BPB.SignedDigest interaction.value.2 message witness
-    · exact Or.inr (Or.inr ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
-        hof, hsd, hCat⟩)
-    · exact Or.inr (Or.inl ⟨generated, hg, interaction, hi, hext, hpk, hlen, forgery, hf, hfresh, message, witness,
-        hof, hsd, hCat⟩)
-theorem completed_linked_split (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q z.1) :
-    GameCaseWots adversary z.2 (QueryRecorded.recordedTrace z.1) ∨ BPB.CaseCFresh adversary z ∨
-      BPB.CaseCSigned adversary z := by
-  obtain ⟨hr, ha⟩ := SeccLaw.completed_agrees adversary q hq z hz
-  exact game_linked_split adversary _ (PaddedExtraction.traced_record_support adversary q hq z.1 hr) z.2 ha hwin.1
-theorem completed_linked_split_events (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q z.1) :
-    WotsPrimitiveSrc z.2 (recordedEntries z.2 (QueryRecorded.recordedTrace z.1).events) ∨
-      BPB.CaseCFresh adversary z ∨ BPB.CaseCSigned adversary z :=
-  (completed_linked_split adversary q hq z hz hwin).imp_left GameCaseWots.recordedSrc
-theorem completed_linked_split_fresh (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q z.1) :
-    GameCaseWots adversary z.2 (QueryRecorded.recordedTrace z.1) ∨ BPB.CaseCFresh adversary z := by
-  rcases completed_linked_split adversary q hq z hz hwin with h | h | h
-  · exact Or.inl h
-  · exact Or.inr h
-  · exact (BPB.caseC_signed_impossible adversary q hq z hz hwin h).elim
-theorem traced_wots_split_src (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (result : PaddedGame.TraceResult) (hr : result ∈ (PaddedGame.tracedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q result) (answers : Answers)
-    (ha : ∀ input answer, SourceReplay.known result.2.2.base.source.2 input = some answer → answers input = answer) :
-    ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-      ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-          (adversary generated.value.1 generated.value.2)) generated.state),
-        generated.value.1 = Extract.honestRoot answers 0 0 ∧
-        ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-          (VerifierWotsSrc answers generated.value.1 forgery ∨ VerifierAllGood answers generated.value.1 forgery) := by
-  obtain ⟨generated, hgenerated, interaction, hinteraction, -, hpk, -, forgery, hforgery, hfresh, message, witness,
-    hof, hv, -⟩ := game_accepting_linked adversary _ (PaddedExtraction.traced_record_support adversary q hq result hr)
-      answers ha hwin.1
-  refine ⟨generated, hgenerated, interaction, hinteraction, hpk, forgery, hforgery, hfresh, ?_⟩
-  obtain ⟨N, -, hN, -, -, hcase⟩ := verifyP_wots_cases_src answers message generated.value.1 witness hpk hv
-  rcases hcase with hprim | ⟨hgood, hshape⟩
-  · exact Or.inl ⟨message, witness, hof, hv, hprim⟩
-  · exact Or.inr ⟨message, witness, N, hof, hN, hgood, hshape⟩
-theorem completed_wots_split_src (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q z.1) :
-    ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-      ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-          (adversary generated.value.1 generated.value.2)) generated.state),
-        generated.value.1 = Extract.honestRoot z.2 0 0 ∧
-        ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-          (VerifierWotsSrc z.2 generated.value.1 forgery ∨ VerifierAllGood z.2 generated.value.1 forgery) := by
-  obtain ⟨hr, ha⟩ := SeccLaw.completed_agrees adversary q hq z hz
-  exact traced_wots_split_src adversary q hq z.1 hr hwin z.2 ha
-theorem completed_wots_split (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (z : PaddedGame.TraceResult × Answers) (hz : z ∈ (SeccLaw.completedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q z.1) :
-    ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-      ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-          (adversary generated.value.1 generated.value.2)) generated.state),
-        generated.value.1 = Extract.honestRoot z.2 0 0 ∧
-        ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-          (VerifierWots z.2 generated.value.1 forgery ∨ VerifierAllGood z.2 generated.value.1 forgery) := by
-  obtain ⟨generated, hg, interaction, hi, hpk, forgery, hf, hfresh, hcase⟩ :=
-    completed_wots_split_src adversary q hq z hz hwin
-  exact ⟨generated, hg, interaction, hi, hpk, forgery, hf, hfresh, hcase.imp_left VerifierWotsSrc.toVerifierWots⟩
-end ClaudeWCT.W9.T3.Security.WotsExtract
-namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec
-open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3M.SecurityExtraction
-open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3M.Final
-open SigGolfCandidate.T3M (wrho wdc)
-open ClaudeWCT.W9.T3.Security.WotsExtract
-open SigGolfCandidate.T3.Correctness (Answers)
+open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
+open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low entriesOf word_cases)
+open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3.Security.Wots
+open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
+open SigGolfCandidate.T3M (wrho wdc layerP wchainPads wchainHeaderPad wmerklePad wpath wvalue)
+open SigGolfCandidate.T3.Security.WotsExtract (SourceLeaf SourceChain entriesOf_mono mem_entriesOf routeLeaf
+  routeLeaf_source)
+open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue)
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-attribute [local irreducible] keygen verifyP expandB
-theorem traced_wots_split (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
-    (result : PaddedGame.TraceResult) (hr : result ∈ (PaddedGame.tracedExperiment adversary q hq).support)
-    (hwin : QueryRecorded.CleanWin q result) (answers : Answers)
-    (ha : ∀ input answer, SourceReplay.known result.2.2.base.source.2 input = some answer → answers input = answer) :
-    ∃ generated ∈ support (FirstHit.record keygen (∅, ∅)),
-      ∃ interaction ∈ support (FirstHit.record (FullGame.loggedWith (FullGame.authenticatedSign generated.value.2)
-          (adversary generated.value.1 generated.value.2)) generated.state),
-        generated.value.1 = Extract.honestRoot answers 0 0 ∧
-        ∃ forgery, interaction.value.1 = some forgery ∧ PaddedExtraction.Fresh interaction.value.2 forgery ∧
-          (VerifierWots answers generated.value.1 forgery ∨ VerifierAllGood answers generated.value.1 forgery) := by
-  obtain ⟨generated, hg, interaction, hi, hpk, forgery, hf, hfresh, hcase⟩ :=
-    traced_wots_split_src adversary q hq result hr hwin answers ha
-  exact ⟨generated, hg, interaction, hi, hpk, forgery, hf, hfresh, hcase.imp_left VerifierWotsSrc.toVerifierWots⟩
-end ClaudeWCT.W9.T3.Security.Wots
+def WotsPrimitiveRoute (index : Nat) (answers : Answers) (trace : List Entry) : Prop :=
+  (∃ lay, EncodingMatchAt answers trace (routeLeaf index lay)) ∨ StructuralHitSrc answers trace ∨
+    (∃ a, SourceChain a ∧ TwoEdgeAt answers trace a) ∨
+    (∃ a b, SourceChain a ∧ SourceChain b ∧ a ≠ b ∧ ContactAt answers trace a ∧ ContactAt answers trace b) ∨
+    (∃ a, SourceChain a ∧ MarkerAt answers trace a ∧ ContactAt answers trace a)
+theorem WotsPrimitiveRoute.mono {index : Nat} {answers : Answers} {trace trace' : List Entry}
+    (h : WotsPrimitiveRoute index answers trace) (hsub : ∀ e ∈ trace, e ∈ trace') :
+    WotsPrimitiveRoute index answers trace' := by
+  rcases h with ⟨lay, h⟩ | h | ⟨a, ha, h⟩ | ⟨a, b, ha, hb, hab, h1, h2⟩ | ⟨a, ha, hm, hc⟩
+  · exact Or.inl ⟨lay, encodingMatchAt_mono h hsub⟩
+  · exact Or.inr (Or.inl (structuralHitSrc_mono h hsub))
+  · exact Or.inr (Or.inr (Or.inl ⟨a, ha, twoEdgeAt_mono h hsub⟩))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, b, ha, hb, hab, contactAt_mono h1 hsub, contactAt_mono h2 hsub⟩)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, ha, markerAt_mono hm hsub, contactAt_mono hc hsub⟩)))
+theorem frame_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : WCT9.LayerMsg)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hfit : Extract.msgFits lay msg)
+    (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hmerkle : ∀ j, j < height lay →
+      wpath w lay (route index lay).1 j =
+          treeValue (builtTree answers lay (route index lay).2) j ((route index lay).1 / 2 ^ j ^^^ 1) ∧
+        (j + 1 < height lay ∨ lay.val = 0 → wmerklePad w lay j = 0))
+    (hchains : ∀ i, i < chainCount lay →
+      (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
+        wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
+          (digits.getD i 0 < maxDigit lay i →
+            wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
+      (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
+        ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ ∧
+          (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index lay, i⟩ →
+            TwoEdgeAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩))) :
+    WotsPrimitiveRoute index answers (entriesOf answers qs) ∨
+      (msg = Extract.honestMsg answers index lay ∧ BC.GoodZ answers w index lay) := by
+  classical
+  have hdec : decode (routeLeaf index lay).lay
+      (low (answers (.inl (.inr (encRow (routeLeaf index lay) msg (wbcCtr w lay) (wbcPad w lay)))))) = some digits :=
+    hframe.2
+  have hfit' : Extract.msgFits (routeLeaf index lay).lay msg := hfit
+  have hencE : (encRow (routeLeaf index lay) msg (wbcCtr w lay) (wbcPad w lay),
+      answers (.inl (.inr (encRow (routeLeaf index lay) msg (wbcCtr w lay) (wbcPad w lay))))) ∈
+        entriesOf answers qs :=
+    mem_entriesOf henc
+  have hsrc : SourceLeaf (routeLeaf index lay) := routeLeaf_source index lay hidx
+  have hsrcC : ∀ i, i < chainCount lay → SourceChain ⟨routeLeaf index lay, i⟩ := fun i hi => ⟨hsrc, hi⟩
+  have hcontact : ∀ i, i < chainCount lay → digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
+      ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ := fun i hi hlt =>
+    ((hchains i hi).2 hlt).1
+  obtain ⟨refDigest, hr⟩ := referenceDigits_decode answers (routeLeaf index lay)
+  rcases word_cases hr hdec with heq | ⟨i, hu⟩ | ⟨i, h2⟩ | ⟨i, j, hij, hi, hj⟩
+  · have hshape : Extract.LayerShaped answers w index lay digits := by
+      refine ⟨hmerkle, fun i hi => ?_⟩
+      have hdi : depth answers ⟨routeLeaf index lay, i⟩ = digits.getD i 0 := by
+        unfold depth
+        rw [heq]
+      exact (hchains i hi).1 (le_of_eq hdi)
+    by_cases hm : msg = Extract.honestMsg answers index lay
+    · by_cases hp : lay.val < 3 → wbcPad w lay = 0
+      · exact Or.inr ⟨hm, ⟨digits, hm ▸ hframe, hshape⟩, hp⟩
+      · have hlay : lay.val < 3 := by by_contra h3; exact hp (fun h => absurd h h3)
+        have hpad : wbcPad w lay ≠ 0 := fun h0 => hp (fun _ => h0)
+        obtain ⟨l, r, hlr⟩ : ∃ l r, msg = .pair l r := by
+          cases msg with
+          | forest root => exact absurd hfit (by change ¬(lay.val = 3); omega)
+          | pair l r => exact ⟨l, r, rfl⟩
+        subst hlr
+        refine Or.inl (Or.inl ⟨lay, _, wbcCtr w lay, wbcPad w lay, _, hfit', hencE, ?_, ?_⟩)
+        · exact referenceInput_ne_pad answers _ l r _ _ hfit' hpad
+        · rw [← heq]; exact hdec
+    · refine Or.inl (Or.inl ⟨lay, msg, wbcCtr w lay, wbcPad w lay, _, hfit', hencE, ?_, ?_⟩)
+      · exact referenceInput_ne answers _ msg _ _ hfit' hdec (Or.inl (by rw [leafMsg_route _ _ _ hidx]; exact hm))
+      · rw [← heq]; exact hdec
+  · have hlow : digits.getD i.val 0 + 1 = (referenceDigits answers (routeLeaf index lay)).getD i.val 0 := hu.2.2.1
+    have hne : digits ≠ referenceDigits answers (routeLeaf index lay) := by
+      intro he; rw [he] at hlow; omega
+    refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inr ⟨⟨routeLeaf index lay, i.val⟩, hsrcC i.val i.isLt,
+      ⟨msg, wbcCtr w lay, wbcPad w lay, _, digits, hfit', hencE,
+        referenceInput_ne answers _ msg _ _ hfit' hdec (Or.inr hne), hdec, hlow, ?_⟩,
+      hcontact i.val i.isLt (by show _ < (referenceDigits answers (routeLeaf index lay)).getD i.val 0; omega)⟩))))
+    intro k hk
+    by_cases hkc : k < chainCount lay
+    · exact hu.2.2.2 ⟨k, hkc⟩ (fun he => hk (congrArg Fin.val he))
+    · rw [List.getD_eq_default _ _ (by rw [referenceDigits_length]; exact not_lt.mp hkc)]
+      exact Nat.zero_le _
+  · refine Or.inl (Or.inr (Or.inr (Or.inl ⟨⟨routeLeaf index lay, i.val⟩, hsrcC i.val i.isLt, ?_⟩)))
+    have hlt : digits.getD i.val 0 < depth answers ⟨routeLeaf index lay, i.val⟩ := by
+      have e1 : (decodedWord hdec i).val = digits.getD i.val 0 := rfl
+      have e2 : (decodedWord hr i).val = depth answers ⟨routeLeaf index lay, i.val⟩ := rfl
+      omega
+    exact ((hchains i.val i.isLt).2 hlt).2 h2
+  · refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inl ⟨⟨routeLeaf index lay, i.val⟩, ⟨routeLeaf index lay, j.val⟩,
+      hsrcC i.val i.isLt, hsrcC j.val j.isLt, ?_, hcontact i.val i.isLt hi, hcontact j.val j.isLt hj⟩))))
+    intro he
+    exact hij (Fin.ext (ChainAddr.mk.inj he).2)
+theorem layer_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : WCT9.LayerMsg)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hfit : Extract.msgFits lay msg)
+    (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hsub : ∀ q ∈ queried answers (layerP w index lay digits), q ∈ qs)
+    (reaches : evalWithAnswerFn answers (layerP w index lay digits) =
+      Extract.honestRoot answers lay (route index lay).2) :
+    WotsPrimitiveRoute index answers (entriesOf answers qs) ∨
+      (msg = Extract.honestMsg answers index lay ∧ BC.GoodZ answers w index lay) := by
+  have hvalid := Cost.validDigits_decode hframe.2
+  have hmono := entriesOf_mono (answers := answers) hsub
+  rcases layerP_wots answers w index lay digits hidx hvalid reaches with hS | ⟨hmerkle, hchains⟩
+  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hS hmono)))
+  exact frame_wots_route answers w index lay msg digits hidx hfit hframe qs henc
+    (fun j hj => ⟨(hmerkle j hj).1, fun _ => (hmerkle j hj).2⟩)
+    (fun i hi => ⟨(hchains i hi).1, fun hlt => ⟨contactAt_mono ((hchains i hi).2 hlt).1 hmono,
+      fun h2 => twoEdgeAt_mono (((hchains i hi).2 hlt).2 h2) hmono⟩⟩)
+theorem layerPair_wots_route (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : WCT9.LayerMsg)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hlay : lay.val ≠ 0) (hfit : Extract.msgFits lay msg)
+    (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hsub : ∀ q ∈ queried answers (layerPairP w index lay digits), q ∈ qs)
+    (reaches : evalWithAnswerFn answers (layerPairP w index lay digits) =
+      Extract.honestPair answers lay (route index lay).2) :
+    WotsPrimitiveRoute index answers (entriesOf answers qs) ∨
+      (msg = Extract.honestMsg answers index lay ∧ BC.GoodZ answers w index lay) := by
+  have hvalid := Cost.validDigits_decode hframe.2
+  have hmono := entriesOf_mono (answers := answers) hsub
+  rcases layerPairP_wots answers w index lay digits hidx hvalid reaches with hS | ⟨hmerkle, hchains⟩
+  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hS hmono)))
+  exact frame_wots_route answers w index lay msg digits hidx hfit hframe qs henc
+    (fun j hj => ⟨(hmerkle j hj).1, fun h => (hmerkle j hj).2 (h.resolve_right hlay)⟩)
+    (fun i hi => ⟨(hchains i hi).1, fun hlt => ⟨contactAt_mono ((hchains i hi).2 hlt).1 hmono,
+      fun h2 => twoEdgeAt_mono (((hchains i hi).2 hlt).2 h2) hmono⟩⟩)
+theorem layersBC_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
+    ∀ n, 1 ≤ n → n ≤ 4 → ∀ msg : WCT9.LayerMsg, Extract.msgFits (Fin.ofNat 4 (n - 1)) msg →
+    evalWithAnswerFn answers (layersBC w index n msg) = some (Extract.honestRoot answers 0 0) →
+    WotsPrimitiveRoute index answers (entriesOf answers (queried answers (layersBC w index n msg))) ∨
+    ((∀ l : Layer, l.val < n → BC.GoodZ answers w index l) ∧
+      msg = Extract.honestMsg answers index (Fin.ofNat 4 (n - 1)))
+  | 0, h1, _, _, _, _ => absurd h1 (by decide)
+  | n + 1, _, hn, msg, hfit, h => by
+      classical
+      obtain ⟨digits, hframe, henc, htop, hlow⟩ := Extract.layersBC_succ_split answers w index n msg _ h
+      have hval : (Fin.ofNat 4 n : Layer).val = n := Extract.ofNat_val n (by omega)
+      simp only [Nat.add_sub_cancel] at hfit ⊢
+      have finish : WotsPrimitiveRoute index answers (entriesOf answers (queried answers (layersBC w index (n + 1) msg))) ∨
+          (msg = Extract.honestMsg answers index (Fin.ofNat 4 n) ∧ BC.GoodZ answers w index (Fin.ofNat 4 n)) →
+          (∀ l : Layer, l.val < n → BC.GoodZ answers w index l) →
+          WotsPrimitiveRoute index answers (entriesOf answers (queried answers (layersBC w index (n + 1) msg))) ∨
+          ((∀ l : Layer, l.val < n + 1 → BC.GoodZ answers w index l) ∧
+            msg = Extract.honestMsg answers index (Fin.ofNat 4 n)) := by
+        intro hx hgood
+        rcases hx with hprim | ⟨hmsg, hgoodn⟩
+        · exact Or.inl hprim
+        · right
+          refine ⟨fun l hl => ?_, hmsg⟩
+          by_cases hle : l.val < n
+          · exact hgood l hle
+          · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
+            subst hl
+            exact hgoodn
+      by_cases hn0 : n = 0
+      · subst hn0
+        obtain ⟨hout, hq⟩ := htop rfl
+        have hroot : evalWithAnswerFn answers (layerP w index (Fin.ofNat 4 0) digits) =
+            Extract.honestRoot answers (Fin.ofNat 4 0) (route index (Fin.ofNat 4 0)).2 := by
+          rw [hout, show (Fin.ofNat 4 0 : Layer) = 0 from rfl, route_top_tree index hidx]
+        exact finish (layer_wots_route answers w index (Fin.ofNat 4 0) msg digits hidx hfit hframe _ henc hq hroot)
+          (fun l hl => absurd hl (by omega))
+      · obtain ⟨hrest, hqP, hqR⟩ := hlow hn0
+        have hfit' : Extract.msgFits (Fin.ofNat 4 (n - 1))
+            (.pair (evalWithAnswerFn answers (layerPairP w index (Fin.ofNat 4 n) digits)).1
+              (evalWithAnswerFn answers (layerPairP w index (Fin.ofNat 4 n) digits)).2) := by
+          show (Fin.ofNat 4 (n - 1) : Layer).val < 3
+          rw [Extract.ofNat_val _ (by omega)]; omega
+        rcases layersBC_wots_walk_route answers w index hidx n (by omega) (by omega) _ hfit' hrest with
+          hprim | ⟨hgood, hmsg⟩
+        · exact Or.inl (hprim.mono (entriesOf_mono hqR))
+        · rw [Extract.honestMsg_lower answers index n (by omega) (by omega)] at hmsg
+          have hpair : evalWithAnswerFn answers (layerPairP w index (Fin.ofNat 4 n) digits) =
+              Extract.honestPair answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 := by
+            simp only [WCT9.LayerMsg.pair.injEq] at hmsg
+            exact Prod.ext hmsg.1 hmsg.2
+          exact finish (layerPair_wots_route answers w index (Fin.ofNat 4 n) msg digits hidx
+            (by rw [hval]; exact hn0) hfit hframe _ henc hqP hpair) hgood
+theorem verifyP_walk_wots_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
+    (hpk : pk = Extract.honestRoot answers 0 0)
+    (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
+    ∃ N : HashOutput, (wdc w).toNat < WCT9.digestAttemptLimit ∧
+      evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N ∧
+      (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : Spec.Domain) ∈ queried answers (verifyP m pk w) ∧
+      Shaped N w ∧
+      (WotsPrimitiveRoute (N.toNat % 2 ^ 31) answers (entriesOf answers (queried answers (verifyP m pk w))) ∨
+       ((∀ l : Layer, BC.GoodZ answers w (N.toNat % 2 ^ 31) l) ∧
+          evalWithAnswerFn answers
+              (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N) =
+            Extract.honestForest answers (N.toNat % 2 ^ 31) ∧
+          ∀ q ∈ queried answers (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N),
+            q ∈ queried answers (verifyP m pk w))) := by
+  classical
+  obtain ⟨N, hdc, hN, hdq, hS, hlay, hqF, hqL⟩ := WctExtract.verifyP_walk_wct answers m pk w hv
+  refine ⟨N, hdc, hN, hdq, hS, ?_⟩
+  have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by norm_num)
+  rcases layersBC_wots_walk_route answers w (N.toNat % 2 ^ 31) hidx 4 (by decide) le_rfl (.forest _)
+      (show (Fin.ofNat 4 (4 - 1) : Layer).val = 3 from rfl) (by rw [hlay, hpk]) with
+    hprim | ⟨hgood, hroot⟩
+  · exact Or.inl (hprim.mono (entriesOf_mono hqL))
+  · right
+    refine ⟨fun l => hgood l l.isLt, ?_, hqF⟩
+    rw [show (4 - 1 : Nat) = 3 from rfl, Extract.honestMsg_three] at hroot
+    simpa using hroot
+theorem verifyP_wots_cases_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
+    (hpk : pk = Extract.honestRoot answers 0 0)
+    (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
+    ∃ N : HashOutput, (wdc w).toNat < WCT9.digestAttemptLimit ∧
+      evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N ∧
+      (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : Spec.Domain) ∈ queried answers (verifyP m pk w) ∧
+      Shaped N w ∧
+      (WotsPrimitiveRoute (N.toNat % 2 ^ 31) answers (entriesOf answers (queried answers (verifyP m pk w))) ∨
+       ((∀ l : Layer, BC.GoodZ answers w (N.toNat % 2 ^ 31) l) ∧ WctExtract.WctHonest answers N w ∧
+         ∀ q ∈ queried answers (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N),
+            q ∈ queried answers (verifyP m pk w))) := by
+  classical
+  obtain ⟨N, hdc, hN, hdq, hS, hcase⟩ := verifyP_walk_wots_route answers m pk w hpk hv
+  refine ⟨N, hdc, hN, hdq, hS, ?_⟩
+  rcases hcase with hprim | ⟨hgood, hR, hqV⟩
+  · exact Or.inl hprim
+  rcases fts_structural answers N w hS hR with hhit | hshape
+  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hhit (entriesOf_mono hqV))))
+  · exact Or.inr ⟨hgood, hshape, hqV⟩
+end ClaudeWCT.W9.T3.Security.WotsExtract
 end
+
 section
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -590,173 +575,11 @@ theorem wctItem_mem_signItemsWith (digitsOf : Wots.LeafAddr → List Nat) (N : H
   · exact (layerItems_not_wct digitsOf _ a p h).elim
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
+
 section
-namespace ClaudeWCT.W9.T3.Security.WotsExtract
-open OracleComp OracleSpec
-open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
-open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low encodingRow entriesOf word_cases)
-open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3.Security.Wots
-open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
-open SigGolfCandidate.T3M (wrho wdc wctr layerP layerNextP layersP)
-open SigGolfCandidate.T3.Security.WotsExtract (SourceLeaf SourceChain entriesOf_mono mem_entriesOf routeLeaf
-  routeLeaf_source)
-open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue)
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-def WotsPrimitiveRoute (index : Nat) (answers : Answers) (trace : List Entry) : Prop :=
-  (∃ lay, EncodingMatchAt answers trace (routeLeaf index lay)) ∨ StructuralHitSrc answers trace ∨
-    (∃ a, SourceChain a ∧ TwoEdgeAt answers trace a) ∨
-    (∃ a b, SourceChain a ∧ SourceChain b ∧ a ≠ b ∧ ContactAt answers trace a ∧ ContactAt answers trace b) ∨
-    (∃ a, SourceChain a ∧ MarkerAt answers trace a ∧ ContactAt answers trace a)
-theorem WotsPrimitiveRoute.mono {index : Nat} {answers : Answers} {trace trace' : List Entry}
-    (h : WotsPrimitiveRoute index answers trace) (hsub : ∀ e ∈ trace, e ∈ trace') :
-    WotsPrimitiveRoute index answers trace' := by
-  rcases h with ⟨lay, h⟩ | h | ⟨a, ha, h⟩ | ⟨a, b, ha, hb, hab, h1, h2⟩ | ⟨a, ha, hm, hc⟩
-  · exact Or.inl ⟨lay, encodingMatchAt_mono h hsub⟩
-  · exact Or.inr (Or.inl (structuralHitSrc_mono h hsub))
-  · exact Or.inr (Or.inr (Or.inl ⟨a, ha, twoEdgeAt_mono h hsub⟩))
-  · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, b, ha, hb, hab, contactAt_mono h1 hsub, contactAt_mono h2 hsub⟩)))
-  · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, ha, markerAt_mono hm hsub, contactAt_mono hc hsub⟩)))
-theorem layer_wots_route (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4) (msg : Digest × BitVec 96 × Digest)
-    (digits : List Nat) (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index (Fin.ofNat 4 n) msg digits)
-    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index (Fin.ofNat 4 n) msg ∈ qs)
-    (hsub : ∀ q ∈ queried answers (layerNextP w index n (Fin.ofNat 4 n) digits), q ∈ qs)
-    (reaches : evalWithAnswerFn answers (layerNextP w index n (Fin.ofNat 4 n) digits) =
-      Extract.walkTarget answers index n) :
-    WotsPrimitiveRoute index answers (entriesOf answers qs) ∨
-      (msg = Extract.honestMsg answers index (Fin.ofNat 4 n) ∧ Extract.Good answers w index (Fin.ofNat 4 n)) := by
-  classical
-  have hW := layerNextP_wots answers w index n hn digits hidx (Cost.validDigits_decode hframe.2) qs hsub reaches
-  set lay : Layer := Fin.ofNat 4 n with hlay
-  have hdec : decode (routeLeaf index lay).lay
-      (low (answers (.inl (.inr (encodingRow (routeLeaf index lay) msg (wctr w lay)))))) = some digits := hframe.2
-  have hvalid := Cost.validDigits_decode hframe.2
-  have hmono := entriesOf_mono (answers := answers) hsub
-  have hencE : (encodingRow (routeLeaf index lay) msg (wctr w lay),
-      answers (.inl (.inr (encodingRow (routeLeaf index lay) msg (wctr w lay))))) ∈ entriesOf answers qs :=
-    mem_entriesOf henc
-  have hsrc : SourceLeaf (routeLeaf index lay) := routeLeaf_source index lay hidx
-  have hsrcC : ∀ i, i < chainCount lay → SourceChain ⟨routeLeaf index lay, i⟩ := fun i hi => ⟨hsrc, hi⟩
-  rcases hW with hS | ⟨hmerkle, hchains⟩
-  · exact Or.inl (Or.inr (Or.inl hS))
-  have hcontact : ∀ i, i < chainCount lay → digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
-      ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ := fun i hi hlt =>
-    ((hchains i hi).2 hlt).1
-  obtain ⟨refDigest, hr⟩ := referenceDigits_decode answers (routeLeaf index lay)
-  rcases word_cases hr hdec with heq | ⟨i, hu⟩ | ⟨i, h2⟩ | ⟨i, j, hij, hi, hj⟩
-  · have hshape : Extract.LayerShaped answers w index lay digits := by
-      refine ⟨hmerkle, fun i hi => ?_⟩
-      have hdi : depth answers ⟨routeLeaf index lay, i⟩ = digits.getD i 0 := by
-        unfold depth
-        rw [heq]
-      exact (hchains i hi).1 (le_of_eq hdi)
-    by_cases hm : msg = Extract.honestMsg answers index lay
-    · exact Or.inr ⟨hm, digits, hm ▸ hframe, hshape⟩
-    · refine Or.inl (Or.inl ⟨lay, msg, wctr w lay, _, hencE, ?_, ?_⟩)
-      · exact referenceInput_ne answers _ msg _ hdec (Or.inl (by rw [leafMsg_route]; exact hm))
-      · rw [← heq]; exact hdec
-  · have hlow : digits.getD i.val 0 + 1 = (referenceDigits answers (routeLeaf index lay)).getD i.val 0 := hu.2.2.1
-    have hne : digits ≠ referenceDigits answers (routeLeaf index lay) := by
-      intro he; rw [he] at hlow; omega
-    refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inr ⟨⟨routeLeaf index lay, i.val⟩, hsrcC i.val i.isLt,
-      ⟨msg, wctr w lay, _, digits, hencE, referenceInput_ne answers _ msg _ hdec (Or.inr hne), hdec, hlow, ?_⟩,
-      hcontact i.val i.isLt (by show _ < (referenceDigits answers (routeLeaf index lay)).getD i.val 0; omega)⟩))))
-    intro k hk
-    by_cases hkc : k < chainCount lay
-    · exact hu.2.2.2 ⟨k, hkc⟩ (fun he => hk (congrArg Fin.val he))
-    · rw [List.getD_eq_default _ _ (by rw [referenceDigits_length]; exact not_lt.mp hkc)]
-      exact Nat.zero_le _
-  · refine Or.inl (Or.inr (Or.inr (Or.inl ⟨⟨routeLeaf index lay, i.val⟩, hsrcC i.val i.isLt, ?_⟩)))
-    have hlt : digits.getD i.val 0 < depth answers ⟨routeLeaf index lay, i.val⟩ := by
-      have e1 : (decodedWord hdec i).val = digits.getD i.val 0 := rfl
-      have e2 : (decodedWord hr i).val = depth answers ⟨routeLeaf index lay, i.val⟩ := rfl
-      omega
-    exact ((hchains i.val i.isLt).2 hlt).2 h2
-  · refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inl ⟨⟨routeLeaf index lay, i.val⟩, ⟨routeLeaf index lay, j.val⟩,
-      hsrcC i.val i.isLt, hsrcC j.val j.isLt, ?_, hcontact i.val i.isLt hi, hcontact j.val j.isLt hj⟩))))
-    intro he
-    exact hij (Fin.ext (ChainAddr.mk.inj he).2)
-theorem layersP_wots_walk_route (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
-    ∀ n, n ≤ 4 → ∀ root : Digest × BitVec 96 × Digest,
-    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0).1 →
-    WotsPrimitiveRoute index answers (entriesOf answers (queried answers (layersP w index n root))) ∨
-    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧
-      (if n = 0 then root.1 = (Extract.walkTarget answers index 0).1 else root = Extract.walkTarget answers index n))
-  | 0, _, root, h => by
-      right
-      refine ⟨fun l hl => absurd hl (Nat.not_lt_zero _), ?_⟩
-      simpa [layersP] using h
-  | n + 1, hn, root, h => by
-      classical
-      obtain ⟨digits, hframe, hrest, henc, hqL, hqR⟩ := Extract.layersP_succ_split answers w index n root _ h
-      have hval : (Fin.ofNat 4 n : Layer).val = n := by simp; omega
-      rcases layersP_wots_walk_route answers w index hidx n (by omega) _ hrest with hprim | ⟨hgood, hv⟩
-      · exact Or.inl (hprim.mono (entriesOf_mono hqR))
-      · have hv' := Extract.next_target answers w index n digits hv
-        rcases layer_wots_route answers w index n (by omega) root digits hidx hframe
-            (queried answers (layersP w index (n + 1) root)) henc hqL hv' with hprim | ⟨hmsg, hgoodn⟩
-        · exact Or.inl hprim
-        · right
-          have hmsg' : Extract.honestMsg answers index (Fin.ofNat 4 n) = Extract.walkTarget answers index (n + 1) := by
-            have hl : (Fin.ofNat 4 n : Layer) = ⟨n, by omega⟩ := Fin.ext hval
-            simp only [Extract.walkTarget, dif_pos (show n < 4 by omega), hl]
-          refine ⟨fun l hl => ?_, by simpa only [Nat.succ_ne_zero, if_false] using hmsg.trans hmsg'⟩
-          by_cases hle : l.val < n
-          · exact hgood l hle
-          · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
-            subst hl
-            exact hgoodn
-theorem verifyP_walk_wots_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
-    (hpk : pk = Extract.honestRoot answers 0 0)
-    (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
-    ∃ N : HashOutput, (wdc w).toNat < WCT9.digestAttemptLimit ∧
-      evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N ∧
-      (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : Spec.Domain) ∈ queried answers (verifyP m pk w) ∧
-      Shaped N w ∧
-      (WotsPrimitiveRoute (N.toNat % 2 ^ 31) answers (entriesOf answers (queried answers (verifyP m pk w))) ∨
-       ((∀ l : Layer, Extract.Good answers w (N.toNat % 2 ^ 31) l) ∧
-          evalWithAnswerFn answers
-              (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N) =
-            Extract.honestForest answers (N.toNat % 2 ^ 31) ∧
-          ∀ q ∈ queried answers (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N),
-            q ∈ queried answers (verifyP m pk w))) := by
-  classical
-  obtain ⟨N, hdc, hN, hdq, hS, hlay, hqF, hqL⟩ := WctExtract.verifyP_walk_wct answers m pk w hv
-  refine ⟨N, hdc, hN, hdq, hS, ?_⟩
-  have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by norm_num)
-  have htop : (Extract.walkTarget answers (N.toNat % 2 ^ 31) 0).1 = pk := by
-    rw [hpk]; simp only [Extract.walkTarget, route_top_tree _ hidx]
-  rcases layersP_wots_walk_route answers w (N.toNat % 2 ^ 31) hidx 4 le_rfl _ (by rw [hlay, htop]) with
-    hprim | ⟨hgood, hroot⟩
-  · exact Or.inl (hprim.mono (entriesOf_mono hqL))
-  · right
-    refine ⟨fun l => hgood l l.isLt, ?_, hqF⟩
-    have h4 := hroot
-    simp [Extract.walkTarget, Extract.honestMsg] at h4
-    exact h4
-theorem verifyP_wots_cases_route (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
-    (hpk : pk = Extract.honestRoot answers 0 0)
-    (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :
-    ∃ N : HashOutput, (wdc w).toNat < WCT9.digestAttemptLimit ∧
-      evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N ∧
-      (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : Spec.Domain) ∈ queried answers (verifyP m pk w) ∧
-      Shaped N w ∧
-      (WotsPrimitiveRoute (N.toNat % 2 ^ 31) answers (entriesOf answers (queried answers (verifyP m pk w))) ∨
-       ((∀ l : Layer, Extract.Good answers w (N.toNat % 2 ^ 31) l) ∧ WctExtract.WctHonest answers N w ∧
-         ∀ q ∈ queried answers (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N),
-            q ∈ queried answers (verifyP m pk w))) := by
-  classical
-  obtain ⟨N, hdc, hN, hdq, hS, hcase⟩ := verifyP_walk_wots_route answers m pk w hpk hv
-  refine ⟨N, hdc, hN, hdq, hS, ?_⟩
-  rcases hcase with hprim | ⟨hgood, hR, hqV⟩
-  · exact Or.inl hprim
-  rcases fts_structural answers N w hS hR with hhit | hshape
-  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hhit (entriesOf_mono hqV))))
-  · exact Or.inr ⟨hgood, hshape, hqV⟩
-end ClaudeWCT.W9.T3.Security.WotsExtract
-end
-section
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -778,8 +601,7 @@ theorem posOf_chainRow (a : Wots.ChainAddr) (ha : WotsExtract.SourceChain a) (s 
     Extract.posOf (Wots.chainRow a s v) = some (CanonGraph.Node.chain (gAddr a ha, ⟨s, hs⟩)).toPos := by
   apply Extract.posOf_eq (CanonGraph.toPos_bounded _)
   unfold Wots.chainRow
-  rw [show Extract.hdrBlock (chainInput a.key.lay a.key.tree a.key.leaf a.chain s v) =
-    bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) from chainInput_header _ _ _ _ _ _]
+  rw [Extract.hdrBlock_wotsChainInput]
   rfl
 theorem honestInput_chainNode (A : Answers) (p : ChainGraph.Point) :
     Extract.honestInput A (CanonGraph.Node.chain p).toPos =
@@ -868,14 +690,14 @@ theorem encodingMatch_route_false (A : Answers) (K : Coord → Prop) (qs : List 
     (hidx : index < 2 ^ 31) (lay : Layer)
     (h : Wots.EncodingMatchAt A (Wots.entriesOf A qs) (WotsExtract.routeLeaf index lay))
     (hclear : AllClear A K qs) : False := by
-  obtain ⟨m, ctr, answer, hmem, hne, hdec⟩ := h
+  obtain ⟨m, ctr, pad, answer, hfit, hmem, hne, hdec⟩ := h
   obtain ⟨hq, hans⟩ := WotsExtract.mem_entriesOf_iff.mp hmem
   obtain ⟨L, hL⟩ := CanonEncoding.route_source index hidx lay
   have hL' : L.toWots = WotsExtract.routeLeaf index lay := hL
-  refine (hclear _ hq).2.2 L m ctr (by rw [hL']) ⟨?_, ?_⟩
+  have hlay : L.1.lay = lay := congrArg Wots.LeafAddr.lay hL'
+  refine (hclear _ hq).2.2 L m ctr pad (by rw [hlay]; exact hfit) (by rw [hL']) ⟨?_, ?_⟩
   · rw [hL']; exact hne
-  · have hlay : L.1.lay = lay := congrArg Wots.LeafAddr.lay hL'
-    rw [hans, hL', hlay]; exact hdec
+  · rw [hans, hL', hlay]; exact hdec
 theorem wotsPrimitiveRoute_false (A : Answers) (published : SigGolfCandidate.T3.Cache) (qs : List Spec.Domain)
     (index : Nat) (hidx : index < 2 ^ 31) (h : WotsExtract.WotsPrimitiveRoute index A (Wots.entriesOf A qs))
     (hclear : AllClear A (Known (Disclosed A published)) qs) : False := by
@@ -912,7 +734,12 @@ theorem slotValue_honest_wctChain (A : Answers) (a : CanonGraph.WctAddr) (s : Fi
   exact slotValue_block4_three _ _ _ _
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
+
 section
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -931,7 +758,13 @@ theorem trace_inputs (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127) (re
     (PaddedExtraction.traced_record_support adversary q hq result hr)
 end ClaudeWCT.W9.T3.Security.LargeCoupling
 end
+
 section
+
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeCoupling
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security

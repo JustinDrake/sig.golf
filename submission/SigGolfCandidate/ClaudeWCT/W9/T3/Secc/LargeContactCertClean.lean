@@ -804,9 +804,9 @@ theorem cert_of_clean (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
     set s : Fin 3 := ⟨3 - WCT9.digit (WCT9.rank N k) tt, by omega⟩ with hs
     have hq0 := CaseC.recoverFtsP_chain_queried z.2 N w k tt hu1
     obtain ⟨hval, hpad⟩ := (hfts.2 k).1 tt
-    rw [hval, hpad hu1] at hq0
+    rw [hval, (hpad hu1).1, (hpad hu1).2] at hq0
     have hX : (.inl (.inr (pad64 (wctChainInputP (N.toNat % 2 ^ 31) k.val (WCT9.child N k).val tt.val
-        (3 - WCT9.digit (WCT9.rank N k) tt) ((0, 0) : Digest × Digest).1 ((0, 0) : Digest × Digest).2
+        (3 - WCT9.digit (WCT9.rank N k) tt) ((0, 0) : Digest × Digest).1 0 ((0, 0) : Digest × Digest).2
         (Extract.wctValue z.2 (N.toNat % 2 ^ 31) k.val (WCT9.child N k).val tt.val
           (3 - WCT9.digit (WCT9.rank N k) tt))))) : Spec.Domain) =
         .inl (.inr (Extract.honestInput z.2 (CanonGraph.Node.wctChain (a, s)).toPos)) := by
