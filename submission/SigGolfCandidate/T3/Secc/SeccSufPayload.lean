@@ -1,7 +1,5 @@
 import SigGolfCandidate.T3.BPORS
-
 section
-
 namespace SigGolfCandidate.T3.Security.BSuf
 open OracleComp OracleSpec SigGolfCandidate.T3 SigGolfCandidate.T3M
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -355,9 +353,7 @@ theorem fts_secrets_honest (answers : Answers) (σ : Signature) (N : HashOutput)
   rfl
 end SigGolfCandidate.T3.Security.BSuf
 end
-
 section
-
 namespace SigGolfCandidate.T3.Security.BSuf
 open OracleComp OracleSpec SigGolfCandidate.T3 SigGolfCandidate.T3M
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -371,7 +367,7 @@ theorem expandN_unfold (answers : Answers) (m : Message) (pk : Digest) (σ : Sig
     ∃ counter rootF cs,
       evalWithAnswerFn answers (digestSearch σ.rho m 0 attemptLimit) = some (counter, N) ∧
       evalWithAnswerFn answers (recoverFts σ (N.toNat % 2 ^ 31) (selections N)) = some rootF ∧
-      evalWithAnswerFn answers (expandLayers σ (N.toNat % 2 ^ 31) 4 rootF) = some (pk, cs) ∧
+      evalWithAnswerFn answers (expandLayers σ (N.toNat % 2 ^ 31) 4 (rootF, 0, 0)) = some (pk, cs) ∧
       wit = ⟨σ, counter, fun lay => cs.getD lay.val 0⟩ := by
   simp only [expandN, evalWithAnswerFn_bind] at he
   cases hd : evalWithAnswerFn answers (digestSearch σ.rho m 0 attemptLimit) with
@@ -383,7 +379,7 @@ theorem expandN_unfold (answers : Answers) (m : Message) (pk : Digest) (σ : Sig
       | none => simp only [hf, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some rootF =>
           simp only [hf, evalWithAnswerFn_bind] at he
-          cases hl : evalWithAnswerFn answers (expandLayers σ (output.toNat % 2 ^ 31) 4 rootF) with
+          cases hl : evalWithAnswerFn answers (expandLayers σ (output.toNat % 2 ^ 31) 4 (rootF, 0, 0)) with
           | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
           | some layers =>
               obtain ⟨root, cs⟩ := layers
@@ -397,7 +393,7 @@ theorem expandN_unfold (answers : Answers) (m : Message) (pk : Digest) (σ : Sig
                 subst hroot
                 exact ⟨counter, rootF, cs, rfl, hf, hl, rfl⟩
 theorem expandLayers_length (answers : Answers) (σ : Signature) (index : Nat) :
-    ∀ n (value root : Digest) (cs : List (BitVec 32)),
+    ∀ n (value : (Digest × BitVec 96 × Digest)) (root : Digest) (cs : List (BitVec 32)),
       evalWithAnswerFn answers (expandLayers σ index n value) = some (root, cs) → cs.length = n := by
   intro n
   induction n with
@@ -415,7 +411,7 @@ theorem expandLayers_length (answers : Answers) (σ : Signature) (index : Nat) :
           obtain ⟨counter, digits⟩ := found
           simp only [hs, evalWithAnswerFn_bind] at h
           cases hr : evalWithAnswerFn answers (expandLayers σ index n
-              (evalWithAnswerFn answers (recoverLayer σ index (Fin.ofNat 4 n) digits))) with
+              (evalWithAnswerFn answers (expandNext σ index n (Fin.ofNat 4 n) digits))) with
           | none => simp only [hr, evalWithAnswerFn_pure, reduceCtorEq] at h
           | some res =>
               obtain ⟨root', cs'⟩ := res
@@ -435,16 +431,18 @@ theorem layer_of_shaped (answers : Answers) (N : HashOutput) (wit : Witness) (la
     simp [piecesSignature, Correctness.honestPieces]
 theorem honestMsg_lower (answers : Answers) (index n : Nat) (hn : n + 1 < 4) :
     Extract.honestMsg answers index (Fin.ofNat 4 n) =
-      treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
-        (height (Fin.ofNat 4 (n + 1))) 0 := by
+      (treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
+        (height (Fin.ofNat 4 (n + 1)) - 1) 0, 0,
+       treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
+        (height (Fin.ofNat 4 (n + 1)) - 1) 1) := by
   have hv : (Fin.ofNat 4 n : Layer).val = n := Nat.mod_eq_of_lt (by omega)
   have hl : (⟨n + 1, by omega⟩ : Layer) = Fin.ofNat 4 (n + 1) := Fin.ext (by simp; omega)
-  simp only [Extract.honestMsg, hv, dif_pos (show n < 3 by omega), Extract.honestRoot, hl]
+  simp only [Extract.honestMsg, hv, dif_pos (show n < 3 by omega), Extract.honestPair, hl]
 theorem layers_payload (answers : Answers) (published : T3.Cache)
     (hcache : published.region = Correctness.cacheRegion (Correctness.maskedTop answers))
     (N : HashOutput) (wit : Witness)
     (hgood : ∀ lay : Layer, Extract.Good answers (witEnc N wit) (N.toNat % 2 ^ 31) lay) :
-    ∀ n, n ≤ 4 → ∀ (value root : Digest) (cs : List (BitVec 32)),
+    ∀ n, n ≤ 4 → ∀ (value : (Digest × BitVec 96 × Digest)) (root : Digest) (cs : List (BitVec 32)),
       (∀ k, n = k + 1 → value = Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k)) →
       evalWithAnswerFn answers (expandLayers wit.signature (N.toNat % 2 ^ 31) n value) = some (root, cs) →
       (∀ lay : Layer, lay.val < n → wit.counters lay = cs.getD lay.val 0) →
@@ -472,7 +470,7 @@ theorem layers_payload (answers : Answers) (published : T3.Cache)
           have hvalid := Cost.validDigits_decode hsome.2.2
           simp only [hs, evalWithAnswerFn_bind] at hexp
           cases hr : evalWithAnswerFn answers (expandLayers wit.signature (N.toNat % 2 ^ 31) n
-              (evalWithAnswerFn answers (recoverLayer wit.signature (N.toNat % 2 ^ 31) (Fin.ofNat 4 n) digits))) with
+              (evalWithAnswerFn answers (expandNext wit.signature (N.toNat % 2 ^ 31) n (Fin.ofNat 4 n) digits))) with
           | none => simp only [hr, evalWithAnswerFn_pure, reduceCtorEq] at hexp
           | some res =>
               obtain ⟨root', cs'⟩ := res
@@ -487,7 +485,7 @@ theorem layers_payload (answers : Answers) (published : T3.Cache)
               subst hdec
               rename' digits => digitsG
               have hlayer := layer_of_shaped answers N wit (Fin.ofNat 4 n) digitsG hshape
-              have hrec := Correctness.recoverLayer_honestPieces answers wit.signature (N.toNat % 2 ^ 31) (Fin.ofNat 4 n) digitsG
+              have hrec := Correctness.recoverPair_honestPieces answers wit.signature (N.toNat % 2 ^ 31) (Fin.ofNat 4 n) digitsG
                 hvalid hlayer
               by_cases hn0 : n = 0
               · subst hn0
@@ -503,9 +501,10 @@ theorem layers_payload (answers : Answers) (published : T3.Cache)
                   rw [show (Fin.ofNat 4 0 : Layer) = 0 from rfl, ht] at hlayer
                   exact hlayer
               · obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
-                have hnext : evalWithAnswerFn answers (recoverLayer wit.signature (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1)) digitsG) =
-                    Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k) := by
-                  rw [hrec, honestMsg_lower answers (N.toNat % 2 ^ 31) k (by omega)]
+                have hnext : evalWithAnswerFn answers (expandNext wit.signature (N.toNat % 2 ^ 31) (k + 1)
+                    (Fin.ofNat 4 (k + 1)) digitsG) = Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 k) := by
+                  rw [Correctness.eval_expandNext, Correctness.eval_recoverNext, if_neg (by omega), hrec,
+                    honestMsg_lower answers (N.toNat % 2 ^ 31) k (by omega)]
                 obtain ⟨pieces, hpieces, hplen, hpagree⟩ := ih (by omega) _ root' cs'
                   (fun k' hk' => by rw [hnext]; congr; omega) hr
                   (fun lay hlay => by
@@ -518,10 +517,13 @@ theorem layers_payload (answers : Answers) (published : T3.Cache)
                   by simp [hplen], ?_⟩
                 · rw [signLayers]
                   simp only [evalWithAnswerFn_bind, hs, htree, show k + 1 ≠ 0 by omega, ite_false]
-                  have hroot : ((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-                      (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1))) []).getD 0 0 =
-                      evalWithAnswerFn answers (recoverLayer wit.signature (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1)) digitsG) := by
-                    rw [hrec]; rfl
+                  have hroot : (((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
+                      (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 0 0, 0, ((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
+                      (route (N.toNat % 2 ^ 31) (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 1 0) =
+                      evalWithAnswerFn answers (expandNext wit.signature (N.toNat % 2 ^ 31) (k + 1)
+                        (Fin.ofNat 4 (k + 1)) digitsG) := by
+                    rw [Correctness.eval_expandNext, Correctness.eval_recoverNext, if_neg (by omega), hrec]
+                    rfl
                   rw [hroot, hpieces]
                   rfl
                 · intro lay hlay
@@ -578,11 +580,11 @@ theorem caseC_expansion_is_payload (answers : Answers) (published : T3.Cache)
   have hrootF : rootF = evalWithAnswerFn answers (forestPk (N.toNat % 2 ^ 31)
       (Correctness.forestRoots answers (N.toNat % 2 ^ 31) 7)) := by
     rw [hrf] at hrf'; exact Option.some.inj hrf'
-  have hmsg3 : rootF = Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 3) := by
+  have hmsg3 : ((rootF, 0, 0) : Digest × BitVec 96 × Digest) = Extract.honestMsg answers (N.toNat % 2 ^ 31) (Fin.ofNat 4 3) := by
     rw [hrootF, show (Fin.ofNat 4 3 : Layer) = 3 from rfl]
     simp only [Extract.honestMsg, show ¬((3 : Layer).val < 3) by decide, dite_false, Extract.honestForest,
       ftsRootsHonest_eq]
-  obtain ⟨pieces, hpieces, -, hpagree⟩ := layers_payload answers published hcache N wit hgood 4 le_rfl rootF pk cs
+  obtain ⟨pieces, hpieces, -, hpagree⟩ := layers_payload answers published hcache N wit hgood 4 le_rfl (rootF, 0, 0) pk cs
     (fun k hk => by obtain rfl : k = 3 := by omega
                     exact hmsg3)
     (by rw [F.sig]; exact hel)

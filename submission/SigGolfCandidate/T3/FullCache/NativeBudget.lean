@@ -32,7 +32,6 @@ import VCVio.OracleComp.QueryTracking.QueryBound.Basic
 import VCVio.EvalDist.Bool
 import SigGolfCandidate.SphincsSecurity.Proof.Deterministic.Replay
 import SigGolfCandidate.SphincsSecurity.Proof.Fts.ProposalPrefixExponential
-
 section
 end
 section
@@ -408,22 +407,26 @@ set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
 set_option backward.isDefEq.respectTransparency false
 theorem encodingInput_injective {lay lay' : Layer} {tree tree' leaf leaf' : Nat}
-    {message message' : Digest} {counter counter' : BitVec 32}
+    {message message' : Digest × BitVec 96 × Digest} {counter counter' : BitVec 32}
     (ht : tree < 2^40) (ht' : tree' < 2^40)
     (hl : leaf < 2^32) (hl' : leaf' < 2^32)
     (he : encodingInput lay tree leaf message counter =
       encodingInput lay' tree' leaf' message' counter') :
     lay=lay' ∧ tree=tree' ∧ leaf=leaf' ∧ message=message' ∧ counter=counter' := by
   unfold encodingInput at he
-  obtain ⟨hh,hc⟩ := List.append_inj he (by simp only [List.length_append,bytesLE_length])
+  obtain ⟨hh,hr⟩ := List.append_inj he
+    (by simp only [List.length_append,List.length_replicate,bytesLE_length])
+  obtain ⟨hh,hp⟩ := List.append_inj hh (by simp only [List.length_append,bytesLE_length])
+  obtain ⟨hh,hc⟩ := List.append_inj hh (by simp only [List.length_append,bytesLE_length])
   obtain ⟨hm,hh⟩ := List.append_inj hh (by simp only [bytesLE_length])
   have hhead := header_injective (by decide : 4<256) (by have := lay.isLt; omega)
     ht (by decide : 0<2^32) hl (by decide : 4<256) (by have := lay'.isLt; omega)
     ht' (by decide : 0<2^32) hl' (bytesLE_injective hh)
   exact ⟨Fin.ext hhead.2.1,hhead.2.2.1,hhead.2.2.2.2,
-    bytesLE_injective hm,bytesLE_injective hc⟩
+    Prod.ext (bytesLE_injective hm) (Prod.ext (bytesLE_injective hp) (bytesLE_injective hr)),
+    bytesLE_injective hc⟩
 theorem encodingTrial_coordinates {lay lay' : Layer} {tree tree' leaf leaf' : Nat}
-    {message message' : Digest} {counter counter' : Nat}
+    {message message' : Digest × BitVec 96 × Digest} {counter counter' : Nat}
     (ht : tree < 2^40) (ht' : tree' < 2^40)
     (hl : leaf < 2^32) (hl' : leaf' < 2^32)
     (hc : counter < 2^32) (hc' : counter' < 2^32)
@@ -485,7 +488,7 @@ theorem padded_headers_ne (leftPrefix rightPrefix leftSuffix rightSuffix : HashI
   have he := congrArg queryHeader he
   rw [queryHeader_padded _ _ hl,queryHeader_padded _ _ hr] at he
   exact header_ne_of_tag htags (bytesLE_injective he)
-@[simp] theorem queryHeader_encoding (lay : Layer) (tree leaf : Nat) (message : Digest)
+@[simp] theorem queryHeader_encoding (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (counter : Nat) : queryHeader (encodingTrial lay tree leaf message counter) =
       bytesLE 16 (header 4 lay.val tree 0 leaf) := by
   simp [queryHeader,encodingTrial,encodingInput,pad64,List.append_assoc,bytesLE_length]
@@ -493,7 +496,7 @@ theorem padded_headers_ne (leftPrefix rightPrefix leftSuffix rightSuffix : HashI
     queryHeader (digestTrial rho message counter) =
       bytesLE 16 (header 12 0 0 0 (BitVec.ofNat 32 counter).toNat) := by
   simp [queryHeader,digestTrial,digestInput,pad64,List.append_assoc,bytesLE_length]
-theorem encodingTrial_ne_digestTrial (lay : Layer) (tree leaf : Nat) (message : Digest)
+theorem encodingTrial_ne_digestTrial (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
     (counter : Nat) (rho : Digest) (msg : Message) (ctr : Nat)
     (ht : tree<2^40) (hl : leaf<2^32) :
     encodingTrial lay tree leaf message counter ≠ digestTrial rho msg ctr := by
@@ -505,7 +508,7 @@ theorem encodingTrial_ne_digestTrial (lay : Layer) (tree leaf : Nat) (message : 
     (by decide : 0<2^40) (by decide : 0<2^32) (BitVec.ofNat 32 ctr).isLt
     (bytesLE_injective he)
   omega
-abbrev EncodingFamily := Layer × Fin (2^31) × Fin 4096 × Digest
+abbrev EncodingFamily := Layer × Fin (2^31) × Fin 4096 × (Digest × BitVec 96 × Digest)
 abbrev DigestFamily := Digest × Message
 abbrev EncodingKey := EncodingFamily × Fin (2^22)
 abbrev DigestKey := DigestFamily × Fin (2^20)
@@ -727,7 +730,7 @@ theorem signPayload_eq (cache : Cache) (message : Message) : signPayload cache m
     let some (_,output) ← digestSearch rho message 0 attemptLimit | pure none
     let state ← signForest (output.toNat%2^31) (selections output)
     let root ← forestPk (output.toNat%2^31) state.2.2
-    let some pieces ← signLayers cache (output.toNat%2^31) 4 root | pure none
+    let some pieces ← signLayers cache (output.toNat%2^31) 4 (root, 0, 0) | pure none
     pure (some (assembledSignature rho state pieces))) := rfl
 theorem assembled_forest_recovery (answers : Answers) (rho : Digest) (output : HashOutput)
     (pieces : List Pieces) (hadm : admissible (selections output)=true) :
@@ -749,7 +752,7 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 set_option linter.unusedSimpArgs false
-abbrev EncodingFamily := Layer × Fin (2^31) × Fin 4096 × Digest
+abbrev EncodingFamily := Layer × Fin (2^31) × Fin 4096 × (Digest × BitVec 96 × Digest)
 abbrev DigestFamily := Digest × Message
 def EncodingSearchesSucceed (answers : Answers) : Prop :=
   ∀ family : EncodingFamily, ∃ found,
@@ -760,7 +763,8 @@ def DigestSearchesSucceed (answers : Answers) : Prop :=
     evalWithAnswerFn answers (digestSearch family.1 family.2 0 attemptLimit)=some found
 def SearchesSucceed (answers : Answers) : Prop :=
   DigestSearchesSucceed answers ∧ EncodingSearchesSucceed answers
-theorem encodingFamily_card : Fintype.card EncodingFamily=2^173 := by
+set_option exponentiation.threshold 600 in
+theorem encodingFamily_card : Fintype.card EncodingFamily=2^397 := by
   norm_num [EncodingFamily,Layer,Fintype.card_prod,Fintype.card_bitVec]
 theorem digestFamily_card : Fintype.card DigestFamily=2^384 := by
   calc
@@ -776,7 +780,7 @@ theorem route_leaf_4096 (index : Nat) (lay : Layer) : (route index lay).1 < 4096
   fin_cases lay <;> norm_num [height] at h ⊢ <;> omega
 theorem encodingSearchesSucceed_at_route (answers : Answers)
     (hgood : EncodingSearchesSucceed answers) (index : Nat) (hindex : index < 2^31)
-    (lay : Layer) (message : Digest) : ∃ found,
+    (lay : Layer) (message : Digest × BitVec 96 × Digest) : ∃ found,
     evalWithAnswerFn answers (counterSearch lay (route index lay).2
       (route index lay).1 message 0 counterLimit)=some found := by
   exact hgood (lay,⟨_,route_tree_bound index lay hindex⟩,
@@ -798,9 +802,11 @@ theorem signLayers_succeeds (answers : Answers) (cache : Cache) (index : Nat)
         exact ⟨_,rfl⟩
       · simp only [hn,ite_false,evalWithAnswerFn_bind]
         obtain ⟨previous,hp⟩ := ih
-          ((((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n)
+          (((((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n)
             (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits)).1).getD
-            (height (Fin.ofNat 4 n)) []).getD 0 0)
+            (height (Fin.ofNat 4 n) - 1) []).getD 0 0, 0, (((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n)
+            (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits)).1).getD
+            (height (Fin.ofNat 4 n) - 1) []).getD 1 0))
         simp only [hp,evalWithAnswerFn_pure]
         exact ⟨_,rfl⟩
 theorem signPayload_succeeds (answers : Answers) (cache : Cache) (message : Message)
@@ -812,7 +818,7 @@ theorem signPayload_succeeds (answers : Answers) (cache : Cache) (message : Mess
   obtain ⟨pieces,hp⟩ := signLayers_succeeds answers cache (output.toNat%2^31)
     (Nat.mod_lt _ (by positivity)) hgood.2 4
     (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
-      (forestRoots answers (output.toNat%2^31) 7)))
+      (forestRoots answers (output.toNat%2^31) 7)),0,0)
   simp only [hp,evalWithAnswerFn_pure]
   exact ⟨_,rfl⟩
 def SigningComplete (answers : Answers) (keys : Digest × Cache) : Prop :=
@@ -899,7 +905,7 @@ theorem encoding_failure_power (lay : Layer) :
   have hcast := ENNReal.ofReal_le_ofReal hreal
   simpa only [ofReal_inv_two_pow] using hcast
 theorem counterSearch_failure_le (secret : BitVec 256) (lay : Layer)
-    (tree leaf : Nat) (message : Digest) (cache : Sampling.RCache)
+    (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (cache : Sampling.RCache)
     (hfresh : ∀ c,0 ≤ c → c < 2^32 → cache (Sampling.encodingTrial lay tree leaf message c)=none) :
     Pr[fun result => result.1=none |
       Sampling.roRun secret (counterSearch lay tree leaf message 0 counterLimit) cache] ≤
@@ -959,7 +965,7 @@ theorem signing_incomplete_probability_le (law : ProbComp Answers) (digestFail e
     (hd : ∀ family,Pr[DigestFailed family | law] ≤ digestFail)
     (he : ∀ family,Pr[EncodingFailed family | law] ≤ encodingFail) :
     Pr[fun answers => ¬SigningComplete answers (evalWithAnswerFn answers keygen) | law] ≤
-      (2 : ENNReal)^384*digestFail+(2 : ENNReal)^173*encodingFail := by
+      (2 : ENNReal)^384*digestFail+(2 : ENNReal)^397*encodingFail := by
   have hm := probEvent_mono (mx := law) (fun answers _ => incomplete_implies_failed_search answers)
   have hd' := finite_family_failure_le law DigestFailed digestFail hd
   have he' := finite_family_failure_le law EncodingFailed encodingFail he
@@ -972,13 +978,13 @@ theorem signing_incomplete_probability_small (law : ProbComp Answers)
     Pr[fun answers => ¬SigningComplete answers (evalWithAnswerFn answers keygen) | law] ≤
       1/(2 : ENNReal)^65 := by
   refine (signing_incomplete_probability_le law _ _ hd he).trans ?_
-  have hreal : (2 : ℝ)^384*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^65 := by
+  have hreal : (2 : ℝ)^384*(1/2^450)+2^397*(1/2^1024) ≤ 1/2^65 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^384*(1/2^450) by positivity)
-    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    (show 0 ≤ (2 : ℝ)^397*(1/2^1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^384 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
 end SigGolfCandidate.T3.Budgets
@@ -1000,7 +1006,7 @@ theorem signPayload_succeedsFor (answers : Answers) (cache : Cache) (message : M
   obtain ⟨pieces,hp⟩ := signLayers_succeeds answers cache (output.toNat%2^31)
     (Nat.mod_lt _ (by positivity)) hgood.2 4
     (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
-      (forestRoots answers (output.toNat%2^31) 7)))
+      (forestRoots answers (output.toNat%2^31) 7)),0,0)
   simp only [hp,evalWithAnswerFn_pure]
   exact ⟨_,rfl⟩
 theorem signing_complete_for_of_searches (answers : Answers) (keys : Digest × Cache)
@@ -1109,7 +1115,7 @@ theorem tableGood_failure_le (digestFail encodingFail : ENNReal)
     (he : ∀ lay,failMass (Sampling.encodingDecode lay)^counterLimit ≤ encodingFail) :
     Pr[fun outputs => ¬tableGood outputs |
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤
-      (2 : ENNReal)^384*digestFail+(2 : ENNReal)^173*encodingFail := by
+      (2 : ENNReal)^384*digestFail+(2 : ENNReal)^397*encodingFail := by
   let law := ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)
   have hd' := finite_family_failure_le law
     (fun family outputs => DigestFailed family (Presampling.tableAnswers outputs zeroAnswers)) digestFail
@@ -1128,13 +1134,13 @@ theorem tableGood_failure_small_of_acceptance (p : ℝ) (hp : 1/3300 ≤ p) (hp1
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^65 := by
   refine (tableGood_failure_le _ _
     (digest_failure_power_of_acceptance p hp hp1 haccept) encoding_failure_power).trans ?_
-  have hreal : (2 : ℝ)^384*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^65 := by
+  have hreal : (2 : ℝ)^384*(1/2^450)+2^397*(1/2^1024) ≤ 1/2^65 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^384*(1/2^450) by positivity)
-    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    (show 0 ≤ (2 : ℝ)^397*(1/2^1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^384 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
 def tableGoodFor (message : Message) (outputs : QuerySpace.SearchKey → HashOutput) : Prop :=
@@ -1165,7 +1171,7 @@ theorem tableGoodFor_failure_le (message : Message) (digestFail encodingFail : E
     (he : ∀ lay,failMass (Sampling.encodingDecode lay)^counterLimit ≤ encodingFail) :
     Pr[fun outputs => ¬tableGoodFor message outputs |
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤
-      (2 : ENNReal)^128*digestFail+(2 : ENNReal)^173*encodingFail := by
+      (2 : ENNReal)^128*digestFail+(2 : ENNReal)^397*encodingFail := by
   let law := ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)
   have hd' := finite_family_failure_le law
     (fun (rho : Digest) outputs => DigestFailed (rho,message) (Presampling.tableAnswers outputs zeroAnswers)) digestFail
@@ -1184,13 +1190,13 @@ theorem tableGoodFor_failure_small_of_acceptance (message : Message) (p : ℝ) (
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^321 := by
   refine (tableGoodFor_failure_le message _ _
     (digest_failure_power_of_acceptance p hp hp1 haccept) encoding_failure_power).trans ?_
-  have hreal : (2 : ℝ)^128*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^321 := by
+  have hreal : (2 : ℝ)^128*(1/2^450)+2^397*(1/2^1024) ≤ 1/2^321 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^128*(1/2^450) by positivity)
-    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    (show 0 ≤ (2 : ℝ)^397*(1/2^1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^128 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
 end SigGolfCandidate.T3.Budgets
@@ -1200,78 +1206,52 @@ open SphincsSecurity.Completeness (failMass)
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-/-- The decoder's target vector is explicit, including the nonbinary top layer. -/
-def encodingDecodeFor (targets : Layer → Nat) (lay : Layer) (answer : HashOutput) :
-    Option (List Nat) :=
-  let value := answer.extractLsb' 0 128
-  if value.toNat ≥ 2 ^ encodedBits lay then none else
-  let digits := dataDigits lay value
-  let total := digits.sum
-  if lay = 0 then
-    if topRanksValid value && decide (total = targets lay) then some digits else none
-  else if total ≤ targets lay ∧ targets lay - total < 8 then
-    some (digits ++ [targets lay - total])
-  else none
-@[simp] theorem encodingDecodeFor_target : encodingDecodeFor target = Sampling.encodingDecode := rfl
-noncomputable def encodingEnvelope (b : Layer → ℝ) (lay : Layer) : ENNReal :=
-  ENNReal.ofReal (b lay)
-/-- A reusable certificate for any target vector and envelope vector. The step
-    refers to the actual target-dependent decoder, not a numerical label. -/
-structure EncodingEnvelopeSpec (targets : Layer → Nat) (b : Layer → ℝ) : Prop where
-  ge_one : ∀ lay, 1 ≤ b lay
-  step : ∀ lay, SigGolfCandidate.Budget.zOf 131072 *
-    (failMass (encodingDecodeFor targets lay) * encodingEnvelope b lay +
-      (1 - failMass (encodingDecodeFor targets lay))) ≤ encodingEnvelope b lay
-theorem encodingEnvelope_ge_one (b : Layer → ℝ) (hb : ∀ lay, 1 ≤ b lay) (lay : Layer) :
-    1 ≤ encodingEnvelope b lay := by
-  simpa only [encodingEnvelope,ENNReal.ofReal_one] using ENNReal.ofReal_le_ofReal (hb lay)
+noncomputable def encodingEnvelopeReal (lay : Layer) : ℝ :=
+  ![(BaseAudit.b1 : ℝ),(BaseAudit.b2 : ℝ),(BaseAudit.b3 : ℝ),(BaseAudit.b4 : ℝ)] lay
+noncomputable def encodingEnvelope (lay : Layer) : ENNReal := ENNReal.ofReal (encodingEnvelopeReal lay)
+theorem encodingEnvelopeReal_ge_one (lay : Layer) : 1 ≤ encodingEnvelopeReal lay := by
+  fin_cases lay <;> norm_num [encodingEnvelopeReal,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
+theorem encodingEnvelope_ge_one (lay : Layer) : 1 ≤ encodingEnvelope lay := by
+  simpa only [encodingEnvelope,ENNReal.ofReal_one] using
+    ENNReal.ofReal_le_ofReal (encodingEnvelopeReal_ge_one lay)
 theorem signing_z_le : SigGolfCandidate.Budget.zOf 131072 ≤ ENNReal.ofReal (BaseAudit.zU : ℝ) := by
   unfold SigGolfCandidate.Budget.zOf
   apply ENNReal.ofReal_le_ofReal
   convert SigGolfCandidate.Budget.rpow_two_inv_le 131072 (by decide) using 1 <;>
     norm_num [BaseAudit.zU]
-/-- Turn exact acceptance rates and real-valued step inequalities into a
-    target-dependent envelope certificate. No particular count or b_i is baked in. -/
-theorem EncodingEnvelopeSpec.of_rates (targets : Layer → Nat) (b p : Layer → ℝ)
-    (hb : ∀ lay, 1 ≤ b lay) (hp : ∀ lay, 0 ≤ p lay ∧ p lay ≤ 1)
-    (hfail : ∀ lay, failMass (encodingDecodeFor targets lay) = ENNReal.ofReal (1-p lay))
-    (hstep : ∀ lay, (BaseAudit.zU : ℝ)*((1-p lay)*b lay+p lay) ≤ b lay) :
-    EncodingEnvelopeSpec targets b := by
-  refine ⟨hb, fun lay => ?_⟩
-  have hp0 := (hp lay).1
-  have hp1 : 0 ≤ 1-p lay := by linarith [(hp lay).2]
-  have hb0 : 0 ≤ b lay := by linarith [hb lay]
+theorem encoding_step_real (lay : Layer) :
+    (BaseAudit.zU : ℝ)*((1-encodingRate lay)*encodingEnvelopeReal lay+encodingRate lay) ≤
+      encodingEnvelopeReal lay := by
+  fin_cases lay <;> norm_num [encodingRate,EncodingCounting.acceptedCount,encodingEnvelopeReal,
+    BaseAudit.zU,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
+theorem encoding_moment_step (lay : Layer) :
+    SigGolfCandidate.Budget.zOf 131072 *
+      (failMass (Sampling.encodingDecode lay)*encodingEnvelope lay+
+        (1-failMass (Sampling.encodingDecode lay))) ≤ encodingEnvelope lay := by
+  have hp0 : 0 ≤ encodingRate lay := by linarith [(encodingRate_bounds lay).1]
+  have hp1 : 0 ≤ 1-encodingRate lay := by linarith [(encodingRate_bounds lay).2]
+  have hb0 : 0 ≤ encodingEnvelopeReal lay := by linarith [encodingEnvelopeReal_ge_one lay]
   have hz0 : 0 ≤ (BaseAudit.zU : ℝ) := by norm_num [BaseAudit.zU]
-  have hs : 1-(1-p lay)=p lay := by ring
-  rw [hfail,← ENNReal.ofReal_one,← ENNReal.ofReal_sub 1 hp1,hs,encodingEnvelope]
+  have hs : 1-(1-encodingRate lay)=encodingRate lay := by ring
+  rw [encoding_failMass,← ENNReal.ofReal_one,← ENNReal.ofReal_sub 1 hp1,
+    hs,encodingEnvelope]
   calc
     _ ≤ ENNReal.ofReal (BaseAudit.zU : ℝ) *
-      (ENNReal.ofReal (1-p lay)*ENNReal.ofReal (b lay)+ENNReal.ofReal (p lay)) :=
-        mul_le_mul' signing_z_le (le_refl _)
-    _ = ENNReal.ofReal ((BaseAudit.zU : ℝ)*((1-p lay)*b lay+p lay)) := by
+      (ENNReal.ofReal (1-encodingRate lay)*ENNReal.ofReal (encodingEnvelopeReal lay)+
+        ENNReal.ofReal (encodingRate lay)) := mul_le_mul' signing_z_le (le_refl _)
+    _ = ENNReal.ofReal ((BaseAudit.zU : ℝ)*
+        ((1-encodingRate lay)*encodingEnvelopeReal lay+encodingRate lay)) := by
       rw [← ENNReal.ofReal_mul hp1,← ENNReal.ofReal_add (mul_nonneg hp1 hb0) hp0,
         ← ENNReal.ofReal_mul hz0]
-    _ ≤ _ := ENNReal.ofReal_le_ofReal (hstep lay)
-/-- Legacy arithmetic constants remain intact; binding them to the current
-    decoder is an explicit hypothesis on legacy signing-budget theorems. -/
-noncomputable def encodingEnvelopeReal (lay : Layer) : ℝ :=
-  ![(BaseAudit.b1 : ℝ),(BaseAudit.b2 : ℝ),(BaseAudit.b3 : ℝ),(BaseAudit.b4 : ℝ)] lay
-theorem encodingEnvelopeReal_ge_one (lay : Layer) : 1 ≤ encodingEnvelopeReal lay := by
-  fin_cases lay <;> norm_num [encodingEnvelopeReal,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
-theorem encoding_moment_step (b : Layer → ℝ) (hencoding : EncodingEnvelopeSpec target b) (lay : Layer) :
-    SigGolfCandidate.Budget.zOf 131072 *
-      (failMass (Sampling.encodingDecode lay)*encodingEnvelope b lay+
-        (1-failMass (Sampling.encodingDecode lay))) ≤ encodingEnvelope b lay := by
-  simpa only [encodingDecodeFor_target] using hencoding.step lay
-theorem V_counterSearch_fresh (b : Layer → ℝ) (hencoding : EncodingEnvelopeSpec target b)
-    (secret : BitVec 256) (lay : Layer)
-    (tree leaf : Nat) (message : Digest) (fuel counter : Nat)
+    _ ≤ _ := ENNReal.ofReal_le_ofReal (encoding_step_real lay)
+theorem V_counterSearch_fresh (secret : BitVec 256) (lay : Layer)
+    (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (fuel counter : Nat)
     (hlimit : counter+fuel ≤ 2^32) (cache : Sampling.RCache)
     (hfresh : ∀ c,counter ≤ c → c < 2^32 → cache (Sampling.encodingTrial lay tree leaf message c)=none) :
     Sampling.V secret (SigGolfCandidate.Budget.zOf 131072)
-      (counterSearch lay tree leaf message counter fuel) cache ≤ encodingEnvelope b lay :=
-  Sampling.V_counterSearch secret _ _ (encodingEnvelope_ge_one b hencoding.ge_one lay)
-    lay tree leaf message (encoding_moment_step b hencoding lay) fuel counter hlimit cache hfresh
+      (counterSearch lay tree leaf message counter fuel) cache ≤ encodingEnvelope lay :=
+  Sampling.V_counterSearch secret _ _ (encodingEnvelope_ge_one lay)
+    lay tree leaf message (encoding_moment_step lay) fuel counter hlimit cache hfresh
 end SigGolfCandidate.T3.Budgets
 namespace SigGolfCandidate.T3.Budgets
 open OracleComp OracleSpec ENNReal
@@ -1414,23 +1394,22 @@ theorem V_bind_bounded {α β : Type} (secret : BitVec 256) (z : ENNReal)
     (hb : ∀ result ∈ support (roRun secret first cache),V secret z (next result.1) result.2 ≤ b) :
     V secret z (first >>= next) cache ≤ a*b :=
   (V_bind_le secret z first next cache b hb).trans (mul_le_mul' ha le_rfl)
-noncomputable def layerMomentBound (b : Layer → ℝ) : Nat → ENNReal
+noncomputable def layerMomentBound : Nat → ENNReal
   | 0 => 1
-  | n+1 => encodingEnvelope b (Fin.ofNat 4 n)*
-      (if n=0 then signingZ^165 else signingZ^(treeCost (Fin.ofNat 4 n))*layerMomentBound b n)
-theorem layerMomentBound_ge_one (b : Layer → ℝ) (hb : ∀ lay, 1 ≤ b lay) : ∀ n,1 ≤ layerMomentBound b n := by
+  | n+1 => encodingEnvelope (Fin.ofNat 4 n)*
+      (if n=0 then signingZ^165 else signingZ^(treeCost (Fin.ofNat 4 n))*layerMomentBound n)
+theorem layerMomentBound_ge_one : ∀ n,1 ≤ layerMomentBound n := by
   intro n;induction n with
   | zero => exact le_rfl
   | succ n ih =>
       simp only [layerMomentBound]
-      apply one_le_mul (encodingEnvelope_ge_one b hb _)
+      apply one_le_mul (encodingEnvelope_ge_one _)
       split
       · exact one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)
       · exact one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) ih
-theorem V_signLayers_of_freshness (b : Layer → ℝ) (hencoding : EncodingEnvelopeSpec target b)
-    (secret : BitVec 256) (hf : SourceFreshness secret)
+theorem V_signLayers_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
     (cache : Cache) (index : Nat) : ∀ n,n≤4 → ∀ message rcache,EncodingFreshBelow n rcache →
-    V secret signingZ (signLayers cache index n message) rcache ≤ layerMomentBound b n := by
+    V secret signingZ (signLayers cache index n message) rcache ≤ layerMomentBound n := by
   intro n
   induction n with
   | zero => intro _ message rcache _;simp only [signLayers,V_pure,layerMomentBound,le_refl]
@@ -1438,7 +1417,7 @@ theorem V_signLayers_of_freshness (b : Layer → ℝ) (hencoding : EncodingEnvel
       intro hn message rcache hc
       have hnv : (Fin.ofNat 4 n).val=n := Nat.mod_eq_of_lt (by omega)
       have heFresh : EncodingFreshBelow ((Fin.ofNat 4 n).val+1) rcache := by rwa [hnv]
-      have hs := V_counterSearch_fresh b hencoding secret (Fin.ofNat 4 n)
+      have hs := V_counterSearch_fresh secret (Fin.ofNat 4 n)
         (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 message
         counterLimit 0 (by decide) rcache
         (fun c _ hlim => hc _ (by rw [hnv];omega) _ _ _ _ hlim)
@@ -1454,7 +1433,7 @@ theorem V_signLayers_of_freshness (b : Layer → ℝ) (hencoding : EncodingEnvel
           simp only [hx,V_pure]
           split
           · exact one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)
-          · exact one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) (layerMomentBound_ge_one b hencoding.ge_one n)
+          · exact one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) (layerMomentBound_ge_one n)
       | some pair =>
           obtain ⟨counter,digits⟩ := pair
           have hd := hpost counter digits hx
@@ -1497,7 +1476,7 @@ theorem signPayload_succeedsSelected (answers : Answers) (cache : Cache) (messag
   obtain ⟨pieces,hp⟩ := signLayers_succeeds answers cache (output.toNat%2^31)
     (Nat.mod_lt _ (by positivity)) hgood.2 4
     (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
-      (forestRoots answers (output.toNat%2^31) 7)))
+      (forestRoots answers (output.toNat%2^31) 7)),0,0)
   simp only [hp,evalWithAnswerFn_pure]
   exact ⟨_,rfl⟩
 theorem signing_complete_of_selected_searches (answers : Answers) (keys : Digest × Cache)
@@ -1567,7 +1546,7 @@ theorem not_tableGoodForNonces_iff (nonces : Message → HashOutput)
 theorem tableGoodForNonces_failure_le (nonces : Message → HashOutput) :
     Pr[fun outputs => ¬tableGoodForNonces nonces outputs |
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤
-      (2 : ENNReal)^256*(1/2^450)+(2 : ENNReal)^173*(1/2^1024) := by
+      (2 : ENNReal)^256*(1/2^450)+(2 : ENNReal)^397*(1/2^1024) := by
   let law := ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)
   have hd' := finite_family_failure_le law
     (fun (message : Message) outputs => DigestFailed ((nonces message).extractLsb' 0 128,message)
@@ -1586,13 +1565,13 @@ theorem tableGoodForNonces_failure_small (nonces : Message → HashOutput) :
     Pr[fun outputs => ¬tableGoodForNonces nonces outputs |
       ($ᵗ (QuerySpace.SearchKey → HashOutput) : ProbComp _)] ≤ 1/(2 : ENNReal)^193 := by
   refine (tableGoodForNonces_failure_le nonces).trans ?_
-  have hreal : (2 : ℝ)^256*(1/2^450)+2^173*(1/2^1024) ≤ 1/2^193 := by
+  have hreal : (2 : ℝ)^256*(1/2^450)+2^397*(1/2^1024) ≤ 1/2^193 := by
     set_option exponentiation.threshold 2048 in norm_num
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_add (show 0 ≤ (2 : ℝ)^256*(1/2^450) by positivity)
-    (show 0 ≤ (2 : ℝ)^173*(1/2^1024) by positivity),
+    (show 0 ≤ (2 : ℝ)^397*(1/2^1024) by positivity),
     ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^256 by positivity),
-    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^173 by positivity)] at hcast
+    ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^397 by positivity)] at hcast
   simpa only [ENNReal.ofReal_pow (show 0 ≤ (2 : ℝ) by norm_num),
     ENNReal.ofReal_ofNat,ofReal_inv_two_pow] using hcast
 end SigGolfCandidate.T3.Budgets
@@ -1610,17 +1589,16 @@ theorem bound_signForest (index : Nat) (chosen : List Selection) :
     (fun _ => 5119) ([],[],[]) rfl (fun coord _ state hstate => ?_)).mono_k (by decide)
   refine (bound_buildFts index coord).bind' (l := 0) (fun result _ => ?_) (by decide)
   exact .pure _ 0 (by simp [hstate])
-noncomputable def postDigestMoment : ENNReal := signingZ^35833*(signingZ^2*layerMomentBound encodingEnvelopeReal 4)
+noncomputable def postDigestMoment : ENNReal := signingZ^35833*(signingZ^2*layerMomentBound 4)
 noncomputable def payloadMoment : ENNReal := signingZ^2*(digestEnvelope*postDigestMoment)
 noncomputable def signingMoment : ENNReal := signingZ^2*payloadMoment
 theorem postDigestMoment_ge_one : 1 ≤ postDigestMoment :=
   one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _))
-    (one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) (layerMomentBound_ge_one encodingEnvelopeReal encodingEnvelopeReal_ge_one 4))
+    (one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _)) (layerMomentBound_ge_one 4))
 theorem payloadMoment_ge_one : 1 ≤ payloadMoment :=
   one_le_mul (one_le_pow₀ (SigGolfCandidate.Budget.one_le_zOf _))
     (one_le_mul digestEnvelope_ge_one postDigestMoment_ge_one)
-theorem V_signPayload_of_freshness (hencoding : EncodingEnvelopeSpec target encodingEnvelopeReal)
-    (secret : BitVec 256) (hf : SourceFreshness secret)
+theorem V_signPayload_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
     (cache : Cache) (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
     V secret signingZ (signPayload cache message) rcache ≤ payloadMoment := by
   rw [signPayload_eq]
@@ -1651,12 +1629,11 @@ theorem V_signPayload_of_freshness (hencoding : EncodingEnvelopeSpec target enco
       intro root hroot
       have hrootFresh := hf.forestPk _ _ forest.2 hforestFresh root hroot
       refine V_bind_bounded secret signingZ _ _ root.2 _ 1
-        (V_signLayers_of_freshness encodingEnvelopeReal hencoding secret hf cache (output.toNat%2^31) 4 (by decide) root.1 root.2 hrootFresh)
+        (V_signLayers_of_freshness secret hf cache (output.toNat%2^31) 4 (by decide) (root.1,0,0) root.2 hrootFresh)
         ?_ |>.trans_eq (mul_one _)
       intro pieces _
       cases pieces.1 <;> rw [V_pure]
-theorem V_sign_of_freshness (hencoding : EncodingEnvelopeSpec target encodingEnvelopeReal)
-    (secret : BitVec 256) (hf : SourceFreshness secret)
+theorem V_sign_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
     (cache : Cache) (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
     V secret signingZ (sign cache message) rcache ≤ signingMoment := by
   unfold sign
@@ -1667,15 +1644,15 @@ theorem V_sign_of_freshness (hencoding : EncodingEnvelopeSpec target encodingEnv
   have hmac := hf.mac cache.region rcache hc result hr
   split
   · rw [V_pure];exact payloadMoment_ge_one
-  · exact V_signPayload_of_freshness hencoding secret hf cache message result.2 hmac
-theorem layerMomentBound_four (b : Layer → ℝ) :
-    layerMomentBound b 4 = signingZ^85922 * encodingEnvelope b 0 * encodingEnvelope b 1 *
-      encodingEnvelope b 2 * encodingEnvelope b 3 := by
-  change encodingEnvelope b 3*(signingZ^21439*(encodingEnvelope b 2*
-    (signingZ^21439*(encodingEnvelope b 1*(signingZ^42879*(encodingEnvelope b 0*signingZ^165)))))) = _
+  · exact V_signPayload_of_freshness secret hf cache message result.2 hmac
+theorem layerMomentBound_four :
+    layerMomentBound 4 = signingZ^85922 * encodingEnvelope 0 * encodingEnvelope 1 *
+      encodingEnvelope 2 * encodingEnvelope 3 := by
+  change encodingEnvelope 3*(signingZ^21439*(encodingEnvelope 2*
+    (signingZ^21439*(encodingEnvelope 1*(signingZ^42879*(encodingEnvelope 0*signingZ^165)))))) = _
   ring
 theorem signingMoment_eq : signingMoment=signingZ^121761 *
-    (digestEnvelope*encodingEnvelope encodingEnvelopeReal 0*encodingEnvelope encodingEnvelopeReal 1*encodingEnvelope encodingEnvelopeReal 2*encodingEnvelope encodingEnvelopeReal 3) := by
+    (digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3) := by
   rw [signingMoment,payloadMoment,postDigestMoment,layerMomentBound_four]
   ring
 theorem signingMoment_le_two : signingMoment ≤ 2 := by
@@ -1684,7 +1661,7 @@ theorem signingMoment_le_two : signingMoment ≤ 2 := by
   have hcast := ENNReal.ofReal_le_ofReal hreal
   rw [ENNReal.ofReal_mul (show 0 ≤ (2 : ℝ)^((121761 : ℝ)/131072) by positivity)] at hcast
   norm_num only [ENNReal.ofReal_ofNat] at hcast
-  have he : digestEnvelope*encodingEnvelope encodingEnvelopeReal 0*encodingEnvelope encodingEnvelopeReal 1*encodingEnvelope encodingEnvelopeReal 2*encodingEnvelope encodingEnvelopeReal 3 =
+  have he : digestEnvelope*encodingEnvelope 0*encodingEnvelope 1*encodingEnvelope 2*encodingEnvelope 3 =
       ENNReal.ofReal ((507635451307 / 500000000000) * (1009892452433 / 1000000000000) *
         (1008345227909 / 1000000000000) * (1008345227909 / 1000000000000) * (503409673483 / 500000000000) : ℝ) := by
     change ENNReal.ofReal (BaseAudit.b0 : ℝ)*ENNReal.ofReal (BaseAudit.b1 : ℝ)*
@@ -1696,11 +1673,10 @@ theorem signingMoment_le_two : signingMoment ≤ 2 := by
     norm_num [BaseAudit.b0,BaseAudit.b1,BaseAudit.b2,BaseAudit.b3,BaseAudit.b4]
   rw [he]
   convert hcast using 1 <;> norm_num
-theorem V_sign_le_two_of_freshness (hencoding : EncodingEnvelopeSpec target encodingEnvelopeReal)
-    (secret : BitVec 256) (hf : SourceFreshness secret)
+theorem V_sign_le_two_of_freshness (secret : BitVec 256) (hf : SourceFreshness secret)
     (cache : Cache) (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
     V secret signingZ (sign cache message) rcache ≤ 2 :=
-  (V_sign_of_freshness hencoding secret hf cache message rcache hc).trans signingMoment_le_two
+  (V_sign_of_freshness secret hf cache message rcache hc).trans signingMoment_le_two
 end SigGolfCandidate.T3.Budgets
 namespace SigGolfCandidate.T3.Budgets
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal Sampling Cost
@@ -1711,14 +1687,13 @@ theorem signingZ_pow (cost : Nat) :
     signingZ^cost=(2 : ENNReal)^((cost : ℝ)/131072) := by
   rw [SigGolfCandidate.Budget.zOf_pow,← ENNReal.ofReal_rpow_of_pos (by norm_num),ENNReal.ofReal_ofNat]
   norm_num
-theorem realized_sign_exponential_budget_of_freshness (hencoding : EncodingEnvelopeSpec target encodingEnvelopeReal)
-    (secret : BitVec 256)
+theorem realized_sign_exponential_budget_of_freshness (secret : BitVec 256)
     (hf : SourceFreshness secret) (cache : Cache) (message : Message)
     (rcache : RCache) (hc : AllSearchesFresh rcache) :
     expectedValue ((simulateQ SphincsSecurity.romImpl
       (World.countBlocks (realize secret (sign cache message)))).run' rcache)
       (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 := by
-  have h := V_sign_le_two_of_freshness hencoding secret hf cache message rcache hc
+  have h := V_sign_le_two_of_freshness secret hf cache message rcache hc
   rw [V_realized] at h
   simp only [signingZ_pow] at h
   rw [StateT.run'_eq,expectedValue_map]
@@ -1811,7 +1786,7 @@ theorem hasTag_padded (front back : HashInput) (hfront : front.length=16)
  (tag lay tree position index : Nat) :
  HasTag tag (pad64 (front ++ bytesLE 16 (header tag lay tree position index) ++ back)) :=
  ⟨lay,tree,position,index,queryHeader_padded _ _ hfront _⟩
-@[simp] theorem hasTag_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : Nat) :
+@[simp] theorem hasTag_encoding (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : Nat) :
  HasTag 4 (encodingTrial lay tree leaf message counter) := ⟨lay.val,tree,0,leaf,queryHeader_encoding ..⟩
 @[simp] theorem hasTag_digest (rho : Digest) (message : Message) (counter : Nat) :
  HasTag 12 (digestTrial rho message counter) :=
@@ -1934,8 +1909,8 @@ include ht
  unfold keygen; avoids_search
 end NonSearch
 theorem encodingTrial_ne_of_layer (lay other : Layer) (hne : lay ≠ other)
- (tree leaf : Nat) (message : Digest) (counter : Nat)
- (tree' leaf' : Nat) (message' : Digest) (counter' : Nat) :
+ (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : Nat)
+ (tree' leaf' : Nat) (message' : Digest × BitVec 96 × Digest) (counter' : Nat) :
  encodingTrial lay tree leaf message counter ≠ encodingTrial other tree' leaf' message' counter' := by
  intro he
  have hh := congrArg queryHeader he
@@ -1946,8 +1921,8 @@ theorem encodingTrial_ne_of_layer (lay other : Layer) (hne : lay ≠ other)
  rw [Nat.mod_eq_of_lt h1,Nat.mod_eq_of_lt h2]
  exact fun h => hne (Fin.ext h)
 theorem avoids_counterSearch (secret : BitVec 256) (lay other : Layer) (hne : lay ≠ other)
- (tree leaf : Nat) (message : Digest) (counter fuel : Nat)
- (tree' leaf' : Nat) (message' : Digest) (counter' : Nat) :
+ (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter fuel : Nat)
+ (tree' leaf' : Nat) (message' : Digest × BitVec 96 × Digest) (counter' : Nat) :
  Avoids secret (encodingTrial other tree' leaf' message' counter')
    (counterSearch lay tree leaf message counter fuel) := by
  induction fuel generalizing counter with
@@ -2042,18 +2017,16 @@ open OracleComp OracleSpec OracleComp.EvalDist ENNReal Sampling Budgets Cost
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
-theorem V_sign_le_two (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) (cache : Cache) (message : Message)
+theorem V_sign_le_two (secret : BitVec 256) (cache : Cache) (message : Message)
     (rcache : RCache) (hc : AllSearchesFresh rcache) :
     V secret signingZ (sign cache message) rcache ≤ 2 :=
-  V_sign_le_two_of_freshness hencoding secret (Freshness.sourceFreshness secret) cache message rcache hc
-theorem realized_sign_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) (cache : Cache)
+  V_sign_le_two_of_freshness secret (Freshness.sourceFreshness secret) cache message rcache hc
+theorem realized_sign_exponential_budget (secret : BitVec 256) (cache : Cache)
     (message : Message) (rcache : RCache) (hc : AllSearchesFresh rcache) :
     expectedValue ((simulateQ SphincsSecurity.romImpl
       (World.countBlocks (realize secret (sign cache message)))).run' rcache)
       (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 :=
-  realized_sign_exponential_budget_of_freshness hencoding secret (Freshness.sourceFreshness secret)
+  realized_sign_exponential_budget_of_freshness secret (Freshness.sourceFreshness secret)
     cache message rcache hc
 def honestSignCount (message : Message) : M (Option Signature × Nat) := do
   let keys ← keygen
@@ -2066,26 +2039,23 @@ theorem honestSignCount_realize (secret : BitVec 256) (message : Message) :
   congr 1
   funext keys
   exact realize_count secret _
-theorem honest_sign_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) (message : Message) :
+theorem honest_sign_exponential_budget (secret : BitVec 256) (message : Message) :
     expectedValue (roRun secret (honestSignCount message) ∅)
       (fun result => (2 : ENNReal)^((result.1.2 : ℝ)/131072)) ≤ 2 := by
   rw [honestSignCount,roRun_bind,expectedValue_bind]
   apply expectedValue_le_of_support
   intro keys hkeys
-  have h := V_sign_le_two hencoding secret keys.1.2 message keys.2
+  have h := V_sign_le_two secret keys.1.2 message keys.2
     (Freshness.keygen_fresh_from_empty secret keys hkeys)
   simpa only [V,signingZ_pow] using h
-theorem realized_honest_sign_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) (message : Message) :
+theorem realized_honest_sign_exponential_budget (secret : BitVec 256) (message : Message) :
     expectedValue ((simulateQ SphincsSecurity.romImpl (do
       let keys ← realize secret keygen
       World.countBlocks (realize secret (sign keys.2 message)))).run' ∅)
       (fun result => (2 : ENNReal)^((result.2 : ℝ)/131072)) ≤ 2 := by
   rw [← honestSignCount_realize secret message,StateT.run'_eq,expectedValue_map]
-  exact honest_sign_exponential_budget hencoding secret message
-theorem uniform_message_sign_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) :
+  exact honest_sign_exponential_budget secret message
+theorem uniform_message_sign_exponential_budget (secret : BitVec 256) :
     expectedValue (do
       let message ← ($ᵗ Message : ProbComp Message)
       (simulateQ SphincsSecurity.romImpl (realize secret (honestSignCount message))).run' ∅)
@@ -2094,7 +2064,7 @@ theorem uniform_message_sign_exponential_budget (hencoding : Budgets.EncodingEnv
   apply expectedValue_le_of_support
   intro message _
   rw [StateT.run'_eq,expectedValue_map]
-  exact honest_sign_exponential_budget hencoding secret message
+  exact honest_sign_exponential_budget secret message
 end SigGolfCandidate.T3.BudgetClosure
 end
 section
@@ -2195,7 +2165,7 @@ macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1
  unfold keygenPayload maskedLevel pairedMask; hashes
 @[aesop safe apply] theorem hashOnly_keygen : HashOnly keygen := by
  unfold keygen; hashes
-@[aesop safe apply] theorem hashOnly_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest)
+@[aesop safe apply] theorem hashOnly_counterSearch (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest)
  (counter fuel : Nat) : HashOnly (counterSearch lay tree leaf message counter fuel) := by
  induction fuel generalizing counter with
  | zero => unfold counterSearch; hashes
@@ -2217,7 +2187,7 @@ macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1
  unfold topPath; hashes
 @[aesop safe apply] theorem hashOnly_signTop (cache : Cache) (leaf : Nat) (digits : List Nat) :
  HashOnly (signTop cache leaf digits) := by unfold signTop; hashes
-@[aesop safe apply] theorem hashOnly_signLayers (cache : Cache) (index n : Nat) (message : Digest) :
+@[aesop safe apply] theorem hashOnly_signLayers (cache : Cache) (index n : Nat) (message : Digest × BitVec 96 × Digest) :
  HashOnly (signLayers cache index n message) := by
  induction n generalizing message with
  | zero => unfold signLayers; hashes
@@ -2236,14 +2206,22 @@ macro "hashes" : tactic => `(tactic| aesop (config := { maxRuleApplications := 1
  HashOnly (recoverFts sig index chosen) := by unfold recoverFts; hashes
 @[aesop safe apply] theorem hashOnly_recoverLayer (sig : Signature) (index : Nat) (lay : Layer)
  (digits : List Nat) : HashOnly (recoverLayer sig index lay digits) := by unfold recoverLayer; hashes
-@[aesop safe apply] theorem hashOnly_expandLayers (sig : Signature) (index n : Nat) (value : Digest) :
+@[aesop safe apply] theorem hashOnly_recoverPair (sig : Signature) (index : Nat) (lay : Layer)
+ (digits : List Nat) : HashOnly (recoverPair sig index lay digits) := by unfold recoverPair; hashes
+@[aesop safe apply] theorem hashOnly_rootHash (index : Nat) (lay : Layer) (pair : Digest × BitVec 96 × Digest) :
+ HashOnly (rootHash index lay pair) := by unfold rootHash; hashes
+@[aesop safe apply] theorem hashOnly_recoverNext (sig : Signature) (index n : Nat) (lay : Layer)
+ (digits : List Nat) : HashOnly (recoverNext sig index n lay digits) := by unfold recoverNext; split <;> hashes
+@[aesop safe apply] theorem hashOnly_expandNext (sig : Signature) (index n : Nat) (lay : Layer)
+ (digits : List Nat) : HashOnly (expandNext sig index n lay digits) := by unfold expandNext; hashes
+@[aesop safe apply] theorem hashOnly_expandLayers (sig : Signature) (index n : Nat) (value : Digest × BitVec 96 × Digest) :
  HashOnly (expandLayers sig index n value) := by
  induction n generalizing value with
  | zero => unfold expandLayers; hashes
  | succ n ih => unfold expandLayers; hashes
 @[aesop safe apply] theorem hashOnly_expand (message : Message) (pk : Digest) (sig : Signature) :
  HashOnly (expand message pk sig) := by unfold expand; hashes
-@[aesop safe apply] theorem hashOnly_verifyLayers (w : Witness) (index n : Nat) (root : Digest) :
+@[aesop safe apply] theorem hashOnly_verifyLayers (w : Witness) (index n : Nat) (root : Digest × BitVec 96 × Digest) :
  HashOnly (verifyLayers w index n root) := by
  induction n generalizing root with
  | zero => unfold verifyLayers; hashes
@@ -2640,21 +2618,21 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 theorem expandLayers_cost_step (answers : Answers) (sig : Signature) (index n : Nat)
-    (value : Digest) (counter : BitVec 32) (digits : List Nat)
+    (value : Digest × BitVec 96 × Digest) (counter : BitVec 32) (digits : List Nat)
     (hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n)
       (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value 0 counterLimit)=some (counter,digits)) :
     cost answers (expandLayers sig index (n+1) value) =
       cost answers (counterSearch (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
         (route index (Fin.ofNat 4 n)).1 value 0 counterLimit) +
-      cost answers (recoverLayer sig index (Fin.ofNat 4 n) digits) +
+      cost answers (expandNext sig index n (Fin.ofNat 4 n) digits) +
       cost answers (expandLayers sig index n
-        (evalWithAnswerFn answers (recoverLayer sig index (Fin.ofNat 4 n) digits))) := by
+        (evalWithAnswerFn answers (expandNext sig index n (Fin.ofNat 4 n) digits))) := by
   simp only [expandLayers, cost_bind, hs]
   cases hx : evalWithAnswerFn answers (expandLayers sig index n
-      (evalWithAnswerFn answers (recoverLayer sig index (Fin.ofNat 4 n) digits))) <;>
+      (evalWithAnswerFn answers (expandNext sig index n (Fin.ofNat 4 n) digits))) <;>
     simp only [cost_pure, Nat.add_zero, Nat.add_assoc]
 theorem signLayers_cost_step (answers : Answers) (cache : Cache) (index n : Nat)
-    (value : Digest) (counter : BitVec 32) (digits : List Nat)
+    (value : Digest × BitVec 96 × Digest) (counter : BitVec 32) (digits : List Nat)
     (hs : evalWithAnswerFn answers (counterSearch (Fin.ofNat 4 n)
       (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 value 0 counterLimit)=some (counter,digits)) :
     cost answers (signLayers cache index (n+1) value) =
@@ -2664,8 +2642,9 @@ theorem signLayers_cost_step (answers : Answers) (cache : Cache) (index n : Nat)
       else cost answers (buildTree (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
           (route index (Fin.ofNat 4 n)).1 digits) +
         cost answers (signLayers cache index n
-          (((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
-            (route index (Fin.ofNat 4 n)).1 digits)).1.getD (height (Fin.ofNat 4 n)) []).getD 0 0)) := by
+          ((((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+            (route index (Fin.ofNat 4 n)).1 digits)).1.getD (height (Fin.ofNat 4 n) - 1) []).getD 0 0, 0, ((evalWithAnswerFn answers (buildTree (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2
+            (route index (Fin.ofNat 4 n)).1 digits)).1.getD (height (Fin.ofNat 4 n) - 1) []).getD 1 0))) := by
   simp only [signLayers, cost_bind, hs]
   split
   · simp only [cost_bind, cost_pure, Nat.add_zero]
@@ -2695,7 +2674,7 @@ theorem expandLayers_cost_le (answers : Answers) (cache : Cache) (index : Nat)
             counterLimit 0 counter digits (by decide) hs).2.2
           have hvalid := validDigits_decode hd
           have hrec := cost_bound answers
-            (bound_recoverLayer sig index (Fin.ofNat 4 n) digits hvalid
+            (bound_expandNext sig index n (Fin.ofNat 4 n) digits hvalid
               (decode_length_sum hd).1 (decode_length_sum hd).2)
           rw [expandLayers_cost_step answers sig index n value counter digits hs,
             signLayers_cost_step answers cache index n value counter digits hs]
@@ -2707,8 +2686,9 @@ theorem expandLayers_cost_le (answers : Answers) (cache : Cache) (index : Nat)
           · simp only [hn0,ite_false,evalWithAnswerFn_bind,
               eval_buildTree_result answers (Fin.ofNat 4 n) _ _ digits hvalid (route_leaf_bound index _)] at he
             cases hp : evalWithAnswerFn answers (signLayers cache index n
-              (((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n)) []).getD 0 0)) with
+              ((((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n) - 1) []).getD 0 0, 0, ((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                (height (Fin.ofNat 4 n) - 1) []).getD 1 0))) with
             | none => simp only [hp,evalWithAnswerFn_pure,reduceCtorEq] at he
             | some previous =>
                 simp only [hp,evalWithAnswerFn_pure,Option.some.injEq] at he
@@ -2718,10 +2698,16 @@ theorem expandLayers_cost_le (answers : Answers) (cache : Cache) (index : Nat)
                 change PiecesAgree sig (previous++[honestPieces answers (Fin.ofNat 4 n)
                   (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1 digits]) (n+1) at hagree
                 have hlayer := PiecesAgree.last hlen (by omega) hagree
-                have hrecover := recoverLayer_honestPieces answers sig index (Fin.ofNat 4 n) digits hvalid hlayer
+                have hrecover := recoverPair_honestPieces answers sig index (Fin.ofNat 4 n) digits hvalid hlayer
                 have hprevious := ih (by omega) _ previous hp sig (PiecesAgree.prefix hlen hagree)
                 simp only [treeValue] at hrecover
-                rw [hrecover]
+                have hnext : evalWithAnswerFn answers (expandNext sig index n (Fin.ofNat 4 n) digits) =
+                    (((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                      (height (Fin.ofNat 4 n)-1) []).getD 0 0,0,
+                     ((builtTree answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
+                      (height (Fin.ofNat 4 n)-1) []).getD 1 0) := by
+                  rw [eval_expandNext, eval_recoverNext, if_neg hn0, hrecover]
+                rw [hnext]
                 simp only [hn0,ite_false,recoveryLayersCost,
                   eval_buildTree_result answers (Fin.ofNat 4 n) _ _ digits hvalid (route_leaf_bound index _)]
                 omega
@@ -2732,7 +2718,7 @@ theorem expand_cost_step (answers : Answers) (message : Message) (pk : Digest) (
     cost answers (expand message pk sig) =
       cost answers (digestSearch sig.rho message 0 attemptLimit) +
       cost answers (recoverFts sig (output.toNat%2^31) (selections output)) +
-      cost answers (expandLayers sig (output.toNat%2^31) 4 root) := by
+      cost answers (expandLayers sig (output.toNat%2^31) 4 (root, 0, 0)) := by
   simp only [expand,cost_bind,hd,hf]
   split
   · split <;> simp only [cost_pure,Nat.add_zero,Nat.add_assoc]
@@ -2749,7 +2735,7 @@ theorem signPayload_cost_step (answers : Answers) (cache : Cache) (message : Mes
         (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2) +
       cost answers (signLayers cache (output.toNat%2^31) 4
         (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
-          (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2))) := by
+          (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2),0,0)) := by
   rw [signPayload_eq]
   simp only [cost_bind,hd]
   split <;> simp only [cost_pure,Nat.add_zero,Nat.add_assoc]
@@ -2768,7 +2754,7 @@ theorem expand_cost_le_payload_add (answers : Answers) (cache : Cache) (message 
       cases hl : evalWithAnswerFn answers
         (signLayers cache (output.toNat%2^31) 4
           (evalWithAnswerFn answers (forestPk (output.toNat%2^31)
-            (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2))) with
+            (evalWithAnswerFn answers (signForest (output.toNat%2^31) (selections output))).2.2),0,0)) with
       | none => simp only [hl,evalWithAnswerFn_pure,reduceCtorEq] at he
       | some pieces =>
           simp only [hl,evalWithAnswerFn_pure,Option.some.injEq] at he
@@ -2868,11 +2854,10 @@ theorem eval_joint_cost_le {κ σ ω : Type} (answers : Correctness.Answers)
       simpa only [SearchCost.cost,hc] using hh
 def honestJointCounts (message : Message) : M (Nat × Nat) :=
   jointCounts keygen (fun keys => sign keys.2 message) (fun keys sig => expand message keys.1 sig)
-theorem joint_sign_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) (message : Message) :
+theorem joint_sign_exponential_budget (secret : BitVec 256) (message : Message) :
     expectedValue (roRun secret (honestJointCounts message) ∅)
       (fun result => (2 : ENNReal)^((result.1.1 : ℝ)/131072)) ≤ 2 := by
-  refine le_trans ?_ (BudgetClosure.honest_sign_exponential_budget hencoding secret message)
+  refine le_trans ?_ (BudgetClosure.honest_sign_exponential_budget secret message)
   simp only [honestJointCounts,jointCounts,BudgetClosure.honestSignCount,roRun_bind,expectedValue_bind]
   apply expectedValue_mono
   intro keys
@@ -2911,19 +2896,17 @@ theorem support_joint_cost_le (secret : BitVec 256) (message : Message)
     (hashOnly_honestJointCounts message) ∅ result hr
   rw [heval]
   exact joint_cost_le _ message
-theorem honest_expand_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) (message : Message) :
+theorem honest_expand_exponential_budget (secret : BitVec 256) (message : Message) :
     expectedValue (roRun secret (honestJointCounts message) ∅)
       (fun result => (2 : ENNReal)^((result.1.2 : ℝ)/1048576)) ≤ 2 := by
-  refine le_trans ?_ (joint_sign_exponential_budget hencoding secret message)
+  refine le_trans ?_ (joint_sign_exponential_budget secret message)
   apply expectedValue_mono_of_support
   intro result hr
   apply ENNReal.rpow_le_rpow_of_exponent_le (by norm_num)
   have hn : (result.1.2 : ℝ) ≤ 8 * (result.1.1 : ℝ) := by
     exact_mod_cast support_joint_cost_le secret message result hr
   linarith
-theorem uniform_message_expand_exponential_budget (hencoding : Budgets.EncodingEnvelopeSpec target Budgets.encodingEnvelopeReal)
-    (secret : BitVec 256) :
+theorem uniform_message_expand_exponential_budget (secret : BitVec 256) :
     expectedValue (do
       let message ← ($ᵗ Message : ProbComp Message)
       (simulateQ SphincsSecurity.romImpl (realize secret (honestJointCounts message))).run' ∅)
@@ -2932,6 +2915,6 @@ theorem uniform_message_expand_exponential_budget (hencoding : Budgets.EncodingE
   apply expectedValue_le_of_support
   intro message _
   rw [StateT.run'_eq,expectedValue_map]
-  exact honest_expand_exponential_budget hencoding secret message
+  exact honest_expand_exponential_budget secret message
 end SigGolfCandidate.T3.ExpansionClosure
 end

@@ -1,7 +1,6 @@
 import SigGolfCandidate.T3.Secc.LargeResidualT3
 import SigGolfCandidate.T3.Secc.WotsExtractWord
 import SigGolfCandidate.T3.Secc.CaseCSearch
-
 namespace SigGolfCandidate.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -95,7 +94,7 @@ def macOf (a : AuxData) (region : Region) : HashOutput :=
 def topValue (v : Coord → Digest) (level node : Nat) : Digest :=
   ((treeChild 0 0 level node).map v).getD 0
 def EncRow (X : HashInput) : Prop :=
-  ∃ (L : EncLeaf) (m : Digest) (ctr : BitVec 32), X = Wots.encodingRow L.toWots m ctr
+  ∃ (L : EncLeaf) (m : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32), X = Wots.encodingRow L.toWots m ctr
 def Parsed (X : HashInput) : Prop := ∃ N : CanonGraph.Node, Extract.posOf X = some N.toPos
 section Route
 variable (U : Finset HashInput)
@@ -121,13 +120,15 @@ noncomputable def routeQuery (a : AuxData) (st : RouterState) (X : HashInput) :
       let L := Classical.choose he
       let m := Classical.choose (Classical.choose_spec he)
       let ctr := Classical.choose (Classical.choose_spec (Classical.choose_spec he))
-      if st.known (msgCoord L) then do
-        let msg ← discloseReq U (.inl (msgCoord L)) .none
-        if m = msg ∧ PrefixRow a L ctr then do
-          tickReq U .call
-          pure (prefixValue a L ctr, st')
-        else (fun y => (y, st')) <$> testReq U first ⟨X, h⟩ ⟨none, .target (refDigest a L)⟩
-      else (fun y => (y, st')) <$> testReq U first ⟨X, h⟩ ⟨some (.inl (msgCoord L), m), .target (refDigest a L)⟩
+      match firstUnknownMsg st.known L with
+      | some p => (fun y => (y, st')) <$>
+          testReq U first ⟨X, h⟩ ⟨some (.inl p.1, p.2 m), .target (refDigest a L)⟩
+      | none => do
+          let pairs ← discloseAll U (msgCoords L)
+          if m = msgOf L (lookupVal pairs) ∧ PrefixRow a L ctr then do
+            tickReq U .call
+            pure (prefixValue a L ctr, st')
+          else (fun y => (y, st')) <$> testReq U first ⟨X, h⟩ ⟨none, .target (refDigest a L)⟩
     else if IsDigestRow X then
       (fun y => (y, if st.Fresh X then { st' with births := (X, y) :: st.births } else st')) <$> readReq U ⟨X, h⟩ .mass
     else (fun y => (y, st')) <$> readReq U ⟨X, h⟩ .call

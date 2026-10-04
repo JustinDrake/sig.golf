@@ -1,6 +1,5 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMask
 import SigGolfCandidate.T3.Secc.WotsMaskCharge
-
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -82,8 +81,9 @@ theorem count_signLayers_maskAt (htree : a.key.tree < 2 ^ 40) (hleaf : a.key.lea
             rw [Correctness.eval_buildTree_result answers _ _ _ digits hvalid (route_leaf_bound index _)]
             dsimp only
             obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
-            have hmsg' : ∀ m', m + 1 = m' + 1 → ((builtTree answers (Fin.ofNat 4 (m + 1))
-                (route index (Fin.ofNat 4 (m + 1))).2).getD (height (Fin.ofNat 4 (m + 1))) []).getD 0 0 =
+            have hmsg' : ∀ m', m + 1 = m' + 1 → (((builtTree answers (Fin.ofNat 4 (m + 1))
+                (route index (Fin.ofNat 4 (m + 1))).2).getD (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 0 0, 0, ((builtTree answers (Fin.ofNat 4 (m + 1))
+                (route index (Fin.ofNat 4 (m + 1))).2).getD (height (Fin.ofNat 4 (m + 1)) - 1) []).getD 1 0) =
                 leafMsg answers (routeLeaf index (Fin.ofNat 4 m')) := fun m' hm' => by
               obtain rfl : m = m' := by omega
               exact signedMsg_succ answers index m (by omega)
@@ -111,10 +111,11 @@ theorem queried_length_maskAt_signPayload (answers : Answers) (a : ChainAddr) (h
       (Mask.count_maskAt_of_respects answers a (Mask.respects_signForest a _ _)) ?_
     rw [ClaudeWCT.WCT9.eval_signForest]
     dsimp only
-    have hmsg : ∀ m, 4 = m + 1 → ClaudeWCT.WCT9.honestForest answers (output.toNat % 2 ^ 31) =
+    have hmsg : ∀ m, 4 = m + 1 → ((ClaudeWCT.WCT9.honestForest answers (output.toNat % 2 ^ 31), 0, 0) : Digest × BitVec 96 × Digest) =
         leafMsg answers (Mask.routeLeaf (output.toNat % 2 ^ 31) (Fin.ofNat 4 m)) := fun m hm => by
       obtain rfl : m = 3 := by omega
-      exact (Extract.honestForest_eq_wct9 answers _).symm.trans (Mask.signedMsg_top answers _)
+      exact (congrArg (fun x => ((x, 0, 0) : Digest × BitVec 96 × Digest))
+        (Extract.honestForest_eq_wct9 answers _).symm).trans (Mask.signedMsg_top answers _)
     refine Mask.count_bind_of (Mask.eval_signLayers_maskAt answers a htree hleaf cache _ (Nat.mod_lt _ (by decide))
       4 le_rfl _ hmsg) (Mask.count_signLayers_maskAt answers a htree hleaf cache _ (Nat.mod_lt _ (by decide)) 4
       le_rfl _ hmsg) ?_

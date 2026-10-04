@@ -1,5 +1,4 @@
 import SigGolfCandidate.ClaudeWCT.WCT9.Basic
-
 namespace ClaudeWCT.WCT9
 open OracleComp OracleSpec SigGolfCandidate.T3 SigGolfCandidate.T3.Correctness
 open SphincsSecurity (bytesLE bytesLE_length)
@@ -581,7 +580,7 @@ theorem expand_implies_verify (answers : Answers) (message : Message) (pk : Dige
       obtain ⟨counter, output⟩ := found
       simp only [hd, evalWithAnswerFn_bind] at he
       cases hl : evalWithAnswerFn answers (expandLayers (toT3Signature sig) (output.toNat % 2 ^ 31) 4
-          (evalWithAnswerFn answers (recoverFts sig (output.toNat % 2 ^ 31) output))) with
+          (evalWithAnswerFn answers (recoverFts sig (output.toNat % 2 ^ 31) output), 0, 0)) with
       | none => simp only [hl, evalWithAnswerFn_pure, reduceCtorEq] at he
       | some layers =>
           obtain ⟨root, counters⟩ := layers

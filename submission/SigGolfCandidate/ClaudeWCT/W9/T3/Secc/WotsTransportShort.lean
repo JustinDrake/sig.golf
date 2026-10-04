@@ -1,7 +1,6 @@
 import SigGolfCandidate.T3.Secc.WotsTransportShort
 import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
-
 namespace ClaudeWCT.W9.T3.Security.Wots.Ref
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -50,9 +49,9 @@ theorem wctEnds_short (index coord child : Nat) (hc : coord < 9) (hch : child < 
 theorem leafMsg_short (L : LeafAddr) : leafMsg A L = leafMsg T L := by
   unfold leafMsg
   split_ifs
-  · unfold Extract.honestRoot
+  · unfold Extract.honestPair
     rw [builtTree_short hAT]
-  · exact honestForest_short hAT _
+  · rw [honestForest_short hAT _]
 theorem referenceSearch_short (L : LeafAddr) : referenceSearch A L = referenceSearch T L := by
   unfold referenceSearch
   rw [leafMsg_short hAT]

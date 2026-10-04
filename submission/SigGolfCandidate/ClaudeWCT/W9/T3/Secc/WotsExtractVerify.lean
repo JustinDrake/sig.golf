@@ -5,7 +5,6 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractChain
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractLayer
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.VerifyP
 import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
-
 namespace ClaudeWCT.W9.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -22,10 +21,11 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 theorem layersP_wots_walk (answers : Answers) (w : WBytes) (index : Nat) (hidx : index < 2 ^ 31) :
-    ∀ n, n ≤ 4 → ∀ root : Digest,
-    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0) →
+    ∀ n, n ≤ 4 → ∀ root : Digest × BitVec 96 × Digest,
+    evalWithAnswerFn answers (layersP w index n root) = some (Extract.walkTarget answers index 0).1 →
     WotsPrimitiveSrc answers (entriesOf answers (queried answers (layersP w index n root))) ∨
-    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧ root = Extract.walkTarget answers index n)
+    ((∀ l : Layer, l.val < n → Extract.Good answers w index l) ∧
+      (if n = 0 then root.1 = (Extract.walkTarget answers index 0).1 else root = Extract.walkTarget answers index n))
   | 0, _, root, h => by
       right
       refine ⟨fun l hl => absurd hl (Nat.not_lt_zero _), ?_⟩
@@ -36,15 +36,15 @@ theorem layersP_wots_walk (answers : Answers) (w : WBytes) (index : Nat) (hidx :
       have hval : (Fin.ofNat 4 n : Layer).val = n := by simp; omega
       rcases layersP_wots_walk answers w index hidx n (by omega) _ hrest with hprim | ⟨hgood, hv⟩
       · exact Or.inl (hprim.mono (entriesOf_mono hqR))
-      · rw [Extract.walkTarget_root answers index n (by omega)] at hv
-        rcases layer_wots answers w index (Fin.ofNat 4 n) root digits hidx hframe
-            (queried answers (layersP w index (n + 1) root)) henc hqL hv with hprim | ⟨hmsg, hgoodn⟩
+      · have hv' := Extract.next_target answers w index n digits hv
+        rcases layer_wots answers w index n (by omega) root digits hidx hframe
+            (queried answers (layersP w index (n + 1) root)) henc hqL hv' with hprim | ⟨hmsg, hgoodn⟩
         · exact Or.inl hprim
         · right
           have hmsg' : Extract.honestMsg answers index (Fin.ofNat 4 n) = Extract.walkTarget answers index (n + 1) := by
             have hl : (Fin.ofNat 4 n : Layer) = ⟨n, by omega⟩ := Fin.ext hval
             simp only [Extract.walkTarget, dif_pos (show n < 4 by omega), hl]
-          refine ⟨fun l hl => ?_, hmsg.trans hmsg'⟩
+          refine ⟨fun l hl => ?_, by simpa only [Nat.succ_ne_zero, if_false] using hmsg.trans hmsg'⟩
           by_cases hle : l.val < n
           · exact hgood l hle
           · have hl : l = Fin.ofNat 4 n := Fin.ext (by rw [hval]; omega)
@@ -68,14 +68,15 @@ theorem verifyP_walk_wots (answers : Answers) (m : Message) (pk : Digest) (w : W
   obtain ⟨N, hdc, hN, hdq, hS, hlay, hqF, hqL⟩ := WctExtract.verifyP_walk_wct answers m pk w hv
   refine ⟨N, hdc, hN, hdq, hS, ?_⟩
   have hidx : N.toNat % 2 ^ 31 < 2 ^ 31 := Nat.mod_lt _ (by norm_num)
-  have htop : Extract.walkTarget answers (N.toNat % 2 ^ 31) 0 = pk := by
+  have htop : (Extract.walkTarget answers (N.toNat % 2 ^ 31) 0).1 = pk := by
     rw [hpk]; simp only [Extract.walkTarget, route_top_tree _ hidx]
   rcases layersP_wots_walk answers w (N.toNat % 2 ^ 31) hidx 4 le_rfl _ (by rw [hlay, htop]) with hprim | ⟨hgood, hroot⟩
   · exact Or.inl (hprim.mono (entriesOf_mono hqL))
   · right
     refine ⟨fun l => hgood l l.isLt, ?_, hqF⟩
-    rw [hroot]
-    simp [Extract.walkTarget, Extract.honestMsg]
+    have h4 := hroot
+    simp [Extract.walkTarget, Extract.honestMsg] at h4
+    exact h4
 def FtsPos : Extract.Pos → Prop
   | .wctChain .. => True
   | .wctLeaf .. => True
