@@ -9,7 +9,6 @@ open OracleComp OracleSpec SigGolfCandidate.T3 SecurityInputs SecurityExtraction
 open Correctness (Answers)
 open SphincsSecurity (bytesLE bytesLE_injective)
 set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 theorem hdrBlock_honestInput (answers : Answers) (p : Pos) :
     hdrBlock (honestInput answers p) = bytesLE 16 p.hdr := by

@@ -1,59 +1,17 @@
-import SigGolfCandidate.T3.Secc.WotsExtractWord
+import SigGolfCandidate.T3.Secc.WotsExtractLayer
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsEvents
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractChain
-import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layer
-import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
-import SigGolfCandidate.T3.Secc.WotsExtractLayer
+import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractWord
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layers
-section
+import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
+
 namespace ClaudeWCT.W9.T3.Security.WotsExtract
 open OracleComp OracleSpec
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
-open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low encodingRow)
+open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low entriesOf word_cases)
 open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
-open SigGolfCandidate.T3.Security.WotsExtract (encodingRow_injective routeLeaf route_split route_tree_succ route_forest)
-open SigGolfCandidate.T3.Correctness (Answers)
-set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
-set_option backward.isDefEq.respectTransparency false
-theorem referenceInput_ne (answers : Answers) (L : LeafAddr) (msg : (Digest × BitVec 96 × Digest)) (ctr : BitVec 32)
-    {digits : List Nat} (hd : decode L.lay (low (answers (.inl (.inr (encodingRow L msg ctr))))) = some digits)
-    (hne : msg ≠ leafMsg answers L ∨ digits ≠ referenceDigits answers L) :
-    referenceInput answers L ≠ some (encodingRow L msg ctr) := by
-  intro h
-  unfold referenceInput at h
-  cases hs : referenceSearch answers L with
-  | none => rw [hs] at h; simp at h
-  | some s =>
-      obtain ⟨c, w'⟩ := s
-      rw [hs] at h
-      simp only [Option.map_some, Option.some.injEq] at h
-      obtain ⟨hm, hc⟩ := encodingRow_injective h
-      subst hm hc
-      have hdec := referenceSearch_decode answers L hs
-      have hw : referenceDigits answers L = w' := by unfold referenceDigits; rw [hs]; rfl
-      have hdw : digits = w' := Option.some.inj (hd.symm.trans hdec)
-      rcases hne with hne | hne
-      · exact hne rfl
-      · exact hne (hdw.trans hw.symm)
-theorem leafMsg_route (answers : Answers) (index : Nat) (lay : Layer) :
-    leafMsg answers (routeLeaf index lay) = Extract.honestMsg answers index lay := by
-  unfold leafMsg Extract.honestMsg
-  simp only [routeLeaf]
-  by_cases h : lay.val < 3
-  · rw [dif_pos h, dif_pos h, route_tree_succ index lay h]
-  · rw [dif_neg h, dif_neg h, route_forest index lay h]
-end ClaudeWCT.W9.T3.Security.WotsExtract
-end
-section
-namespace ClaudeWCT.W9.T3.Security.WotsExtract
-open OracleComp OracleSpec
-open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
-open SigGolfCandidate.T3.Security.Wots (LeafAddr ChainAddr Entry low encodingRow entriesOf word_cases)
-open ClaudeWCT.W9.T3M ClaudeWCT.W9.T3.Security.Wots
-open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
-open SigGolfCandidate.T3M (chainP layerP layerNextP wchainPads wchainHeaderPad wctr wmerklePad wpath wvalue)
+open SigGolfCandidate.T3M (chainP layerP wchainPads wchainHeaderPad wmerklePad wpath wvalue)
 open SigGolfCandidate.T3.Security.WotsExtract (SourceLeaf SourceChain seenRow_mono entriesOf_mono mem_entriesOf routeLeaf
   routeLeaf_source)
 open SigGolfCandidate.T3.Correctness (Answers treeValue builtTree leafSeed leafEnd leafValue)
@@ -84,30 +42,21 @@ theorem WotsPrimitiveSrc.mono (h : WotsPrimitiveSrc answers trace) (hsub : ∀ e
   · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, b, ha, hb, hab, contactAt_mono h1 hsub, contactAt_mono h2 hsub⟩)))
   · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, ha, markerAt_mono hm hsub, contactAt_mono hc hsub⟩)))
 end mono
-theorem nodeHit_src (answers : Answers) (qs : List Spec.Domain) (index : Nat) (lay : Layer) (hidx : index < 2 ^ 31)
-    (h : Extract.NodeHitIn answers qs lay (route index lay).2 (route index lay).1) :
-    StructuralHitSrc answers (entriesOf answers qs) := by
-  obtain ⟨step, input, hstep, hq, hhit, hsame⟩ := h
-  have hleafB := route_leaf_bound index lay
-  have htreeB := Extract.route_tree_bound index lay hidx
-  have htree31 : (route index lay).2 < 2 ^ 31 := lt_of_le_of_lt (Nat.div_le_self _ _) hidx
-  have hnb := Extract.node_bound lay (route index lay).1 step hleafB hstep
-  exact structuralHit_intro (.node lay (route index lay).2 step ((route index lay).1 / 2 ^ (step + 1))) input
-    ⟨htreeB, hstep, hnb⟩ ⟨htree31, hstep, hnb⟩ hq hhit hsame trivial
-theorem leafChains_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat)
+theorem leaf_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat)
     (hidx : index < 2 ^ 31) (hvalid : Cost.ValidDigits lay digits) (qs : List Spec.Domain)
-    (hqL : ∀ q ∈ queried answers (layerLeafP w index lay digits), q ∈ qs)
+    (hsubL : ∀ q ∈ queried answers (layerLeafP w index lay digits), q ∈ qs)
     (hv0 : evalWithAnswerFn answers (layerLeafP w index lay digits) =
       treeValue (builtTree answers lay (route index lay).2) 0 (route index lay).1) :
     StructuralHitSrc answers (entriesOf answers qs) ∨
-      ∀ i, i < chainCount lay →
-        (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
-          wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
-            (digits.getD i 0 < maxDigit lay i → wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
-        (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
-          ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ ∧
-            (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index lay, i⟩ →
-              TwoEdgeAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩)) := by
+    ∀ i, i < chainCount lay →
+      (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
+        wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
+          (digits.getD i 0 < maxDigit lay i →
+            wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
+      (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
+        ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ ∧
+          (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index lay, i⟩ →
+            TwoEdgeAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩)) := by
   classical
   by_cases hS : StructuralHitSrc answers (entriesOf answers qs)
   · exact Or.inl hS
@@ -119,7 +68,7 @@ theorem leafChains_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : La
     lt_of_lt_of_le hleafB (le_trans (Nat.pow_le_pow_right (by decide) (Extract.height_le lay)) (by norm_num))
   have hqC : ∀ q ∈ queried answers (Extract.layerChains w index lay digits), q ∈ qs := by
     intro q hq
-    apply hqL
+    apply hsubL
     rw [Extract.layerLeafP_eq, queried_bind]
     exact List.mem_append_left _ hq
   rw [Correctness.builtTree_leaf answers lay _ _ hleafB, Extract.layerLeafP_eq, evalWithAnswerFn_bind] at hv0
@@ -142,7 +91,7 @@ theorem leafChains_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : La
     apply hS
     refine structuralHit_intro (.leaf lay (route index lay).2 (route index lay).1) _ ⟨htreeB, hleaf32⟩
       ⟨htree31, hleafB⟩ ?_ hhit hsame trivial
-    apply hqL
+    apply hsubL
     rw [Extract.layerLeafP_eq, queried_bind]
     exact List.mem_append_right _ hq
   rw [hends] at hE
@@ -176,52 +125,200 @@ theorem leafChains_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : La
   refine ⟨hval, fun hlt => ?_⟩
   obtain ⟨h0, h1, hh⟩ := hpads (by omega)
   exact ⟨Prod.ext h0 h1, hh⟩
-theorem layerNextP_wots (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4) (digits : List Nat)
-    (hidx : index < 2 ^ 31) (hvalid : Cost.ValidDigits (Fin.ofNat 4 n) digits) (qs : List Spec.Domain)
-    (hsub : ∀ q ∈ queried answers (layerNextP w index n (Fin.ofNat 4 n) digits), q ∈ qs)
-    (reaches : evalWithAnswerFn answers (layerNextP w index n (Fin.ofNat 4 n) digits) =
-      Extract.walkTarget answers index n) :
-    StructuralHitSrc answers (entriesOf answers qs) ∨
-    (Extract.MerkleShaped answers w index (Fin.ofNat 4 n) ∧
-      ∀ i, i < chainCount (Fin.ofNat 4 n) →
-        (depth answers ⟨routeLeaf index (Fin.ofNat 4 n), i⟩ ≤ digits.getD i 0 →
-          wvalue w (Fin.ofNat 4 n) i =
-              leafValue answers (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2 (route index (Fin.ofNat 4 n)).1
-                digits i ∧
-            (digits.getD i 0 < maxDigit (Fin.ofNat 4 n) i → wchainPads w (Fin.ofNat 4 n) i = (0, 0) ∧ wchainHeaderPad w (Fin.ofNat 4 n) i = 0)) ∧
-        (digits.getD i 0 < depth answers ⟨routeLeaf index (Fin.ofNat 4 n), i⟩ →
-          ContactAt answers (entriesOf answers qs) ⟨routeLeaf index (Fin.ofNat 4 n), i⟩ ∧
-            (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index (Fin.ofNat 4 n), i⟩ →
-              TwoEdgeAt answers (entriesOf answers qs) ⟨routeLeaf index (Fin.ofNat 4 n), i⟩))) := by
-  rcases Extract.layerNextP_merkle answers w index n hn digits reaches with hnode | ⟨hm, hv0, hqL⟩
-  · exact Or.inl (nodeHit_src answers qs index (Fin.ofNat 4 n) hidx (hnode.mono hsub))
-  rcases leafChains_wots answers w index (Fin.ofNat 4 n) digits hidx hvalid qs (fun q hq => hsub q (hqL q hq)) hv0
-    with hS | hc
-  · exact Or.inl hS
-  · exact Or.inr ⟨hm, hc⟩
-theorem layer_wots (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4) (msg : Digest × BitVec 96 × Digest)
-    (digits : List Nat)
-    (hidx : index < 2 ^ 31) (hframe : Extract.Frame answers w index (Fin.ofNat 4 n) msg digits)
-    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index (Fin.ofNat 4 n) msg ∈ qs)
-    (hsub : ∀ q ∈ queried answers (layerNextP w index n (Fin.ofNat 4 n) digits), q ∈ qs)
-    (reaches : evalWithAnswerFn answers (layerNextP w index n (Fin.ofNat 4 n) digits) =
-      Extract.walkTarget answers index n) :
-    WotsPrimitiveSrc answers (entriesOf answers qs) ∨
-      (msg = Extract.honestMsg answers index (Fin.ofNat 4 n) ∧ Extract.Good answers w index (Fin.ofNat 4 n)) := by
+theorem layerP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat)
+    (hidx : index < 2 ^ 31) (hvalid : Cost.ValidDigits lay digits)
+    (reaches : evalWithAnswerFn answers (layerP w index lay digits) =
+      Extract.honestRoot answers lay (route index lay).2) :
+    StructuralHitSrc answers (entriesOf answers (queried answers (layerP w index lay digits))) ∨
+    ((∀ j, j < height lay →
+        wpath w lay (route index lay).1 j =
+          treeValue (builtTree answers lay (route index lay).2) j ((route index lay).1 / 2 ^ j ^^^ 1) ∧
+        wmerklePad w lay j = 0) ∧
+      ∀ i, i < chainCount lay →
+        (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
+          wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
+            (digits.getD i 0 < maxDigit lay i →
+              wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
+        (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
+          ContactAt answers (entriesOf answers (queried answers (layerP w index lay digits)))
+              ⟨routeLeaf index lay, i⟩ ∧
+            (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index lay, i⟩ →
+              TwoEdgeAt answers (entriesOf answers (queried answers (layerP w index lay digits)))
+                ⟨routeLeaf index lay, i⟩))) := by
   classical
-  have hW := layerNextP_wots answers w index n hn digits hidx (Cost.validDigits_decode hframe.2) qs hsub reaches
-  set lay : Layer := Fin.ofNat 4 n with hlay
+  by_cases hS : StructuralHitSrc answers (entriesOf answers (queried answers (layerP w index lay digits)))
+  · exact Or.inl hS
+  right
+  have hleafB := route_leaf_bound index lay
+  have htreeB := Extract.route_tree_bound index lay hidx
+  have htree31 : (route index lay).2 < 2 ^ 31 := lt_of_le_of_lt (Nat.div_le_self _ _) hidx
+  have hqL : ∀ q ∈ queried answers (layerLeafP w index lay digits),
+      q ∈ queried answers (layerP w index lay digits) := by
+    intro q hq
+    rw [layerP_eq_hashPath, queried_bind]
+    exact List.mem_append_left _ hq
+  have hM := merklePath_extract answers 3 lay.val (route index lay).2 (height lay) (route index lay).1 (height lay)
+    (wpath w lay (route index lay).1) (wmerklePad w lay)
+    (fun j => treeValue (builtTree answers lay (route index lay).2) j ((route index lay).1 / 2 ^ j ^^^ 1))
+    (fun step => treeValue (builtTree answers lay (route index lay).2) step ((route index lay).1 / 2 ^ step))
+    (evalWithAnswerFn answers (layerLeafP w index lay digits))
+    (merkleInput_tree_reference answers 3 lay.val (route index lay).2 (height lay) (route index lay).1 _ _
+      (Correctness.builtTree_correct answers lay (route index lay).2) hleafB)
+    (by
+      have h := reaches
+      rw [layerP_eq_hashPath, evalWithAnswerFn_bind] at h
+      rw [Nat.div_eq_of_lt hleafB]
+      exact h)
+  rcases hM with ⟨hv0, hpath⟩ | ⟨step, hstep, hq, hhit⟩
+  swap
+  · exfalso
+    apply hS
+    refine structuralHit_intro (.node lay (route index lay).2 step ((route index lay).1 / 2 ^ (step + 1)))
+      (pad64 (pathInput answers
+        (merkleInput 3 lay.val (route index lay).2 (height lay) (route index lay).1 (wpath w lay (route index lay).1)
+          (wmerklePad w lay)) (evalWithAnswerFn answers (layerLeafP w index lay digits)) step))
+      ⟨htreeB, hstep, ?_⟩ ⟨htree31, hstep, ?_⟩ ?_ ?_ ?_ trivial
+    · simpa only [Nat.sub_sub, Nat.zero_add] using Correctness.div_pow_bound (start := 0) (level := step + 1)
+        (node := (route index lay).1) (height := height lay) (by omega) (by simpa using hleafB)
+    · simpa only [Nat.sub_sub, Nat.zero_add] using Correctness.div_pow_bound (start := 0) (level := step + 1)
+        (node := (route index lay).1) (height := height lay) (by omega) (by simpa using hleafB)
+    · rw [layerP_eq_hashPath, queried_bind]
+      exact List.mem_append_right _ hq
+    · rw [Extract.merkle_honestInput]; exact hhit
+    · unfold Extract.SameHeader
+      rw [Extract.merkle_honestInput, pathInput, Extract.hdrBlock_merkleInput, Extract.hdrBlock_merkleInput]
+  refine ⟨hpath, ?_⟩
+  rw [pow_zero, Nat.div_one] at hv0
+  rcases leaf_wots answers w index lay digits hidx hvalid _ hqL hv0 with hS' | hchains
+  · exact (hS hS').elim
+  · exact hchains
+theorem layerPairP_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (digits : List Nat)
+    (hidx : index < 2 ^ 31) (hvalid : Cost.ValidDigits lay digits)
+    (reaches : evalWithAnswerFn answers (layerPairP w index lay digits) =
+      Extract.honestPair answers lay (route index lay).2) :
+    StructuralHitSrc answers (entriesOf answers (queried answers (layerPairP w index lay digits))) ∨
+    ((∀ j, j < height lay →
+        wpath w lay (route index lay).1 j =
+          treeValue (builtTree answers lay (route index lay).2) j ((route index lay).1 / 2 ^ j ^^^ 1) ∧
+        (j + 1 < height lay → wmerklePad w lay j = 0)) ∧
+      ∀ i, i < chainCount lay →
+        (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
+          wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
+            (digits.getD i 0 < maxDigit lay i →
+              wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
+        (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
+          ContactAt answers (entriesOf answers (queried answers (layerPairP w index lay digits)))
+              ⟨routeLeaf index lay, i⟩ ∧
+            (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index lay, i⟩ →
+              TwoEdgeAt answers (entriesOf answers (queried answers (layerPairP w index lay digits)))
+                ⟨routeLeaf index lay, i⟩))) := by
+  classical
+  by_cases hS : StructuralHitSrc answers (entriesOf answers (queried answers (layerPairP w index lay digits)))
+  · exact Or.inl hS
+  right
+  have hh := Extract.height_pos lay
+  have hleafB := route_leaf_bound index lay
+  have htreeB := Extract.route_tree_bound index lay hidx
+  have htree31 : (route index lay).2 < 2 ^ 31 := lt_of_le_of_lt (Nat.div_le_self _ _) hidx
+  have hqL : ∀ q ∈ queried answers (layerLeafP w index lay digits),
+      q ∈ queried answers (layerPairP w index lay digits) := by
+    intro q hq
+    rw [Extract.layerPairP_eq_hashPath, queried_bind]
+    exact List.mem_append_left _ hq
+  have hqM : ∀ q ∈ queried answers (hashPath (merkleInput 3 lay.val (route index lay).2 (height lay)
+      (route index lay).1 (wpath w lay (route index lay).1) (wmerklePad w lay)) (height lay - 1)
+      (evalWithAnswerFn answers (layerLeafP w index lay digits))),
+      q ∈ queried answers (layerPairP w index lay digits) := by
+    intro q hq
+    rw [Extract.layerPairP_eq_hashPath, queried_bind, queried_bind]
+    exact List.mem_append_right _ (List.mem_append_left _ hq)
+  have hq2 : (route index lay).1 / 2 ^ (height lay - 1) = 0 ∨ (route index lay).1 / 2 ^ (height lay - 1) = 1 := by
+    have hq : (route index lay).1 / 2 ^ (height lay - 1) < 2 := by
+      apply (Nat.div_lt_iff_lt_mul (by positivity)).mpr
+      have he : 2 ^ (height lay - 1) * 2 = 2 ^ height lay := by rw [← pow_succ, Nat.sub_add_cancel hh]
+      rw [Nat.mul_comm, he]
+      exact hleafB
+    generalize (route index lay).1 / 2 ^ (height lay - 1) = q at hq ⊢
+    omega
+  have reaches' := reaches
+  rw [Extract.layerPairP_eq_hashPath, evalWithAnswerFn_bind, evalWithAnswerFn_bind, evalWithAnswerFn_pure] at reaches'
+  generalize htop : evalWithAnswerFn answers (hashPath (merkleInput 3 lay.val (route index lay).2 (height lay)
+      (route index lay).1 (wpath w lay (route index lay).1) (wmerklePad w lay)) (height lay - 1)
+      (evalWithAnswerFn answers (layerLeafP w index lay digits))) = top at reaches'
+  have hpair : top = treeValue (builtTree answers lay (route index lay).2) (height lay - 1)
+        ((route index lay).1 / 2 ^ (height lay - 1)) ∧
+      wpath w lay (route index lay).1 (height lay - 1) =
+        treeValue (builtTree answers lay (route index lay).2) (height lay - 1)
+          ((route index lay).1 / 2 ^ (height lay - 1) ^^^ 1) := by
+    unfold Extract.honestPair at reaches'
+    rcases hq2 with h | h <;> simp only [h] at reaches' ⊢ <;>
+      simp only [Nat.one_mod, if_true, if_false, Prod.mk.injEq, one_ne_zero] at reaches' <;>
+      exact ⟨by first | exact reaches'.1 | exact reaches'.2, by first | exact reaches'.2 | exact reaches'.1⟩
+  have hM := merklePath_extract answers 3 lay.val (route index lay).2 (height lay) (route index lay).1
+    (height lay - 1) (wpath w lay (route index lay).1) (wmerklePad w lay)
+    (fun j => treeValue (builtTree answers lay (route index lay).2) j ((route index lay).1 / 2 ^ j ^^^ 1))
+    (fun step => treeValue (builtTree answers lay (route index lay).2) step ((route index lay).1 / 2 ^ step))
+    (evalWithAnswerFn answers (layerLeafP w index lay digits))
+    (fun step hstep => merkleInput_tree_reference answers 3 lay.val (route index lay).2 (height lay)
+      (route index lay).1 _ _ (Correctness.builtTree_correct answers lay (route index lay).2) hleafB step
+      (by omega))
+    (by unfold pathValue; rw [htop]; exact hpair.1)
+  rcases hM with ⟨hv0, hpath⟩ | ⟨step, hstep, hq, hhit⟩
+  swap
+  · exfalso
+    apply hS
+    refine structuralHit_intro (.node lay (route index lay).2 step ((route index lay).1 / 2 ^ (step + 1)))
+      (pad64 (pathInput answers
+        (merkleInput 3 lay.val (route index lay).2 (height lay) (route index lay).1 (wpath w lay (route index lay).1)
+          (wmerklePad w lay)) (evalWithAnswerFn answers (layerLeafP w index lay digits)) step))
+      ⟨htreeB, by omega, ?_⟩ ⟨htree31, by omega, ?_⟩ (hqM _ hq) ?_ ?_ trivial
+    · simpa only [Nat.sub_sub, Nat.zero_add] using Correctness.div_pow_bound (start := 0) (level := step + 1)
+        (node := (route index lay).1) (height := height lay) (by omega) (by simpa using hleafB)
+    · simpa only [Nat.sub_sub, Nat.zero_add] using Correctness.div_pow_bound (start := 0) (level := step + 1)
+        (node := (route index lay).1) (height := height lay) (by omega) (by simpa using hleafB)
+    · rw [Extract.merkle_honestInput]; exact hhit
+    · unfold Extract.SameHeader
+      rw [Extract.merkle_honestInput, pathInput, Extract.hdrBlock_merkleInput, Extract.hdrBlock_merkleInput]
+  refine ⟨fun j hj => ?_, ?_⟩
+  · by_cases hjt : j < height lay - 1
+    · exact ⟨(hpath j hjt).1, fun _ => (hpath j hjt).2⟩
+    · have hj1 : j = height lay - 1 := by omega
+      subst hj1
+      exact ⟨hpair.2, fun h => by omega⟩
+  rw [pow_zero, Nat.div_one] at hv0
+  rcases leaf_wots answers w index lay digits hidx hvalid _ hqL hv0 with hS' | hchains
+  · exact (hS hS').elim
+  · exact hchains
+theorem frame_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : WCT9.LayerMsg)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hfit : Extract.msgFits lay msg)
+    (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hmerkle : ∀ j, j < height lay →
+      wpath w lay (route index lay).1 j =
+          treeValue (builtTree answers lay (route index lay).2) j ((route index lay).1 / 2 ^ j ^^^ 1) ∧
+        (j + 1 < height lay ∨ lay.val = 0 → wmerklePad w lay j = 0))
+    (hchains : ∀ i, i < chainCount lay →
+      (depth answers ⟨routeLeaf index lay, i⟩ ≤ digits.getD i 0 →
+        wvalue w lay i = leafValue answers lay (route index lay).2 (route index lay).1 digits i ∧
+          (digits.getD i 0 < maxDigit lay i →
+            wchainPads w lay i = (0, 0) ∧ wchainHeaderPad w lay i = 0)) ∧
+      (digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
+        ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ ∧
+          (digits.getD i 0 + 2 ≤ depth answers ⟨routeLeaf index lay, i⟩ →
+            TwoEdgeAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩))) :
+    WotsPrimitiveSrc answers (entriesOf answers qs) ∨
+      (msg = Extract.honestMsg answers index lay ∧ BC.GoodZ answers w index lay) := by
+  classical
   have hdec : decode (routeLeaf index lay).lay
-      (low (answers (.inl (.inr (encodingRow (routeLeaf index lay) msg (wctr w lay)))))) = some digits := hframe.2
-  have hvalid := Cost.validDigits_decode hframe.2
-  have hmono := entriesOf_mono (answers := answers) hsub
-  have hencE : (encodingRow (routeLeaf index lay) msg (wctr w lay),
-      answers (.inl (.inr (encodingRow (routeLeaf index lay) msg (wctr w lay))))) ∈ entriesOf answers qs :=
+      (low (answers (.inl (.inr (encRow (routeLeaf index lay) msg (wbcCtr w lay) (wbcPad w lay)))))) = some digits :=
+    hframe.2
+  have hfit' : Extract.msgFits (routeLeaf index lay).lay msg := hfit
+  have hencE : (encRow (routeLeaf index lay) msg (wbcCtr w lay) (wbcPad w lay),
+      answers (.inl (.inr (encRow (routeLeaf index lay) msg (wbcCtr w lay) (wbcPad w lay))))) ∈
+        entriesOf answers qs :=
     mem_entriesOf henc
   have hsrc : SourceLeaf (routeLeaf index lay) := routeLeaf_source index lay hidx
   have hsrcC : ∀ i, i < chainCount lay → SourceChain ⟨routeLeaf index lay, i⟩ := fun i hi => ⟨hsrc, hi⟩
-  rcases hW with hS | ⟨hmerkle, hchains⟩
-  · exact Or.inl (Or.inr (Or.inl hS))
   have hcontact : ∀ i, i < chainCount lay → digits.getD i 0 < depth answers ⟨routeLeaf index lay, i⟩ →
       ContactAt answers (entriesOf answers qs) ⟨routeLeaf index lay, i⟩ := fun i hi hlt =>
     ((hchains i hi).2 hlt).1
@@ -235,16 +332,29 @@ theorem layer_wots (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4)
         rw [heq]
       exact (hchains i hi).1 (le_of_eq hdi)
     by_cases hm : msg = Extract.honestMsg answers index lay
-    · exact Or.inr ⟨hm, digits, hm ▸ hframe, hshape⟩
-    · refine Or.inl (Or.inl ⟨routeLeaf index lay, hsrc, msg, wctr w lay, _, hencE, ?_, ?_⟩)
-      · exact referenceInput_ne answers _ msg _ hdec (Or.inl (by rw [leafMsg_route]; exact hm))
+    · by_cases hp : lay.val < 3 → wbcPad w lay = 0
+      · exact Or.inr ⟨hm, ⟨digits, hm ▸ hframe, hshape⟩, hp⟩
+      ·
+        have hlay : lay.val < 3 := by by_contra h3; exact hp (fun h => absurd h h3)
+        have hpad : wbcPad w lay ≠ 0 := fun h0 => hp (fun _ => h0)
+        obtain ⟨l, r, hlr⟩ : ∃ l r, msg = .pair l r := by
+          cases msg with
+          | forest root => exact absurd hfit (by change ¬(lay.val = 3); omega)
+          | pair l r => exact ⟨l, r, rfl⟩
+        subst hlr
+        refine Or.inl (Or.inl ⟨routeLeaf index lay, hsrc, _, wbcCtr w lay, wbcPad w lay, _, hfit', hencE, ?_, ?_⟩)
+        · exact referenceInput_ne_pad answers _ l r _ _ hfit' hpad
+        · rw [← heq]; exact hdec
+    · refine Or.inl (Or.inl ⟨routeLeaf index lay, hsrc, msg, wbcCtr w lay, wbcPad w lay, _, hfit', hencE, ?_, ?_⟩)
+      · exact referenceInput_ne answers _ msg _ _ hfit' hdec (Or.inl (by rw [leafMsg_route _ _ _ hidx]; exact hm))
       · rw [← heq]; exact hdec
   ·
     have hlow : digits.getD i.val 0 + 1 = (referenceDigits answers (routeLeaf index lay)).getD i.val 0 := hu.2.2.1
     have hne : digits ≠ referenceDigits answers (routeLeaf index lay) := by
       intro he; rw [he] at hlow; omega
     refine Or.inl (Or.inr (Or.inr (Or.inr (Or.inr ⟨⟨routeLeaf index lay, i.val⟩, hsrcC i.val i.isLt,
-      ⟨msg, wctr w lay, _, digits, hencE, referenceInput_ne answers _ msg _ hdec (Or.inr hne), hdec, hlow, ?_⟩,
+      ⟨msg, wbcCtr w lay, wbcPad w lay, _, digits, hfit', hencE,
+        referenceInput_ne answers _ msg _ _ hfit' hdec (Or.inr hne), hdec, hlow, ?_⟩,
       hcontact i.val i.isLt (by show _ < (referenceDigits answers (routeLeaf index lay)).getD i.val 0; omega)⟩))))
     intro k hk
     by_cases hkc : k < chainCount lay
@@ -263,5 +373,38 @@ theorem layer_wots (answers : Answers) (w : WBytes) (index n : Nat) (hn : n < 4)
       hsrcC i.val i.isLt, hsrcC j.val j.isLt, ?_, hcontact i.val i.isLt hi, hcontact j.val j.isLt hj⟩))))
     intro he
     exact hij (Fin.ext (ChainAddr.mk.inj he).2)
+theorem layer_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : WCT9.LayerMsg)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hfit : Extract.msgFits lay msg)
+    (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hsub : ∀ q ∈ queried answers (layerP w index lay digits), q ∈ qs)
+    (reaches : evalWithAnswerFn answers (layerP w index lay digits) =
+      Extract.honestRoot answers lay (route index lay).2) :
+    WotsPrimitiveSrc answers (entriesOf answers qs) ∨
+      (msg = Extract.honestMsg answers index lay ∧ BC.GoodZ answers w index lay) := by
+  have hvalid := Cost.validDigits_decode hframe.2
+  have hmono := entriesOf_mono (answers := answers) hsub
+  rcases layerP_wots answers w index lay digits hidx hvalid reaches with hS | ⟨hmerkle, hchains⟩
+  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hS hmono)))
+  exact frame_wots answers w index lay msg digits hidx hfit hframe qs henc
+    (fun j hj => ⟨(hmerkle j hj).1, fun _ => (hmerkle j hj).2⟩)
+    (fun i hi => ⟨(hchains i hi).1, fun hlt => ⟨contactAt_mono ((hchains i hi).2 hlt).1 hmono,
+      fun h2 => twoEdgeAt_mono (((hchains i hi).2 hlt).2 h2) hmono⟩⟩)
+theorem layerPair_wots (answers : Answers) (w : WBytes) (index : Nat) (lay : Layer) (msg : WCT9.LayerMsg)
+    (digits : List Nat) (hidx : index < 2 ^ 31) (hlay : lay.val ≠ 0) (hfit : Extract.msgFits lay msg)
+    (hframe : Extract.Frame answers w index lay msg digits)
+    (qs : List Spec.Domain) (henc : Extract.encodingQuery w index lay msg ∈ qs)
+    (hsub : ∀ q ∈ queried answers (layerPairP w index lay digits), q ∈ qs)
+    (reaches : evalWithAnswerFn answers (layerPairP w index lay digits) =
+      Extract.honestPair answers lay (route index lay).2) :
+    WotsPrimitiveSrc answers (entriesOf answers qs) ∨
+      (msg = Extract.honestMsg answers index lay ∧ BC.GoodZ answers w index lay) := by
+  have hvalid := Cost.validDigits_decode hframe.2
+  have hmono := entriesOf_mono (answers := answers) hsub
+  rcases layerPairP_wots answers w index lay digits hidx hvalid reaches with hS | ⟨hmerkle, hchains⟩
+  · exact Or.inl (Or.inr (Or.inl (structuralHitSrc_mono hS hmono)))
+  exact frame_wots answers w index lay msg digits hidx hfit hframe qs henc
+    (fun j hj => ⟨(hmerkle j hj).1, fun h => (hmerkle j hj).2 (h.resolve_right hlay)⟩)
+    (fun i hi => ⟨(hchains i hi).1, fun hlt => ⟨contactAt_mono ((hchains i hi).2 hlt).1 hmono,
+      fun h2 => twoEdgeAt_mono (((hchains i hi).2 hlt).2 h2) hmono⟩⟩)
 end ClaudeWCT.W9.T3.Security.WotsExtract
-end

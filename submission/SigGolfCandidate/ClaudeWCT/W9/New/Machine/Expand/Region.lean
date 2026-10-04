@@ -77,7 +77,7 @@ theorem win_leafSlot (t : Fin 7) : window (regionBytes c op) (slotC t.val) 16 = 
       region_leaf _ _ _ _ (by omega) (by omega),
       show 880 + (32 + 16 * i) - 880 = 32 + 16 * (⟨i, hi⟩ : Fin 6).val by simp, leafBytes_window_succ]
     rfl
-theorem win_chainPad (t : Nat) (ht : t < 7) (o : Nat) (ho : o = 0 ∨ o = 32) :
+theorem win_chainPad (t : Nat) (ht : t < 7) (o : Nat) (ho : o = 0 ∨ o = 16 ∨ o = 32) :
     window (regionBytes c op) (offC t + o) 16 = zeros 16 := by
   rcases t with _ | i
   · rw [show offC 0 + o = 832 + o by rfl, region_prefix _ _ _ _ (by omega) (by omega)]

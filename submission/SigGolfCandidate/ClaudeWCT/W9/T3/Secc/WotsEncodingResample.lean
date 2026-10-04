@@ -11,6 +11,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskBase
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonEncoding
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraphHonest
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.CanonGraph
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open SigGolfCandidate SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -24,46 +25,70 @@ set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 namespace Enc
 open SigGolfCandidate.T3.Security.Wots.Enc
-abbrev EncIndex := CanonGraph.LeafPos × (Digest × BitVec 96 × Digest) × BitVec 32
-def encInput (e : EncIndex) : HashInput := encodingRow (leafOf e.1) e.2.1 e.2.2
-theorem encInput_length (e : EncIndex) : (encInput e).length = 64 := by
-  simp [encInput, encodingRow, encodingInput, pad64, bytesLE_length]
+def EncOk (lay : Layer) (msg : WCT9.LayerMsg) (pad : BitVec 96) : Prop :=
+  Extract.msgFits lay msg ∧ (lay.val = 3 → pad = 0)
+abbrev EncIndex := {e : CanonGraph.LeafPos × WCT9.LayerMsg × BitVec 32 × BitVec 96 // EncOk e.1.lay e.2.1 e.2.2.2}
+instance encIndex_finite : Finite EncIndex := by
+  haveI : Finite WCT9.LayerMsg := Finite.of_equiv _ CanonGraph.layerMsgEquiv.symm
+  infer_instance
+def encInput (e : EncIndex) : HashInput := encRow (leafOf e.1.1) e.1.2.1 e.1.2.2.1 e.1.2.2.2
+def encIdx (L : CanonGraph.LeafPos) (msg : WCT9.LayerMsg) (counter : BitVec 32) (pad : BitVec 96)
+    (hfit : Extract.msgFits L.lay msg) : EncIndex :=
+  ⟨(L, msg, counter, if L.lay.val = 3 then 0 else pad), hfit, fun h => if_pos h⟩
+theorem encInput_encIdx (L : CanonGraph.LeafPos) (msg : WCT9.LayerMsg) (counter : BitVec 32) (pad : BitVec 96)
+    (hfit : Extract.msgFits L.lay msg) : encInput (encIdx L msg counter pad hfit) = encRow (leafOf L) msg counter pad := by
+  unfold encInput encIdx
+  dsimp only
+  split_ifs with h3
+  · cases msg with
+    | forest root => rfl
+    | pair l r =>
+        change L.lay.val < 3 at hfit
+        omega
+  · rfl
+theorem encInput_length (e : EncIndex) : (encInput e).length = 64 :=
+  ClaudeWCT.W9.T3M.BC.layerEncodingRow_length _ _ _ _ _ _
 theorem encInput_injective : Function.Injective encInput := by
-  rintro ⟨L, m, c⟩ ⟨L', m', c'⟩ he
-  have he' := Sampling.pad64_inj_of_length (by simp only [encodingInput, List.length_append, bytesLE_length]) he
+  rintro ⟨⟨L, m, c, p⟩, hf, hp⟩ ⟨⟨L', m', c', p'⟩, hf', hp'⟩ he
   have ht : L.tree.val < 2 ^ 40 := lt_of_lt_of_le L.tree.isLt (by norm_num)
   have ht' : L'.tree.val < 2 ^ 40 := lt_of_lt_of_le L'.tree.isLt (by norm_num)
   have hl : L.leaf.val < 2 ^ 32 := lt_of_lt_of_le L.leaf.isLt (by norm_num)
   have hl' : L'.leaf.val < 2 ^ 32 := lt_of_lt_of_le L'.leaf.isLt (by norm_num)
-  obtain ⟨h1, h2, h3, h4, h5⟩ := QuerySpace.encodingInput_injective ht ht' hl hl' he'
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := ClaudeWCT.W9.T3M.BC.layerEncodingRow_injective ht hl ht' hl' hf hf' he
   obtain ⟨lay, tree, leaf⟩ := L
   obtain ⟨lay', tree', leaf'⟩ := L'
-  simp only [leafOf] at h1 h2 h3
+  simp only at h1 h2 h3 hf hp hf' hp'
   subst h1 h4 h5
   have : tree = tree' := Fin.ext h2
   have : leaf = leaf' := Fin.ext h3
   subst tree leaf
+  have hpp : p = p' := by
+    cases m with
+    | forest root =>
+        change lay.val = 3 at hf
+        rw [hp hf, hp' hf]
+    | pair l r => exact h6 l r rfl
+  subst hpp
   rfl
 theorem encInput_short (e : EncIndex) : encInput e ∈ SeccLaw.publicUniverse :=
   SeccLaw.mem_publicUniverse _ (by rw [encInput_length]; unfold SeccLaw.maxInputLength; omega)
-theorem encInput_encHeader (e : EncIndex) : EncHeader (encInput e) := by
-  refine ⟨e.1.lay.val, e.1.tree.val, 0, e.1.leaf.val, ?_⟩
-  unfold encInput encodingRow encodingInput leafOf
-  rw [SigGolfCandidate.T3M.Extract.hdrBlock_pad64 _ (by simp only [List.length_append, bytesLE_length]; omega)]
-  simp [SigGolfCandidate.T3M.Extract.hdrBlock, List.append_assoc, bytesLE_length]
+theorem encInput_encHeader (e : EncIndex) : EncHeader (encInput e) :=
+  ⟨e.1.1.lay.val, e.1.1.tree.val, 0, e.1.1.leaf.val,
+    ClaudeWCT.W9.T3M.BC.hdrBlock_layerEncodingInputP _ _ _ _ _ _⟩
 theorem reached_encInput {T : Answers} {L : CanonGraph.LeafPos} {input : HashInput}
-    (h : Reached T (leafOf L) input) : ∃ c : BitVec 32, input = encInput (L, leafMsg T (leafOf L), c) := by
+    (h : Reached T (leafOf L) input) :
+    ∃ c : BitVec 32, input = encInput ⟨(L, leafMsg T (leafOf L), c, 0), msgFits_leafMsg T (leafOf L), fun _ => rfl⟩ := by
   obtain ⟨c, -, rfl, -⟩ := h
   exact ⟨_, rfl⟩
-def Free (T : Answers) (e : EncIndex) : Prop := ¬ Reached T (leafOf e.1) (encInput e)
+def Free (T : Answers) (e : EncIndex) : Prop := ¬ Reached T (leafOf e.1.1) (encInput e)
 def freeSet (T : Answers) : Set EncIndex := {e | Free T e}
 theorem reached_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (L : CanonGraph.LeafPos)
     (input : HashInput) : Reached T' (leafOf L) input ↔ Reached T (leafOf L) input := by
   have hm : leafMsg T' (leafOf L) = leafMsg T (leafOf L) := leafMsg_congr_nonEnc (nonEnc_of_honest h) _
   have hrow : ∀ c, c < counterLimit → (∀ c' < c, decode (leafOf L).lay (low (T (.inl (.inr
-      (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c')))))) = none) →
-      T' (.inl (.inr (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c)))) =
-        T (.inl (.inr (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c)))) := by
+      (encRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c') 0))))) = none) →
+      T' (.inl (.inr (encRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c) 0))) =
+        T (.inl (.inr (encRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c) 0))) := by
     intro c hc hprev
     exact h _ (Or.inr ⟨L, c, hc, rfl, hprev⟩)
   unfold Reached
@@ -73,12 +98,12 @@ theorem reached_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (
     refine ⟨c, hc, rfl, fun c' hc' => ?_⟩
     by_contra hvalid
     have hex : ∃ c'', c'' < c ∧ decode (leafOf L).lay (low (T (.inl (.inr
-        (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'')))))) ≠ none := ⟨c', hc', hvalid⟩
+        (encRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'') 0))))) ≠ none := ⟨c', hc', hvalid⟩
     classical
     let c₀ := Nat.find hex
     have hc₀ : c₀ < c ∧ _ := Nat.find_spec hex
     have hmin : ∀ c'' < c₀, decode (leafOf L).lay (low (T (.inl (.inr
-        (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'')))))) = none := by
+        (encRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'') 0))))) = none := by
       intro c'' hc''
       have := Nat.find_min hex hc''
       push Not at this
@@ -90,7 +115,7 @@ theorem reached_congr {T T' : Answers} (h : ∀ q, HonestQ T q → T' q = T q) (
   · rintro ⟨c, hc, rfl, hprev⟩
     refine ⟨c, hc, rfl, fun c' hc' => ?_⟩
     have hprev' : ∀ c'' < c', decode (leafOf L).lay (low (T (.inl (.inr
-        (encodingRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'')))))) = none :=
+        (encRow (leafOf L) (leafMsg T (leafOf L)) (BitVec.ofNat 32 c'') 0))))) = none :=
       fun c'' hc'' => hprev c'' (lt_trans hc'' hc')
     rw [hrow c' (lt_trans hc' hc) hprev']
     exact hprev c' hc'

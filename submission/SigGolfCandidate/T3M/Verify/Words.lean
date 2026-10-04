@@ -1,6 +1,7 @@
 import SigGolfCandidate.T3M.Verify.Judg
 import SigGolfCandidate.T3M.Mem
 import SigGolfCandidate.T3M.Witness.VerifyP
+
 namespace SigGolfCandidate.T3M.Verify
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3 (header pad64 zero16 Digest HashOutput HashInput Layer)
@@ -10,7 +11,7 @@ abbrev dhi (d : BitVec 128) : Word := d.extractLsb' 64 64
 def wword (w : WBytes) (j : Nat) : Word := w.extractLsb' (64 * j) 64
 theorem wword_toNat (w : WBytes) (j : Nat) : (wword w j).toNat = w.toNat / 2 ^ (64 * j) % 2 ^ 64 := by
   simp only [wword, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
-theorem wword_zero (w : WBytes) (j : Nat) (h : 3155 ≤ j) : wword w j = 0 := by
+theorem wword_zero (w : WBytes) (j : Nat) (h : 3033 ≤ j) : wword w j = 0 := by
   apply BitVec.eq_of_toNat_eq
   rw [wword_toNat]
   have hw : w.toNat < 2 ^ (64 * j) :=
@@ -83,47 +84,35 @@ theorem pad64_digestInput (rho : Digest) (m : T3.Message) (c : BitVec 32) :
 theorem blocks_digestInput (rho : Digest) (m : T3.Message) (c : BitVec 32) :
     (toQ (pad64 (T3.digestInput rho m c))).blocks = 1 := by
   rw [pad64_digestInput, blocks_toQ (by rw [Aligned, digestInput_length]; omega), digestInput_length]
-theorem encodingInput_length' (lay : Layer) (tree leaf : Nat) (msg : T3.LayerMessage) (c : BitVec 32) :
-    (T3.encodingInput lay tree leaf msg c).length = 64 := by
+theorem pad64_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
+    pad64 (T3.encodingInput lay tree leaf msg c) =
+      T3.encodingInput lay tree leaf msg c ++ List.replicate 28 0 := by
+  unfold pad64
   simp only [T3.encodingInput, List.length_append, bytesLE_length]
-theorem pad64_encodingInput (lay : Layer) (tree leaf : Nat) (msg : T3.LayerMessage) (c : BitVec 32) :
-    pad64 (T3.encodingInput lay tree leaf msg c) = T3.encodingInput lay tree leaf msg c :=
-  pad64_of_aligned _ (by rw [encodingInput_length'])
 theorem readLE_bytesLE4_pad (c : BitVec 32) : T3.readLE (bytesLE 4 c ++ List.replicate 4 0) = c.toNat := by
   rw [readLE_append, readLE_bytesLE, readLE_replicate_zero]
   simp
-theorem readLE_ctr_pad (c : BitVec 32) (p : BitVec 96) :
-    T3.readLE (bytesLE 4 c ++ bytesLE 12 p) = c.toNat + 4294967296 * p.toNat := by
-  rw [readLE_append, readLE_bytesLE, readLE_bytesLE, bytesLE_length]
-  norm_num
-theorem wordsOf_ctr_pad (c : BitVec 32) (p : BitVec 96) :
-    wordsOf (bytesLE 4 c ++ bytesLE 12 p) =
-      [BitVec.ofNat 64 (c.toNat + 2 ^ 32 * (p.toNat % 2 ^ 32)), BitVec.ofNat 64 (p.toNat / 2 ^ 32)] := by
-  rw [wordsOf_eq_range 2 _ (by simp only [List.length_append, bytesLE_length]), readLE_ctr_pad]
-  have hc := c.isLt
-  have hp := p.isLt
-  simp only [show List.range 2 = [0, 1] from rfl, List.map_cons, List.map_nil, List.cons.injEq, and_true]
-  norm_num at hc hp ⊢
-  constructor <;> apply BitVec.eq_of_toNat_eq <;> simp only [BitVec.toNat_ofNat] <;> omega
-theorem wordsOf_encodingInput (lay : Layer) (tree leaf : Nat) (msg : T3.LayerMessage) (c : BitVec 32) :
+theorem wordsOf_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
     wordsOf (pad64 (T3.encodingInput lay tree leaf msg c)) =
-      [dlo msg.1, dhi msg.1, BitVec.ofNat 64 (hdr0 4 lay.val tree 0), BitVec.ofNat 64 (hdr1 tree leaf),
-        BitVec.ofNat 64 (c.toNat + 2 ^ 32 * (msg.2.1.toNat % 2 ^ 32)), BitVec.ofNat 64 (msg.2.1.toNat / 2 ^ 32),
-        dlo msg.2.2, dhi msg.2.2] := by
+      [dlo msg, dhi msg, BitVec.ofNat 64 (hdr0 4 lay.val tree 0), BitVec.ofNat 64 (hdr1 tree leaf),
+        BitVec.ofNat 64 c.toNat, 0, 0, 0] := by
   rw [pad64_encodingInput]
   unfold T3.encodingInput
-  have e : bytesLE 16 msg.1 ++ bytesLE 16 (header 4 lay.val tree 0 leaf) ++ bytesLE 4 c ++ bytesLE 12 msg.2.1 ++
-      bytesLE 16 msg.2.2 = bytesLE 16 msg.1 ++ (bytesLE 16 (header 4 lay.val tree 0 leaf) ++
-        ((bytesLE 4 c ++ bytesLE 12 msg.2.1) ++ bytesLE 16 msg.2.2)) := by
+  have e : bytesLE 16 msg ++ bytesLE 16 (header 4 lay.val tree 0 leaf) ++ bytesLE 4 c ++ List.replicate 28 0 =
+      bytesLE 16 msg ++ bytesLE 16 (header 4 lay.val tree 0 leaf) ++
+        ((bytesLE 4 c ++ List.replicate 4 0) ++ List.replicate 24 0) := by
     simp only [List.append_assoc]
-  rw [e, wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_append _ _ (by simp only [bytesLE_length]),
-    wordsOf_append _ _ (by simp only [List.length_append, bytesLE_length]), wordsOf_bytesLE16, wordsOf_header,
-    wordsOf_ctr_pad, wordsOf_bytesLE16]
+    rfl
+  rw [e, wordsOf_append _ _ (by simp only [List.length_append, bytesLE_length]),
+    wordsOf_append _ _ (by simp only [bytesLE_length]), wordsOf_bytesLE16, wordsOf_header,
+    wordsOf_append8 _ _ (by simp only [List.length_append, bytesLE_length, List.length_replicate]),
+    readLE_bytesLE4_pad, show (24 : Nat) = 8 * 3 by rfl, wordsOf_replicate_zero]
   rfl
-theorem blocks_encodingInput (lay : Layer) (tree leaf : Nat) (msg : T3.LayerMessage) (c : BitVec 32) :
+theorem blocks_encodingInput (lay : Layer) (tree leaf : Nat) (msg : Digest) (c : BitVec 32) :
     (toQ (pad64 (T3.encodingInput lay tree leaf msg c))).blocks = 1 := by
   have hl : (pad64 (T3.encodingInput lay tree leaf msg c)).length = 64 := by
-    rw [pad64_encodingInput, encodingInput_length']
+    rw [pad64_encodingInput]
+    simp only [T3.encodingInput, List.length_append, bytesLE_length, List.length_replicate]
   rw [blocks_toQ (by rw [Aligned, hl]; omega), hl]
 def forestInput (index : Nat) (roots : List Digest) : HashInput :=
   bytesLE 16 (roots.getD 0 0) ++ bytesLE 16 (header 11 0 index 0 0) ++ (roots.drop 1).flatMap (bytesLE 16)

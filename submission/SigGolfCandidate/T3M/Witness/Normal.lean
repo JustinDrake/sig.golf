@@ -1,5 +1,6 @@
 import SigGolfCandidate.T3M.Witness.Encode
 import SigGolfCandidate.T3M.Witness.Basic
+
 namespace SigGolfCandidate.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
 def rejectTail (w : WBytes) (N : HashOutput) : M Bool :=
@@ -68,25 +69,15 @@ theorem recoverLayerP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits
     recoverLayerP sig 0 index lay digits = recoverLayer sig index lay digits := by
   simp only [recoverLayerP, recoverLayer, Pads.zero_chain, Pads.zero_chainHeader,
     chainP_zero_route _ _ _ _ _ hindex, Pads.zero_merkle, nodeHashP_zero]
-theorem recoverPairP_zero (sig : Signature) (index : Nat) (lay : Layer) (digits : List Nat)
-    (hindex : index < 2^31) :
-    recoverPairP sig 0 index lay digits = recoverPair sig index lay digits := by
-  simp only [recoverPairP, recoverPair, Pads.zero_chain, Pads.zero_chainHeader,
-    chainP_zero_route _ _ _ _ _ hindex, Pads.zero_merkle, nodeHashP_zero]
-  rfl
-theorem recoverNextP_zero (sig : Signature) (index n : Nat) (lay : Layer) (digits : List Nat)
-    (hindex : index < 2^31) :
-    recoverNextP sig 0 index n lay digits = recoverNext sig index n lay digits := by
-  unfold recoverNextP recoverNext
-  split
-  · rw [recoverLayerP_zero _ _ _ _ hindex]
-  · rw [recoverPairP_zero _ _ _ _ hindex]
 theorem verifyLayersP_zero (w : Witness) (index : Nat) (hindex : index < 2^31) : ∀ n root,
     verifyLayersP w 0 index n root = verifyLayers w index n root := by
   intro n
   induction n with
   | zero => intro root; rfl
-  | succ n ih => intro root; simp only [verifyLayersP, verifyLayers, recoverNextP_zero _ _ _ _ _ hindex, ih]; rfl
+  | succ n ih =>
+      intro root
+      simp only [verifyLayersP, verifyLayers, recoverLayerP_zero _ _ _ _ hindex, ih]
+      rfl
 theorem verifyPads_zero (m : Message) (pk : Digest) (w : Witness) : verifyPads m pk w 0 = verify m pk w := by
   simp only [verifyPads, verifyPadsTail, verify, recoverFtsP_zero,
     verifyLayersP_zero _ _ (Nat.mod_lt _ (by decide))]

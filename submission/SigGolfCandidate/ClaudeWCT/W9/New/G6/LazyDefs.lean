@@ -57,8 +57,8 @@ noncomputable def hashL (ω : CanonTable.Omega U) (x : HashInput) : OracleComp W
   | none => if x ∈ digestInputs then birthReq x else pure (wA hU ω 0 (.inl (.inr x)))
 noncomputable def signerLayersW (ω : CanonTable.Omega U) (request : Request) (output : HashOutput) :
     Option (List Pieces) :=
-  evalWithAnswerFn (wA hU ω 0) (signLayers request.cache (output.toNat % 2 ^ 31) 4
-    (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31), 0, 0))
+  evalWithAnswerFn (wA hU ω 0) (WCT9.signLayersBC request.cache (output.toNat % 2 ^ 31) 4
+    (.forest (WCT9.honestForest (wA hU ω 0) (output.toNat % 2 ^ 31))))
 noncomputable def finishL (ω : CanonTable.Omega U) (request : Request) (rho : Digest) :
     Option (BitVec 32 × HashOutput) → OracleComp WSpecL (Option Signature)
   | none => pure none

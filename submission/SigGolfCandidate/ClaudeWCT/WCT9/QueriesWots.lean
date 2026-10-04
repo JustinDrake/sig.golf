@@ -47,24 +47,43 @@ theorem allQueriesSatisfy_mono {P Q : Query → Prop} {α : Type} {p : M α}
   | query_bind q f ih =>
       obtain ⟨hq, hf⟩ := (allQueriesSatisfy_query_bind_iff _ _ _).mp h
       exact (allQueriesSatisfy_query_bind_iff _ _ _).mpr ⟨hPQ _ hq, fun u => ih u (hf u)⟩
-theorem tag_mod {tag : Nat} (h : tag = 5 ∨ tag = 6 ∨ tag = 11 ∨ tag = 15) :
+theorem tag_mod {tag : Nat} (h : tag = 3 ∨ tag = 6 ∨ tag = 15) :
     tag % 256 ≠ 0 ∧ tag % 256 ≠ 1 ∧ tag % 256 ≠ 4 ∧ tag % 256 ≠ 12 := by
-  rcases h with rfl | rfl | rfl | rfl <;> decide
+  rcases h with rfl | rfl | rfl <;> decide
+theorem tag_mod' {tag lay : Nat} (h : (tag = 3 ∧ 4 ≤ lay ∧ lay < 13) ∨ tag = 6 ∨ tag = 15) :
+    tag % 256 ≠ 0 ∧ tag % 256 ≠ 1 ∧ tag % 256 ≠ 4 ∧ tag % 256 ≠ 12 :=
+  tag_mod (by rcases h with ⟨rfl, -⟩ | h | h <;> simp_all)
+theorem ftsChainHeader_ne_wots (index coord selected t step : Nat) :
+    ∀ (l : Layer) tr leaf i st, ftsChainHeader index coord selected t step ≠ chainHeader l tr leaf i st :=
+  fun l tr leaf i st => ftsChainHeaderP_ne_chainHeader _ _ _ _ _ 0 l tr leaf i st
+theorem ftsChainHeader_ne_header' (index coord selected t step : Nat) :
+    ∀ l tr p ix, ftsChainHeader index coord selected t step ≠ header 4 l tr p ix :=
+  fun l tr p ix => ftsChainHeaderP_ne_header _ _ _ _ _ 0 4 l tr p ix
+theorem hdrTag_ftsChain {input : HashInput} {index coord selected t step : Nat}
+    (h : SigGolfCandidate.T3M.Extract.hdrBlock input = bytesLE 16 (ftsChainHeader index coord selected t step)) :
+    Security.BPB.hdrTag input = 1 := by
+  unfold Security.BPB.hdrTag
+  rw [h, bytesLE16_first_toNat, show (ftsChainHeader index coord selected t step).toNat % 256 = 128 + 4 * (t % 8)
+    from ftsChainHeaderP_firstByte _ _ _ _ _ 0, if_pos (by omega)]
 theorem ftsQuery_untouched {index : Nat} (a : ChainAddr) {q : Query} (h : FtsQuery index q) :
     Mask.Untouched a q := by
   rcases q with (coin | input) | (tweak | other)
   · exact h.elim
-  · obtain ⟨tag, lay, position, idx, htag, hblock⟩ := FtsInput.hdrBlock (show FtsInput index input from h)
-    exact Mask.untouched_of_hdr a input _ hblock
-      (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
+  · rcases FtsInput.hdrBlock (show FtsInput index input from h) with
+      ⟨coord, selected, t, step, hblock⟩ | ⟨tag, lay, position, idx, htag, hblock⟩
+    · exact Mask.untouched_of_hdr a input _ hblock (ftsChainHeader_ne_wots _ _ _ _ _)
+    · exact Mask.untouched_of_hdr a input _ hblock
+        (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
   · obtain ⟨coord, selected, pair, -, -, -, rfl⟩ := (show FtsSeed index tweak from h)
     exact Mask.untouched_privatePair a (by decide) _ _ _ _
   · exact h.elim
 theorem ftsQuery_nonEnc {index : Nat} {q : Query} (h : FtsQuery index q) : Enc.NonEnc q := by
   rcases q with (coin | input) | (tweak | other)
   · exact h.elim
-  · obtain ⟨tag, lay, position, idx, htag, hblock⟩ := FtsInput.hdrBlock (show FtsInput index input from h)
-    exact Enc.nonEnc_of_hdr input _ hblock (Enc.tag_ne_four (tag_mod htag).2.2.1 _ _ _ _)
+  · rcases FtsInput.hdrBlock (show FtsInput index input from h) with
+      ⟨coord, selected, t, step, hblock⟩ | ⟨tag, lay, position, idx, htag, hblock⟩
+    · exact Enc.nonEnc_of_hdr input _ hblock (ftsChainHeader_ne_header' _ _ _ _ _)
+    · exact Enc.nonEnc_of_hdr input _ hblock (Enc.tag_ne_four (tag_mod' htag).2.2.1 _ _ _ _)
   · trivial
   · trivial
 theorem ftsQuery_short {index : Nat} {q : Query} (h : FtsQuery index q) : Ref.ShortQuery q := by
@@ -79,10 +98,12 @@ theorem ftsQuery_short {index : Nat} {q : Query} (h : FtsQuery index q) : Ref.Sh
 theorem ftsQuery_notDigest {index : Nat} {q : Query} (h : FtsQuery index q) : BPB.NotDigestQ q := by
   rcases q with (coin | input) | (tweak | other)
   · trivial
-  · obtain ⟨tag, lay, position, idx, htag, hblock⟩ := FtsInput.hdrBlock (show FtsInput index input from h)
-    show BPB.hdrTag input ≠ 12
-    rw [BPB.hdrTag_eq hblock]
-    exact (tag_mod htag).2.2.2
+  · show BPB.hdrTag input ≠ 12
+    rcases FtsInput.hdrBlock (show FtsInput index input from h) with
+      ⟨coord, selected, t, step, hblock⟩ | ⟨tag, lay, position, idx, htag, hblock⟩
+    · rw [hdrTag_ftsChain hblock]; decide
+    · rw [BPB.hdrTag_eq hblock]
+      exact (tag_mod' htag).2.2.2
   · trivial
   · trivial
 namespace Mask
@@ -92,18 +113,23 @@ theorem respects_chain (coord selected t start count : Nat) (value : Digest) :
   unfold WCT9.chain
   refine Wots.Mask.Respects.foldlM _ _ (fun step _ v => Wots.Mask.Respects.shortHash _ ?_) _
   unfold chainInput
-  rw [List.append_assoc (zero16 ++ _), wctHeader_eq_header _ _ _ _ _ (by decide)]
+  rw [List.append_assoc (zero16 ++ _)]
   exact Wots.Mask.untouched_of_hdr a _ _ (hdrBlock_pad64_prefix _ _ _ (by simp [zero16]))
-    (fun _ _ _ _ _ => Ne.symm (chainHeader_ne_header _ _ _ _ _ _ _ _ _ _))
+    (ftsChainHeader_ne_wots _ _ _ _ _)
 theorem respects_leafHash (coord selected : Nat) (ends : List Digest) :
     Wots.Mask.Respects (Wots.Mask.Untouched a) (WCT9.leafHash index coord selected ends) := by
   unfold WCT9.leafHash
   rw [wctHeader_eq_header _ _ _ _ _ (by decide)]
   exact Wots.Mask.Respects.shortHash _ (Wots.Mask.untouched_prefixed a _ _ (by decide) _ _ _ _)
-theorem respects_forestPk (roots : List Digest) :
-    Wots.Mask.Respects (Wots.Mask.Untouched a) (WCT9.forestPk index roots) := by
-  unfold WCT9.forestPk
+theorem respects_forestPk (pairs : List (Digest × Digest)) :
+    Wots.Mask.Respects (Wots.Mask.Untouched a) (WCT9.forestPk index pairs) := by
+  unfold WCT9.forestPk forestInput
+  rw [show zero16 = bytesLE 16 (0 : Digest) by decide]
   exact Wots.Mask.Respects.shortHash _ (Wots.Mask.untouched_prefixed a _ _ (by decide) _ _ _ _)
+theorem respects_wctNodeHash (coord heap : Nat) (left right : Digest) :
+    Wots.Mask.Respects (Wots.Mask.Untouched a) (WCT9.wctNodeHash coord index heap left right) := by
+  unfold WCT9.wctNodeHash
+  exact Wots.Mask.respects_nodeHash a 3 _ _ _ _ _ (by decide)
 theorem respects_buildChild (coord selected : Nat) (word : Rank) (hcoord : coord < 9) (hsel : selected < 128) :
     Wots.Mask.Respects (Wots.Mask.Untouched a) (buildChild index coord selected word) :=
   respects_of_allQueriesSatisfy (allQueriesSatisfy_mono (buildChild_queries index coord selected word hcoord hsel)
@@ -137,17 +163,18 @@ theorem respects_chain (coord selected t start count : Nat) (value : Digest) :
   unfold WCT9.chain
   refine Wots.Mask.Respects.foldlM _ _ (fun step _ v => Wots.Mask.Respects.shortHash _ ?_) _
   unfold chainInput
-  rw [List.append_assoc (zero16 ++ _), wctHeader_eq_header _ _ _ _ _ (by decide)]
+  rw [List.append_assoc (zero16 ++ _)]
   exact Wots.Enc.nonEnc_of_hdr _ _ (hdrBlock_pad64_prefix _ _ _ (by simp [zero16]))
-    (Wots.Enc.tag_ne_four (by decide) _ _ _ _)
+    (ftsChainHeader_ne_header' _ _ _ _ _)
 theorem respects_leafHash (coord selected : Nat) (ends : List Digest) :
     Wots.Mask.Respects Wots.Enc.NonEnc (WCT9.leafHash index coord selected ends) := by
   unfold WCT9.leafHash
   rw [wctHeader_eq_header _ _ _ _ _ (by decide)]
   exact Wots.Mask.Respects.shortHash _ (Wots.Enc.nonEnc_prefixed _ _ (by decide) _ _ _ _)
-theorem respects_forestPk (roots : List Digest) :
-    Wots.Mask.Respects Wots.Enc.NonEnc (WCT9.forestPk index roots) := by
-  unfold WCT9.forestPk
+theorem respects_forestPk (pairs : List (Digest × Digest)) :
+    Wots.Mask.Respects Wots.Enc.NonEnc (WCT9.forestPk index pairs) := by
+  unfold WCT9.forestPk forestInput
+  rw [show zero16 = bytesLE 16 (0 : Digest) by decide]
   exact Wots.Mask.Respects.shortHash _ (Wots.Enc.nonEnc_prefixed _ _ (by decide) _ _ _ _)
 theorem respects_buildChild (coord selected : Nat) (word : Rank) (hcoord : coord < 9) (hsel : selected < 128) :
     Wots.Mask.Respects Wots.Enc.NonEnc (buildChild index coord selected word) :=
@@ -181,12 +208,12 @@ theorem leafHash_respects (coord selected : Nat) (ends : List Digest) (hlen : en
   apply Wots.Ref.short_of_le
   simp only [List.length_append, bytesLE_length, digest_list_bytes_length, List.length_drop]
   omega
-theorem forestPk_respects (roots : List Digest) (hlen : roots.length ≤ 200) :
-    Wots.Ref.ShortRespects (WCT9.forestPk index roots) := by
+theorem forestPk_respects (pairs : List (Digest × Digest)) (hlen : pairs.length ≤ 100) :
+    Wots.Ref.ShortRespects (WCT9.forestPk index pairs) := by
   unfold WCT9.forestPk
   apply Wots.Ref.ShortRespects.shortHash
   apply Wots.Ref.short_of_le
-  simp only [List.length_append, bytesLE_length, digest_list_bytes_length, List.length_drop]
+  simp only [forestInput, zero16, List.length_append, List.length_replicate, bytesLE_length, pairs_bytes_length]
   omega
 theorem buildChild_respects (coord selected : Nat) (word : Rank) (hcoord : coord < 9) (hsel : selected < 128) :
     Wots.Ref.ShortRespects (buildChild index coord selected word) :=

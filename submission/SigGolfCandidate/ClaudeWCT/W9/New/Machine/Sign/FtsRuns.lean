@@ -23,19 +23,22 @@ def nodeI (c : Nat) : Nat := nodeIdx.getD c 0
 def ntI (c : Nat) : Nat := ntIdx.getD c 0
 def rI (c : Nat) : Nat := rIdx.getD c 0
 def lwuI (c : Nat) : Nat := lwuIdx.getD c 0
-def pcI (c l : Nat) : Nat := rI c + 8 + 13 * l
+def pcI (c l : Nat) : Nat := rI c + 12 + 13 * l
 def lcEnd (c i : Nat) : Nat := if i = 6 then lI c else if i % 2 = 0 then preI c (i + 1) else pI c ((i + 1) / 2)
 def hdr8 (c : Nat) : Nat := 2049 + 65536 * c
-def hdr5 (c : Nat) : Nat := 1281 + 65536 * c
 def hdr6 (c : Nat) : Nat := 1537 + 65536 * c
-def hdr11 (c : Nat) : Nat := 2817 + 65536 * c
+def chainK (c i : Nat) : Nat := 0x80 + 4 * i + 65536 * c
+def nodeK (c : Nat) : Nat := 769 + 65536 * (4 + c)
 def slotV (c i : Nat) : Nat := SIG + 16 + 224 * c + 16 * i
 def slotP (c l : Nat) : Nat := SIG + 128 + 224 * c + 16 * l
 def leafOff (i : Nat) : Nat := if i = 0 then 0 else 16 * (i + 1)
-def forOff (c : Nat) : Nat := if c = 0 then 0 else 16 * (c + 1)
+def forOff (c : Nat) : Nat := 32 + 32 * c
 def x18x4 : E := .bin .add (.bin .add (.bin .add (.reg .x18) (.reg .x18)) (.reg .x18)) (.reg .x18)
 def privW1E (p : Nat) : E := .bin .or (.bin .sll (if p = 0 then x18x4 else .bin .add x18x4 (cE p)) (cE 32)) (.reg .x22)
 def w1E : E := .bin .or (.bin .sll (.reg .x18) (cE 32)) (.reg .x22)
+def qE (c i : Nat) : E := .bin .or (.bin .or (.bin .sll (.reg .x22) (cE 27)) (.bin .sll (.reg .x18) (cE 20))) (cE (chainK c i))
+def idx32E : E := .bin .sll (.reg .x22) (cE 32)
+def nodeLoE (c : Nat) : E := .bin .or (cE (nodeK c)) idx32E
 def dE (i : Nat) : E := .bin .sub (cE 3) (.bin .and (.bin .srl (.reg .x25) (cE (2 * i))) (cE 3))
 def x18p1 : E := .bin .add (.reg .x18) (cE 1)
 def x18m1 : E := .bin .add (.reg .x18) (cE (2 ^ 64 - 1))
@@ -56,8 +59,8 @@ def expP (c p : Nat) : PRes :=
   pres [(.x6, privW1E p), (.x10, cE PRIVW), (.x11, cE 64), (.x12, cE PAIRW), (.x28, cE PRIVW)]
     [mwc (PRIVW + 24) (privW1E p), mwc (PRIVW + 16) (cE (hdr8 c))] [] (pI c p + 19) true 19 []
 def expPre (c i : Nat) : PRes :=
-  pres [(.x6, cE 3), (.x7, ldc (PAIRW + 16 * (i % 2) + 8)), (.x26, dE i), (.x28, cE PAIRW), (.x29, cE CHAINW)]
-    [mwc (CHAINW + 16) (cE (hdr5 c + 2 ^ 40 * i)), mwc (CHAINW + 24) w1E,
+  pres [(.x6, cE 3), (.x7, cE (chainK c i)), (.x26, dE i), (.x28, cE PAIRW), (.x29, cE CHAINW)]
+    [mwc (CHAINW + 24) (cE 0), mwc (CHAINW + 16) (qE c i),
       mwc (CHAINW + 56) (ldc (PAIRW + 16 * (i % 2) + 8)), mwc (CHAINW + 48) (ldc (PAIRW + 16 * (i % 2)))] []
     (chkI c i 0) false (if c = 0 then 19 else 20) []
 def expChk (c i s v : Nat) : PRes :=
@@ -70,7 +73,7 @@ def expChk (c i s v : Nat) : PRes :=
       [⟨.ne, .reg .x26, cE s, false⟩, ⟨.ne, .reg .x18, .reg .x24, false⟩]
 def expStp (c i s : Nat) : PRes :=
   pres [(.x6, cE (s - 1)), (.x10, cE CHAINW), (.x11, cE 64), (.x12, cE (CHAINW + 48)), (.x29, cE CHAINW)]
-    [mwc (CHAINW + 16) (.bin (.st .b 4) (ldc (CHAINW + 16)) (cE (s - 1)))] [] (chkI c i s - 1) true 9 []
+    [mwc (CHAINW + 16) (.bin (.st .b 1) (ldc (CHAINW + 16)) (cE (s - 1)))] [] (chkI c i s - 1) true 9 []
 def expLc (c i : Nat) : PRes :=
   pres [(.x6, ldc (CHAINW + 48)), (.x7, ldc (CHAINW + 56)), (.x28, cE CHAINW), (.x29, cE LEAFW)]
     [mwc (LEAFW + leafOff i + 8) (ldc (CHAINW + 56)), mwc (LEAFW + leafOff i) (ldc (CHAINW + 48))] []
@@ -85,9 +88,9 @@ def expT (c : Nat) (back : Bool) : PRes :=
 def nodeLd (off : Nat) : E := .ld (.bin .add sh5 (cE (HEAPW + off)))
 def nodeAddr (off : Nat) : Addr := ⟨some sh5, BitVec.ofNat 64 (HEAPW + off)⟩
 def expN (c : Nat) : PRes :=
-  pres [(.x6, w1E), (.x7, nodeLd 24), (.x10, cE NODEW), (.x11, cE 64), (.x12, cE NOUTW),
+  pres [(.x6, nodeLoE c), (.x7, idx32E), (.x10, cE NODEW), (.x11, cE 64), (.x12, cE NOUTW),
     (.x28, .bin .add sh5 (cE HEAPW)), (.x29, cE NODEW)]
-    [mwc (NODEW + 24) w1E, mwc (NODEW + 16) (cE (hdr11 c)), mwc (NODEW + 56) (nodeLd 24),
+    [mwc (NODEW + 24) (.reg .x18), mwc (NODEW + 16) (nodeLoE c), mwc (NODEW + 56) (nodeLd 24),
       mwc (NODEW + 48) (nodeLd 16), mwc (NODEW + 8) (nodeLd 8), mwc NODEW (nodeLd 0)]
     [.ne (nodeAddr 24) ⟨none, BitVec.ofNat 64 NODEW⟩, .ne (nodeAddr 24) ⟨none, BitVec.ofNat 64 (NODEW + 8)⟩,
       .valid (nodeAddr 24) 8, .ne (nodeAddr 16) ⟨none, BitVec.ofNat 64 NODEW⟩,
@@ -96,13 +99,14 @@ def expN (c : Nat) : PRes :=
     (ntI c - 1) true 25 []
 def heapAddr (off : Nat) : Addr := ⟨some sh4, BitVec.ofNat 64 (HEAPW + off)⟩
 def expNT (c : Nat) (back : Bool) : PRes :=
-  pres [(.x6, ldc NOUTW), (.x7, ldc (NOUTW + 8)), (.x18, x18m1), (.x28, cE NOUTW),
+  pres [(.x6, cE 1), (.x7, ldc (NOUTW + 8)), (.x18, x18m1), (.x28, cE NOUTW),
     (.x29, .bin .add sh4 (cE HEAPW))]
     [(heapAddr 8, ldc (NOUTW + 8)), (heapAddr 0, ldc NOUTW)] [.valid (heapAddr 8) 8, .valid (heapAddr 0) 8]
-    (if back then nodeI c else rI c) false 12 [⟨.ne, x18m1, cE 0, back⟩]
+    (if back then nodeI c else rI c) false 13 [⟨.ne, x18m1, cE 1, back⟩]
 def expR0 (c : Nat) : PRes :=
-  pres [(.x6, ldc (HEAPW + 16)), (.x7, ldc (HEAPW + 24)), (.x28, cE (HEAPW + 16)), (.x29, cE (FORW + forOff c))]
-    [mwc (FORW + forOff c + 8) (ldc (HEAPW + 24)), mwc (FORW + forOff c) (ldc (HEAPW + 16))] [] (pcI c 0) false 8 []
+  pres [(.x6, ldc (HEAPW + 48)), (.x7, ldc (HEAPW + 56)), (.x28, cE (HEAPW + 32)), (.x29, cE (FORW + forOff c))]
+    [mwc (FORW + forOff c + 24) (ldc (HEAPW + 56)), mwc (FORW + forOff c + 16) (ldc (HEAPW + 48)),
+      mwc (FORW + forOff c + 8) (ldc (HEAPW + 40)), mwc (FORW + forOff c) (ldc (HEAPW + 32))] [] (pcI c 0) false 12 []
 def pathAddr (l off : Nat) : Addr := ⟨some (pathE l), BitVec.ofNat 64 (HEAPW + off)⟩
 def pathLd (l off : Nat) : E := .ld (.bin .add (pathE l) (cE (HEAPW + off)))
 def expPC (c l : Nat) : PRes :=
@@ -114,8 +118,8 @@ def expSK : PRes :=
     [mwc (PRIVW + 40) (ldc 0x98), mwc (PRIVW + 32) (ldc 0x90), mwc (PRIVW + 8) (ldc 0x88), mwc PRIVW (ldc 0x80)] []
     (fieldIdx.getD 0 0) false 11 []
 def expFor : PRes :=
-  pres [(.x6, cE 3841), (.x10, cE FORW), (.x11, cE 192), (.x12, cE FOUT), (.x28, cE FORW)]
-    [mwc (FORW + 24) (.reg .x22), mwc (FORW + 16) (cE 3841)] [] 10929 true 11 []
+  pres [(.x6, cE 3841), (.x10, cE FORW), (.x11, cE 320), (.x12, cE FOUT), (.x28, cE FORW)]
+    [mwc (FORW + 8) (cE 0), mwc FORW (cE 0), mwc (FORW + 24) (.reg .x22), mwc (FORW + 16) (cE 3841)] [] 10976 true 13 []
 def expJ : PRes := pres [] [] [] 370 false 1 []
 def runF (c : Nat) : Option PRes := run (coordLook c) [lwuI c] (cbase c) []
 def runZ (c : Nat) : Option PRes := run (coordLook c) [leafI c] (lwuI c + 1) []
@@ -132,8 +136,8 @@ def runNT (c : Nat) (back : Bool) : Option PRes := run (coordLook c) [nodeI c, r
 def runR0 (c : Nat) : Option PRes := run (coordLook c) [pcI c 0] (rI c) []
 def runPC (c l : Nat) : Option PRes := run (coordLook c) [pcI c (l + 1)] (pcI c l) []
 def runSK : Option PRes := run headLook [fieldIdx.getD 0 0] 2215 []
-def runFor : Option PRes := run tailLook [370] 10918 []
-def runJ : Option PRes := run tailLook [370] 10930 []
+def runFor : Option PRes := run tailLook [370] 10963 []
+def runJ : Option PRes := run tailLook [370] 10977 []
 def okF (c : Nat) : Bool := optBeq (runF c) (expF c) && optBeq (runZ c) (expZ c)
 def okP (c : Nat) : Bool := (List.range 4).all fun p => optBeq (runP c p) (expP c p)
 def okPre (c : Nat) : Bool := (List.range 7).all fun i => optBeq (runPre c i) (expPre c i)

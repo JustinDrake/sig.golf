@@ -1,5 +1,6 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layers
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Wct
+
 namespace ClaudeWCT.W9.T3M.Extract
 open OracleComp OracleSpec SigGolfCandidate.T3 SigGolfCandidate.T3M
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -22,16 +23,10 @@ theorem layersWalkSpec_holds : WctExtract.LayersWalkSpec
       ∃ lay : Layer, Diverge answers w index lay qs ∧ ∀ l : Layer, l.val < lay.val → Good answers w index l)
     (fun answers w index => ∀ l : Layer, Good answers w index l) := by
   intro answers w index root qs hidx hq h
-  have htop : (walkTarget answers index 0).1 = honestRoot answers 0 0 := by
-    simp only [walkTarget, route_top_tree index hidx]
-  rcases layersP_walk answers w index hidx 4 le_rfl (root, 0, 0) (by rw [h, htop]) with
-    hhit | ⟨lay, _, hdiv, hgood⟩ | ⟨hgood, hroot⟩
+  rcases layersBC_walk answers w index root hidx h with hhit | ⟨lay, hdiv, hgood⟩ | ⟨hgood, hroot⟩
   · exact Or.inl (Or.inl (hhit.mono hq))
   · exact Or.inl (Or.inr ⟨lay, hdiv.mono hq, hgood⟩)
-  · refine Or.inr ⟨fun l => hgood l l.isLt, ?_⟩
-    have h4 : ((root, 0, 0) : LayerMessage) = walkTarget answers index 4 := by simpa using hroot
-    simp [walkTarget, honestMsg] at h4
-    exact h4
+  · exact Or.inr ⟨hgood, hroot⟩
 theorem verifyP_walk_extract (answers : Answers) (m : Message) (pk : Digest) (w : WBytes)
     (hpk : pk = honestRoot answers 0 0)
     (hv : evalWithAnswerFn answers (verifyP m pk w) = true) :

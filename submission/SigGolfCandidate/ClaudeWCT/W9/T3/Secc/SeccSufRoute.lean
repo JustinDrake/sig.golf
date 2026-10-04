@@ -1,6 +1,9 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.SeccSufSigned
 import SigGolfCandidate.ClaudeWCT.WCT9.QueriesWots
+import SigGolfCandidate.ClaudeWCT.W9.New.BC.Rows
+import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.T3.Secc.SeccSufRoute
+
 namespace ClaudeWCT.W9.T3.Security.BPB
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -70,90 +73,143 @@ theorem rejected_trial_inadmissible (answers : Correctness.Answers) (rho : Diges
     exact (SigGolfCandidate.T3.Security.BPB.digestInput_injective heq).2.1
   rw [hcc] at hadm ⊢
   exact digestSearch_accepts answers rho m WCT9.digestAttemptLimit 0 c' (Nat.zero_le _) hc' hrej hadm
+theorem layerCounterSearch_none (answers : Correctness.Answers) (lay : Layer) (tree leaf : Nat)
+    (msg : WCT9.LayerMsg) :
+    ∀ fuel counter, evalWithAnswerFn answers (WCT9.layerCounterSearch lay tree leaf msg counter fuel) = none →
+      ∀ offset, offset < fuel → decode lay (evalWithAnswerFn answers
+        (shortHash (WCT9.layerEncodingInput lay tree leaf msg (BitVec.ofNat 32 (counter + offset))))) = none := by
+  intro fuel
+  induction fuel with
+  | zero => intro counter _ offset h; omega
+  | succ fuel ih =>
+      intro counter h offset hoff
+      simp only [WCT9.layerCounterSearch, evalWithAnswerFn_bind] at h
+      cases hd : decode lay (evalWithAnswerFn answers
+          (shortHash (WCT9.layerEncodingInput lay tree leaf msg (BitVec.ofNat 32 counter)))) with
+      | some digits => simp [hd, evalWithAnswerFn_pure] at h
+      | none =>
+          simp only [hd] at h
+          rcases Nat.eq_zero_or_pos offset with rfl | hpos
+          · simpa using hd
+          · have := ih (counter + 1) h (offset - 1) (by omega)
+            rwa [show counter + 1 + (offset - 1) = counter + offset by omega] at this
+theorem goodZ_row (answers : Correctness.Answers) (w : WBytes) (index : Nat) (lay : Layer)
+    (hgood : ClaudeWCT.W9.T3M.BC.GoodZ answers w index lay) :
+    ∃ digits, (ClaudeWCT.W9.T3M.wbcCtr w lay).toNat < counterLimit ∧
+      decode lay (evalWithAnswerFn answers (shortHash (WCT9.layerEncodingInput lay (route index lay).2
+        (route index lay).1 (ClaudeWCT.W9.T3M.Extract.honestMsg answers index lay)
+        (ClaudeWCT.W9.T3M.wbcCtr w lay)))) = some digits := by
+  obtain ⟨⟨digits, ⟨hlt, hdec⟩, -⟩, hpad⟩ := hgood
+  refine ⟨digits, hlt, ?_⟩
+  have hfit := ClaudeWCT.W9.T3M.Extract.msgFits_honestMsg answers index lay
+  by_cases h3 : lay.val < 3
+  · rw [← ClaudeWCT.W9.T3M.BC.layerEncodingInputP_zero, ← hpad h3]
+    exact hdec
+  · revert hfit hdec
+    cases ClaudeWCT.W9.T3M.Extract.honestMsg answers index lay with
+    | forest root => intro hdec _; exact hdec
+    | pair l r => intro _ hfit; exact absurd hfit (by change ¬(lay.val < 3); exact h3)
 theorem counterSearch_good (answers : Correctness.Answers) (w : WBytes) (index : Nat) (lay : Layer)
-    (hgood : ClaudeWCT.W9.T3M.Extract.Good answers w index lay) :
-    ∃ found, evalWithAnswerFn answers (counterSearch lay (route index lay).2 (route index lay).1
+    (hgood : ClaudeWCT.W9.T3M.BC.GoodZ answers w index lay) :
+    ∃ found, evalWithAnswerFn answers (WCT9.layerCounterSearch lay (route index lay).2 (route index lay).1
       (ClaudeWCT.W9.T3M.Extract.honestMsg answers index lay) 0 counterLimit) = some found := by
-  obtain ⟨digits, ⟨hlt, hdec⟩, -⟩ := hgood
-  cases h : evalWithAnswerFn answers (counterSearch lay (route index lay).2 (route index lay).1
+  obtain ⟨digits, hlt, hdec⟩ := goodZ_row answers w index lay hgood
+  cases h : evalWithAnswerFn answers (WCT9.layerCounterSearch lay (route index lay).2 (route index lay).1
       (ClaudeWCT.W9.T3M.Extract.honestMsg answers index lay) 0 counterLimit) with
   | some found => exact ⟨found, rfl⟩
   | none =>
-      have := (Correctness.counterSearch_none_iff answers lay _ _ _ counterLimit 0).mp h (wctr w lay).toNat hlt
+      have := layerCounterSearch_none answers lay _ _ _ counterLimit 0 h (ClaudeWCT.W9.T3M.wbcCtr w lay).toNat hlt
       rw [Nat.zero_add, SigGolfCandidate.T3.Security.BPB.ofNat_toNat32, hdec] at this
       exact absurd this (by simp)
 theorem honestMsg_lower (answers : Correctness.Answers) (index n : Nat) (hn : n + 1 < 4) :
     ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 n) =
-      (treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
-        (height (Fin.ofNat 4 (n + 1)) - 1) 0, 0,
-       treeValue (Correctness.builtTree answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2)
-        (height (Fin.ofNat 4 (n + 1)) - 1) 1) := by
+      .pair (ClaudeWCT.W9.T3M.Extract.honestPair answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2).1
+        (ClaudeWCT.W9.T3M.Extract.honestPair answers (Fin.ofNat 4 (n + 1)) (route index (Fin.ofNat 4 (n + 1))).2).2 := by
   have hv : (Fin.ofNat 4 n : Layer).val = n := Nat.mod_eq_of_lt (by omega)
   have hl : (⟨n + 1, by omega⟩ : Layer) = Fin.ofNat 4 (n + 1) := Fin.ext (by simp; omega)
-  simp only [ClaudeWCT.W9.T3M.Extract.honestMsg, hv, dif_pos (show n < 3 by omega),
-    ClaudeWCT.W9.T3M.Extract.honestPair, hl]
+  simp only [ClaudeWCT.W9.T3M.Extract.honestMsg, hv, dif_pos (show n < 3 by omega), hl]
 theorem honestMsg_three (answers : Correctness.Answers) (index : Nat) :
-    ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 3) = (WCT9.honestForest answers index, 0, 0) := by
+    ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 3) = .forest (WCT9.honestForest answers index) := by
   rw [show (Fin.ofNat 4 3 : Layer) = 3 from rfl]
   simp only [ClaudeWCT.W9.T3M.Extract.honestMsg, show ¬((3 : Layer).val < 3) by decide, dite_false,
     ClaudeWCT.W9.T3M.Extract.honestForest_eq_recover]
   rfl
 theorem signLayers_good (answers : Correctness.Answers) (cache : SigGolfCandidate.T3.Cache) (index : Nat) (w : WBytes)
-    (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers w index lay) :
-    ∀ n, n ≤ 4 → ∀ value : Digest × BitVec 96 × Digest,
-      (∀ k, n = k + 1 → value = ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 k)) →
-      ∃ pieces, evalWithAnswerFn answers (signLayers cache index n value) = some pieces := by
+    (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.BC.GoodZ answers w index lay) :
+    ∀ n, n ≤ 4 → ∀ msg : WCT9.LayerMsg,
+      (∀ k, n = k + 1 → msg = ClaudeWCT.W9.T3M.Extract.honestMsg answers index (Fin.ofNat 4 k)) →
+      ∃ pieces, evalWithAnswerFn answers (WCT9.signLayersBC cache index n msg) = some pieces := by
   intro n
   induction n with
-  | zero => intro _ value _; exact ⟨[], by simp [signLayers]⟩
+  | zero => intro _ msg _; exact ⟨[], by simp [WCT9.signLayersBC]⟩
   | succ n ih =>
-      intro hn value hval
+      intro hn msg hval
       have hmsg := hval n rfl
       obtain ⟨⟨counter, digits⟩, hs⟩ := counterSearch_good answers w index (Fin.ofNat 4 n) (hgood _)
       rw [← hmsg] at hs
-      have hvalid := Cost.validDigits_decode (Correctness.counterSearch_some answers _ _ _ _ counterLimit 0 counter
+      have hvalid := Cost.validDigits_decode (WCT9.layerCounterSearch_some answers _ _ _ _ counterLimit 0 counter
         digits (by decide) hs).2.2
       by_cases hn0 : n = 0
       · subst hn0
-        rw [signLayers]
+        rw [WCT9.signLayersBC]
         simp only [evalWithAnswerFn_bind, hs, ite_true, evalWithAnswerFn_pure]
         exact ⟨_, rfl⟩
       · obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
         have htree := Correctness.eval_buildTree_result answers (Fin.ofNat 4 (k + 1))
           (route index (Fin.ofNat 4 (k + 1))).2 (route index (Fin.ofNat 4 (k + 1))).1 digits hvalid
           (route_leaf_bound index _)
-        obtain ⟨pieces, hp⟩ := ih (by omega) ((((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 0 0, 0, ((Correctness.builtTree answers (Fin.ofNat 4 (k + 1))
-            (route index (Fin.ofNat 4 (k + 1))).2).getD (height (Fin.ofNat 4 (k + 1)) - 1) []).getD 1 0))
+        obtain ⟨pieces, hp⟩ := ih (by omega) (.pair (WCT9.topPair (Fin.ofNat 4 (k + 1))
+            (Correctness.builtTree answers (Fin.ofNat 4 (k + 1)) (route index (Fin.ofNat 4 (k + 1))).2)).1
+            (WCT9.topPair (Fin.ofNat 4 (k + 1))
+            (Correctness.builtTree answers (Fin.ofNat 4 (k + 1)) (route index (Fin.ofNat 4 (k + 1))).2)).2)
           (fun k' hk' => by
             have hkk : k' = k := by omega
             rw [hkk, honestMsg_lower answers index k (by omega)]
             rfl)
-        rw [signLayers]
+        rw [WCT9.signLayersBC]
         simp only [evalWithAnswerFn_bind, hs, htree, show k + 1 ≠ 0 by omega, ite_false, hp, evalWithAnswerFn_pure]
         exact ⟨_, rfl⟩
 theorem selected_payload_succeeds (answers : Correctness.Answers) (cache : SigGolfCandidate.T3.Cache) (rho : Digest)
     (m : Message) (N : HashOutput) (counter : BitVec 32) (w : WBytes)
     (hds : evalWithAnswerFn answers (WCT9.digestSearch rho m 0 WCT9.digestAttemptLimit) = some (counter, N))
-    (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers w (N.toNat % 2 ^ 31) lay) :
+    (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.BC.GoodZ answers w (N.toNat % 2 ^ 31) lay) :
     ∃ sig, evalWithAnswerFn answers (payloadForNonce cache rho m) = some sig ∧ sig.rho = rho := by
   obtain ⟨pieces, hp⟩ := signLayers_good answers cache (N.toNat % 2 ^ 31) w hgood 4 le_rfl
-    (WCT9.honestForest answers (N.toNat % 2 ^ 31), 0, 0)
+    (.forest (WCT9.honestForest answers (N.toNat % 2 ^ 31)))
     (fun k hk => by
       obtain rfl : k = 3 := by omega
       exact (honestMsg_three answers _).symm)
   unfold payloadForNonce
   simp only [evalWithAnswerFn_bind, hds, WCT9.eval_signForest, hp, evalWithAnswerFn_pure]
   exact ⟨_, rfl, rfl⟩
+theorem hdrBlock_pairEncodingInputP (lay : Layer) (tree leaf : Nat) (left right : Digest) (counter : BitVec 32)
+    (pad : BitVec 96) :
+    SigGolfCandidate.T3M.Extract.hdrBlock (pad64 (WCT9.pairEncodingInputP lay tree leaf left right counter pad)) =
+      SphincsSecurity.bytesLE 16 (header 4 lay.val tree 0 leaf) := by
+  have hl : (WCT9.pairEncodingInputP lay tree leaf left right counter pad).length = 64 := by
+    simp [WCT9.pairEncodingInputP, SphincsSecurity.bytesLE_length]
+  rw [SigGolfCandidate.T3M.Extract.hdrBlock_pad64 _ (by omega)]
+  unfold WCT9.pairEncodingInputP
+  rw [List.append_assoc, List.append_assoc]
+  exact SigGolfCandidate.T3M.Extract.hdrBlock_prefix _ _ _
+theorem layerEncoding_ok (lay : Layer) (tree leaf : Nat) (msg : WCT9.LayerMsg) (counter : BitVec 32) :
+    AllQueriesSatisfy (shortHash (WCT9.layerEncodingInput lay tree leaf msg counter))
+      SigGolfCandidate.T3.Security.BPB.NotDigestQ := by
+  cases msg with
+  | forest root => exact SigGolfCandidate.T3.Security.BPB.encoding_ok lay tree leaf root counter
+  | pair left right =>
+      exact SigGolfCandidate.T3.Security.BPB.shortHash_ok
+        (hdrBlock_pairEncodingInputP lay tree leaf left right counter 0) (by decide)
 theorem afterDigest_ok (cache : SigGolfCandidate.T3.Cache) (rho : Digest) (output : HashOutput) :
     AllQueriesSatisfy (do
       let forest ← WCT9.signForest (output.toNat % 2 ^ 31) output
-      let some pieces ← signLayers cache (output.toNat % 2 ^ 31) 4 (forest.2, 0, 0) | pure none
+      let some pieces ← WCT9.signLayersBC cache (output.toNat % 2 ^ 31) 4 (.forest forest.2) | pure none
       pure (some (WCT9.assembledSignature rho forest.1 pieces)) : M (Option Signature))
       SigGolfCandidate.T3.Security.BPB.NotDigestQ := by
   apply SourceQueries.bind_allowed _ (ClaudeWCT.WCT9.Wots.BPB.signForest_ok _ output)
   intro forest
-  apply SourceQueries.bind_allowed _ (SigGolfCandidate.T3.Security.BPB.signLayers_ok _ _ _ _)
+  apply SourceQueries.bind_allowed _ (ClaudeWCT.W9.T3.Security.Signer.signLayersBC_allowed' _ _ layerEncoding_ok
+    SigGolfCandidate.T3.Security.BPB.buildTree_ok (SigGolfCandidate.T3.Security.BPB.signTop_ok _) _ _ _)
   intro layers
   rcases layers with _ | pieces
   · exact SourceQueries.pure_allowed _ _
@@ -202,7 +258,7 @@ theorem caseC_fresh_not_signer (answers : Correctness.Answers) (published : SigG
     (hagree : ∀ input answer, SourceReplay.known state input = some answer → answers input = answer)
     (m : Message) (w : WBytes) (N : HashOutput)
     (hN : evalWithAnswerFn answers (digest (wrho w) m (wdc w)) = N) (hS : Shaped N w)
-    (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.Extract.Good answers w (N.toNat % 2 ^ 31) lay)
+    (hgood : ∀ lay : Layer, ClaudeWCT.W9.T3M.BC.GoodZ answers w (N.toNat % 2 ^ 31) lay)
     (hfresh : ¬SignedDigest log m w) :
     ∀ entry ∈ log, (.inl (.inr (pad64 (digestInput (wrho w) m (wdc w)))) : Spec.Domain) ∉
       queried answers (FullGame.authenticatedSign published entry.1) := by

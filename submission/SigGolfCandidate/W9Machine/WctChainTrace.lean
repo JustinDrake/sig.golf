@@ -27,7 +27,7 @@ def ChainTrace.hash (s : ChainTrace) : ChainTrace :=
   (List.range 4).foldl (fun s i => s.put (s.output + 8 * i) (.answer q i)) s
 def ChainTrace.step (s : ChainTrace) : ChainPieceKind → ChainTrace
   | .head off dst chain digit =>
-      let s := (s.put (off + 16) (.header chain digit)).put (off + 24) .route
+      let s := s.put (off + 16) (.header chain digit)
       ({ s with input := off, output := dst, chain := chain }).hash
   | .rung digit dst =>
       let headerOk := match s.read (s.input + 16) with
@@ -47,7 +47,7 @@ def traceLeafSlot (t : Nat) : Nat := if t = 0 then 880 else 896 + 16 * t
 def chainQueryWords (digits : List Nat) (t j : Nat) : List ChainWord :=
   let off := 832 - 64 * t
   let q := (digits.take t).sum + j
-  [.original off, .original (off + 8), .header t (3 - digits.getD t 0 + j), .route,
+  [.original off, .original (off + 8), .header t (3 - digits.getD t 0 + j), .original (off + 24),
     .original (off + 32), .original (off + 40),
     if j = 0 then .original (off + 48) else .answer (q - 1) 0,
     if j = 0 then .original (off + 56) else .answer (q - 1) 1]

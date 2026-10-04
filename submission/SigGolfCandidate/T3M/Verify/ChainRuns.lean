@@ -62,7 +62,7 @@ theorem lcode_eq (i : Nat) (hi : i / 256 < 947) : lcode i = Images.verifyCode.dr
   rw [lChunks_flatten, ← drop_chunks' lChunks (i / 256) lChunks_ok (by rw [lChunks_length]; exact hi),
     List.drop_drop]
   congr 1; omega
-theorem lcodeAt (i : Nat) (hi : i < 242393) : CodeAt Images.verifyImage (pcOf i) (lcode i) := by
+theorem lcodeAt (i : Nat) (hi : i < 242202) : CodeAt Images.verifyImage (pcOf i) (lcode i) := by
   have hl := verifyCode_length_le
   have hp : (pcOf i).toNat = 0x1000 + 4 * i := by
     simp only [pcOf, BitVec.toNat_ofNat]; omega

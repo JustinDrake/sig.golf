@@ -1,6 +1,8 @@
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsMaskBase
+import SigGolfCandidate.ClaudeWCT.W9.New.BC.Respects
 import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.T3.Secc.WotsMaskChain
+
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 attribute [local instance] Classical.propDecidable
@@ -150,13 +152,13 @@ theorem leafMsg_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     leafMsg (maskAt answers a) L = leafMsg answers L := by
   unfold leafMsg
   split
-  · exact Mask.honestPair_maskAt answers a _ _
-  · rw [Mask.honestForest_maskAt answers a _]
+  · rw [Mask.honestPair_maskAt]
+  · rw [Mask.honestForest_maskAt]
 theorem referenceSearch_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     referenceSearch (maskAt answers a) L = referenceSearch answers L := by
   unfold referenceSearch
   rw [leafMsg_maskAt]
-  exact Mask.eval_maskAt_of_respects answers a (Mask.respects_counterSearch a _ _ _ _ _ _)
+  exact Mask.eval_maskAt_of_respects answers a (Mask.respects_layerCounterSearch a _ _ _ _ _ _)
 theorem referenceDigits_maskAt (answers : Answers) (a : ChainAddr) (L : LeafAddr) :
     referenceDigits (maskAt answers a) L = referenceDigits answers L := by
   unfold referenceDigits

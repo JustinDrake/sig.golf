@@ -8,16 +8,17 @@ open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
 open SigGolfCandidate.T3M (wrho wdc)
 open SigGolfCandidate.T3M.SecurityExtraction (queried queried_bind queried_shortHash)
-open ClaudeWCT.W9.T3M (WBytes Shaped verifyP wctChainP wctChainInputP recoverFtsP witDecP padDecP wreveal wcpads)
+open ClaudeWCT.W9.T3M (WBytes Shaped verifyP wctChainP wctChainInputP recoverFtsP witDecP padDecP wreveal wcpads
+  wcHeaderPad)
 open ClaudeWCT.W9.T3M.Final (AdversaryP ForgeryP checkForgeryP)
 set_option maxHeartbeats 1000000
 set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 attribute [local instance] Classical.propDecidable
 theorem wctChainP_first_queried (answers : Correctness.Answers) (index coord child t start count : Nat)
-    (p0 p1 v : Digest) (hc : 1 ≤ count) :
-    (.inl (.inr (pad64 (wctChainInputP index coord child t start p0 p1 v))) : Spec.Domain) ∈
-      queried answers (wctChainP index coord child t start count p0 p1 v) := by
+    (p0 : Digest) (pb : BitVec 64) (p1 v : Digest) (hc : 1 ≤ count) :
+    (.inl (.inr (pad64 (wctChainInputP index coord child t start p0 pb p1 v))) : Spec.Domain) ∈
+      queried answers (wctChainP index coord child t start count p0 pb p1 v) := by
   obtain ⟨n, rfl⟩ : ∃ n, count = n + 1 := ⟨count - 1, by omega⟩
   unfold wctChainP
   rw [List.range'_succ, List.foldlM_cons, queried_bind, queried_shortHash]
@@ -25,8 +26,8 @@ theorem wctChainP_first_queried (answers : Correctness.Answers) (index coord chi
 theorem recoverFtsP_chain_queried (answers : Correctness.Answers) (N : HashOutput) (w : WBytes) (k : WCT9.Coord)
     (t : Fin 7) (hu : 1 ≤ WCT9.digit (WCT9.rank N k) t) :
     (.inl (.inr (pad64 (wctChainInputP (N.toNat % 2 ^ 31) k.val (WCT9.child N k).val t.val
-        (3 - WCT9.digit (WCT9.rank N k) t) (wcpads w k.val t.val).1 (wcpads w k.val t.val).2
-        (wreveal w k.val t.val (WCT9.digit (WCT9.rank N k) t))))) : Spec.Domain) ∈
+        (3 - WCT9.digit (WCT9.rank N k) t) (wcpads w k.val t.val).1 (wcHeaderPad w k.val t.val)
+        (wcpads w k.val t.val).2 (wreveal w k.val t.val (WCT9.digit (WCT9.rank N k) t))))) : Spec.Domain) ∈
       queried answers (recoverFtsP (witDecP N w).signature (padDecP N w) (N.toNat % 2 ^ 31) N) := by
   unfold recoverFtsP
   rw [queried_bind]
@@ -37,7 +38,7 @@ theorem recoverFtsP_chain_queried (answers : Correctness.Answers) (N : HashOutpu
   apply List.mem_append_left
   rw [ClaudeWCT.W9.T3M.WctExtract.queried_mapM]
   refine List.mem_flatMap.mpr ⟨t, List.mem_finRange t, ?_⟩
-  exact wctChainP_first_queried answers _ _ _ _ _ _ _ _ _ hu
+  exact wctChainP_first_queried answers _ _ _ _ _ _ _ _ _ _ hu
 theorem witnessOf_unique {answers : Correctness.Answers} {pk : Digest} {forgery : ForgeryP} {m m' : Message}
     {w w' : WBytes} (h : PaddedExtraction.WitnessOf answers pk forgery m w)
     (h' : PaddedExtraction.WitnessOf answers pk forgery m' w') : m = m' ∧ w = w' := by
@@ -83,7 +84,7 @@ theorem chainValue_eq_wctValue (answers : Correctness.Answers) (a : Guess.ChainA
 theorem honestProbe_slot (answers : Correctness.Answers) (N : HashOutput) (k : WCT9.Coord) (t : Fin 7)
     (p : Fin 3) :
     Guess.honestProbe answers (Guess.chainOf N k t, p) =
-      pad64 (wctChainInputP (N.toNat % 2 ^ 31) k.val (WCT9.child N k).val t.val p.val 0 0
+      pad64 (wctChainInputP (N.toNat % 2 ^ 31) k.val (WCT9.child N k).val t.val p.val 0 0 0
         (ClaudeWCT.W9.T3M.Extract.wctValue answers (N.toNat % 2 ^ 31) k.val (WCT9.child N k).val t.val p.val)) := by
   rw [ClaudeWCT.W9.T3M.wctChainInputP_zero, ClaudeWCT.W9.T3M.Extract.pad64_wctChainInput]
   rfl
@@ -116,7 +117,7 @@ theorem verdict_chain_entries (pk : Digest) (interaction : Option ForgeryP × Qu
     omega
   have hq := recoverFtsP_chain_queried answers N w k t hu
   obtain ⟨hval, hpad⟩ := (hH.2 k).1 t
-  rw [hval, hpad hu] at hq
+  rw [hval, (hpad hu).1, (hpad hu).2] at hq
   have hp : 3 - WCT9.digit (WCT9.rank N k) t = p.val := by
     unfold Guess.deficit at hc2
     omega

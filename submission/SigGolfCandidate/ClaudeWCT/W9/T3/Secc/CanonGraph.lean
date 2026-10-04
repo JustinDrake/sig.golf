@@ -2,6 +2,7 @@ import SigGolfCandidate.T3.BPORS
 import SigGolfCandidate.T3.Secc.SeccLaw
 import SigGolfCandidate.T3.Secc.WotsEvents
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Header
+
 namespace ClaudeWCT.W9.T3.Security.CanonGraph
 open OracleComp OracleSpec OracleComp.EvalDist OracleComp.DeferredSampling ENNReal
 open SphincsSecurity (bytesLE bytesLE_length bytesLE_injective)
@@ -39,7 +40,7 @@ structure WctLeafPos where
 structure WctNodeRaw where
   index : Fin (2^31)
   coord : Fin 9
-  level : Fin 7
+  level : Fin 6
   idx : Fin 64
   deriving DecidableEq, Fintype
 def WctNodeRaw.Valid (n : WctNodeRaw) : Prop := n.idx.val < 2 ^ (7 - n.level.val - 1)
@@ -95,7 +96,7 @@ def treeLabel (labels : Labels) (lay : Layer) (tree : Fin (2^31)) (level c : Nat
     | some n => (labels (.node n)).extractLsb' 0 128
     | none => 0
 def ftsNodeAt (index : Fin (2^31)) (coord : Fin 9) (level c : Nat) : Option WctNodePos :=
-  if h : level < 7 ∧ c < 2 ^ (7 - level - 1) then
+  if h : level < 6 ∧ c < 2 ^ (7 - level - 1) then
     some ⟨⟨index, coord, ⟨level, h.1⟩, ⟨c, lt_of_lt_of_le h.2 (by
       calc 2 ^ (7 - level - 1) ≤ 2 ^ 6 := Nat.pow_le_pow_right (by decide) (by omega)
         _ = 64 := by norm_num)⟩⟩, h.2⟩
@@ -119,12 +120,12 @@ def cell (secrets : Secrets) : Node → Labels → HashInput
       (wctValueL secrets labels p.1 p.2.val)
   | .wctLeaf L, labels => pad64 (Extract.wctLeafInput L.index.val L.coord.val L.child.val
       (List.ofFn fun t : Fin 7 => wctEndLabel labels (L.index, L.coord, L.child, t)))
-  | .wctNode n, labels => pad64 (nodeInputP 11 n.1.coord.val n.1.index.val
+  | .wctNode n, labels => pad64 (nodeInputP 3 (WCT9.nodeLayer n.1.coord.val) n.1.index.val
       (2 ^ (7 - n.1.level.val - 1) + n.1.idx.val)
       (ftsLabel labels n.1.index n.1.coord n.1.level.val (2 * n.1.idx.val)) 0
       (ftsLabel labels n.1.index n.1.coord n.1.level.val (2 * n.1.idx.val + 1)))
   | .forest index, labels => pad64 (Extract.forestInput index.val
-      ((List.range 9).map fun coord => ftsLabel labels index (fin9 coord) 7 0))
+      ((List.range 9).map fun coord => (ftsLabel labels index (fin9 coord) 6 0, ftsLabel labels index (fin9 coord) 6 1)))
 def treeBits (lay : Layer) : Nat := ![0, 12, 19, 25] lay
 def LeafPos.Source (L : LeafPos) : Prop := L.tree.val < 2 ^ treeBits L.lay ∧ L.leaf.val < 2 ^ height L.lay
 instance instDecidablePredLeafPosSource : DecidablePred LeafPos.Source := fun L => by unfold LeafPos.Source; infer_instance
@@ -143,7 +144,7 @@ def SourcePos : Extract.Pos → Prop
   | .forest index => index < 2 ^ 31
   | .wctChain index coord child t step => index < 2 ^ 31 ∧ coord < 9 ∧ child < 128 ∧ t < 7 ∧ step < 3
   | .wctLeaf index coord child => index < 2 ^ 31 ∧ coord < 9 ∧ child < 128
-  | .wctNode index coord level nd => index < 2 ^ 31 ∧ coord < 9 ∧ level < 7 ∧ nd < 2 ^ (7 - level - 1)
+  | .wctNode index coord level nd => index < 2 ^ 31 ∧ coord < 9 ∧ level < 6 ∧ nd < 2 ^ (7 - level - 1)
 theorem toPos_bounded (node : Node) : node.toPos.Bounded := by
   cases node with
   | chain p =>
@@ -383,12 +384,16 @@ theorem cell_congr (secrets : Secrets) (node : Node) (left right : Labels)
         (fun other ho => h other (by simpa only [Node.depth] using ho))
       simp only [cell, hl, hr]
   | forest index =>
-      have hroots : ((List.range 9).map fun coord => ftsLabel left index (fin9 coord) 7 0) =
-          ((List.range 9).map fun coord => ftsLabel right index (fin9 coord) 7 0) := by
+      have hroots : ((List.range 9).map fun coord =>
+            (ftsLabel left index (fin9 coord) 6 0, ftsLabel left index (fin9 coord) 6 1)) =
+          ((List.range 9).map fun coord =>
+            (ftsLabel right index (fin9 coord) 6 0, ftsLabel right index (fin9 coord) 6 1)) := by
         apply List.map_congr_left
         intro coord _
-        exact ftsLabel_congr left right index (fin9 coord) 7 0
-          (fun other ho => h other (by simpa only [Node.depth] using ho))
+        rw [ftsLabel_congr left right index (fin9 coord) 6 0
+            (fun other ho => h other (show other.depth < 11 by omega)),
+          ftsLabel_congr left right index (fin9 coord) 6 1
+            (fun other ho => h other (show other.depth < 11 by omega))]
       simp only [cell, hroots]
 noncomputable def posNode (p : Extract.Pos) : Option Node :=
   if h : SourcePos p then some (Classical.choose (exists_toPos h)) else none
@@ -413,26 +418,31 @@ theorem height_pos (lay : Layer) : 0 < height lay := by fin_cases lay <;> decide
 def rootNode (lay : Layer) (tree : Fin (2^31)) : TreeNode :=
   ⟨⟨lay, tree, ⟨height lay - 1, by have := SigGolfCandidate.T3M.Extract.height_le lay; omega⟩, ⟨0, by decide⟩⟩,
     ⟨Nat.sub_lt (height_pos lay) Nat.one_pos, pow_pos (by decide : 0 < 2) _⟩⟩
-def ftsRootNode (index : Fin (2^31)) (coord : Fin 9) : WctNodePos :=
-  ⟨⟨index, coord, ⟨6, by decide⟩, ⟨0, by decide⟩⟩, show 0 < 2 ^ (7 - 6 - 1) by decide⟩
+def ftsTopNode (index : Fin (2^31)) (coord : Fin 9) (b : Fin 2) : WctNodePos :=
+  ⟨⟨index, coord, ⟨5, by decide⟩, ⟨b.val, by have := b.isLt; omega⟩⟩, show b.val < 2 ^ (7 - 5 - 1) by
+    have := b.isLt; omega⟩
 theorem height_ge_two (lay : Layer) : 2 ≤ height lay := by fin_cases lay <;> decide
-def childNode (lay : Layer) (tree : Fin (2^31)) (c : Fin 2) : TreeNode :=
-  ⟨⟨lay, tree, ⟨height lay - 1 - 1, by have := SigGolfCandidate.T3M.Extract.height_le lay; omega⟩,
-      ⟨c.val, by have := c.isLt; omega⟩⟩,
-    ⟨by have := height_ge_two lay; show height lay - 1 - 1 < height lay; omega,
-      by have := height_ge_two lay; have := c.isLt
-         show c.val < 2 ^ (height lay - (height lay - 1 - 1) - 1)
-         rw [show height lay - (height lay - 1 - 1) - 1 = 1 by omega]; omega⟩⟩
-theorem treeLabel_child (labels : Labels) (lay : Layer) (tree : Fin (2^31)) (c : Fin 2) :
-    treeLabel labels lay tree (height lay - 1) c.val = (labels (.node (childNode lay tree c))).extractLsb' 0 128 := by
+def topNode (lay : Layer) (tree : Fin (2^31)) (b : Fin 2) : TreeNode :=
+  ⟨⟨lay, tree, ⟨height lay - 2, by have := SigGolfCandidate.T3M.Extract.height_le lay; omega⟩,
+    ⟨b.val, by have := b.isLt; omega⟩⟩,
+    ⟨show height lay - 2 < height lay by have := height_ge_two lay; omega, by
+      have := height_ge_two lay
+      show b.val < 2 ^ (height lay - (height lay - 2) - 1)
+      rw [show height lay - (height lay - 2) - 1 = 1 by omega]
+      have := b.isLt; omega⟩⟩
+theorem treeLabel_top (labels : Labels) (lay : Layer) (tree : Fin (2^31)) (b : Fin 2) :
+    treeLabel labels lay tree (height lay - 1) b.val = (labels (.node (topNode lay tree b))).extractLsb' 0 128 := by
   have h2 := height_ge_two lay
   unfold treeLabel
   rw [if_neg (by omega)]
-  have hv : height lay - 1 - 1 < height lay ∧ c.val < 2 ^ (height lay - (height lay - 1 - 1) - 1) := by
+  have hv : height lay - 1 - 1 < height lay ∧ b.val < 2 ^ (height lay - (height lay - 1 - 1) - 1) := by
     refine ⟨by omega, ?_⟩
-    rw [show height lay - (height lay - 1 - 1) - 1 = 1 by omega]; have := c.isLt; omega
+    rw [show height lay - (height lay - 1 - 1) - 1 = 1 by omega]
+    have := b.isLt; omega
   unfold treeNodeAt
   rw [dif_pos hv]
+  have e : height lay - 1 - 1 = height lay - 2 := by omega
+  simp only [e]
   rfl
 theorem treeLabel_root (labels : Labels) (lay : Layer) (tree : Fin (2^31)) :
     treeLabel labels lay tree (height lay) 0 = (labels (.node (rootNode lay tree))).extractLsb' 0 128 := by
@@ -444,12 +454,12 @@ theorem treeLabel_root (labels : Labels) (lay : Layer) (tree : Fin (2^31)) :
   unfold treeNodeAt
   rw [dif_pos hv]
   rfl
-theorem ftsLabel_root (labels : Labels) (index : Fin (2^31)) (coord : Fin 9) :
-    ftsLabel labels index coord 7 0 = (labels (.wctNode (ftsRootNode index coord))).extractLsb' 0 128 := by
+theorem ftsLabel_top (labels : Labels) (index : Fin (2^31)) (coord : Fin 9) (b : Fin 2) :
+    ftsLabel labels index coord 6 b.val = (labels (.wctNode (ftsTopNode index coord b))).extractLsb' 0 128 := by
   unfold ftsLabel
   rw [if_neg (by omega)]
   unfold ftsNodeAt
-  rw [dif_pos (show 7 - 1 < 7 ∧ 0 < 2 ^ (7 - (7 - 1) - 1) by decide)]
+  rw [dif_pos (show 6 - 1 < 6 ∧ b.val < 2 ^ (7 - (6 - 1) - 1) by have := b.isLt; omega)]
   rfl
 noncomputable def canonInputs : Finset HashInput :=
   (Finset.univ : Finset (Secrets × Labels × Node)).image fun x => cell x.1 x.2.2 x.2.1
@@ -477,8 +487,8 @@ theorem cell_length_le (secrets : Secrets) (node : Node) (labels : Labels) :
       rw [pad64_nodeInputP, nodeInputP, block4]
       simp only [List.length_append, bytesLE_length]; omega
   | wctChain p =>
-      simp only [cell]
-      rw [WCT9.chainInput_length]; omega
+      simp only [cell, WCT9.chainInput, zero16, List.length_append, List.length_replicate, bytesLE_length]
+      omega
   | wctLeaf L =>
       simp only [cell, Extract.wctLeafInput]
       rw [Cost.pad64_length, Extract.listInput_length']
@@ -490,8 +500,7 @@ theorem cell_length_le (secrets : Secrets) (node : Node) (labels : Labels) :
       simp only [List.length_append, bytesLE_length]; omega
   | forest index =>
       simp only [cell, Extract.forestInput]
-      rw [Cost.pad64_length, Extract.listInput_length']
-      simp only [List.length_drop, List.length_map, List.length_range]
+      rw [Cost.pad64_length, WCT9.forestInput_length _ _ (by simp)]
       omega
 theorem canonInputs_subset_publicUniverse : canonInputs ⊆ SeccLaw.publicUniverse := by
   intro input hinput
@@ -762,21 +771,43 @@ theorem privateEquiv_fst (table : FullGame.FullTable) : (privateEquiv table).1 =
 theorem privateSecrets_symm (secrets : Secrets) (other : OtherHalves) :
     privateSecrets (privateEquiv.symm (secrets, other)) = secrets := by
   rw [← privateEquiv_fst, Equiv.apply_symm_apply]
+def layerMsgEquiv : WCT9.LayerMsg ≃ Digest ⊕ (Digest × Digest) where
+  toFun
+    | .forest d => .inl d
+    | .pair l r => .inr (l, r)
+  invFun
+    | .inl d => .forest d
+    | .inr p => .pair p.1 p.2
+  left_inv m := by cases m <;> rfl
+  right_inv x := by rcases x with d | ⟨l, r⟩ <;> rfl
 set_option warn.classDefReducibility false in
-noncomputable def encodingKeyFintype : Fintype QuerySpace.EncodingKey := inferInstance
+noncomputable def layerMsgFintype : Fintype WCT9.LayerMsg := Fintype.ofEquiv _ layerMsgEquiv.symm
+attribute [irreducible] layerMsgFintype
+abbrev EncKey := (Layer × Fin (2^31) × Fin 4096 × WCT9.LayerMsg) × Fin (2^22)
+def encQuery (key : EncKey) : HashInput :=
+  pad64 (WCT9.layerEncodingInput key.1.1 key.1.2.1.val key.1.2.2.1.val key.1.2.2.2 (BitVec.ofNat 32 key.2.val))
+set_option warn.classDefReducibility false in
+noncomputable def encodingKeyFintype : Fintype EncKey :=
+  @instFintypeProd _ _ (@instFintypeProd _ _ inferInstance (@instFintypeProd _ _ inferInstance
+    (@instFintypeProd _ _ inferInstance layerMsgFintype))) inferInstance
 attribute [irreducible] encodingKeyFintype
 noncomputable def encInputs : Finset HashInput :=
-  (@Finset.univ _ encodingKeyFintype).image QuerySpace.encodingQuery
+  (@Finset.univ _ encodingKeyFintype).image encQuery
 attribute [irreducible] encInputs
-theorem encodingQuery_mem (key : QuerySpace.EncodingKey) : QuerySpace.encodingQuery key ∈ encInputs := by
+theorem encQuery_mem (key : EncKey) : encQuery key ∈ encInputs := by
   rw [encInputs]
   exact Finset.mem_image_of_mem _ (@Finset.mem_univ _ encodingKeyFintype key)
+theorem encQuery_length (key : EncKey) : (encQuery key).length = 64 := by
+  obtain ⟨⟨lay, tree, leaf, msg⟩, c⟩ := key
+  cases msg <;> simp [encQuery, WCT9.layerEncodingInput, encodingInput, WCT9.pairEncodingInputP, pad64,
+    bytesLE_length]
 theorem encInputs_subset_publicUniverse : encInputs ⊆ SeccLaw.publicUniverse := by
   intro input hinput
   rw [encInputs, Finset.mem_image] at hinput
   obtain ⟨key, -, rfl⟩ := hinput
   apply SeccLaw.mem_publicUniverse
-  simp only [QuerySpace.encodingQuery, Sampling.encodingTrial_length, SeccLaw.maxInputLength]
+  rw [encQuery_length]
+  unfold SeccLaw.maxInputLength
   omega
 noncomputable def canonUniverse {α : Type} (program : M α) : Finset HashInput :=
   canonInputs ∪ encInputs ∪ ChainGraph.recordedInputs program

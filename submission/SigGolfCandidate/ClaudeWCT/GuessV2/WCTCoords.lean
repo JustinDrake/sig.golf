@@ -110,12 +110,12 @@ theorem pad64_probeInput (a : ChainAddr) (p : Fin 3) (c : Digest) : pad64 (probe
 def hdrBlock (input : HashInput) : HashInput := (input.drop 16).take 16
 theorem chainInput_split (index coord selected i step : Nat) (value : Digest) :
     WCT9.chainInput index coord selected i step value =
-      zero16 ++ (bytesLE 16 (wctHeader 5 coord index (step + 256 * i) selected) ++
+      zero16 ++ (bytesLE 16 (ftsChainHeader index coord selected i step) ++
         (zero16 ++ bytesLE 16 value)) := by
   simp [WCT9.chainInput, List.append_assoc]
 theorem hdrBlock_wctChainInput (index coord selected i step : Nat) (value : Digest) :
     hdrBlock (WCT9.chainInput index coord selected i step value) =
-      bytesLE 16 (wctHeader 5 coord index (step + 256 * i) selected) := by
+      bytesLE 16 (ftsChainHeader index coord selected i step) := by
   rw [chainInput_split, hdrBlock, List.drop_left' (by simp [zero16])]
   exact List.take_left' (bytesLE_length _ _)
 theorem wctHeader_toNat' (tag lay tree position index : Nat) :
@@ -164,23 +164,14 @@ theorem tagByte_header (tag lay tree position index : Nat) :
   · rw [e _ (by omega)]
     exact key _
 theorem chainHeader_inj' {a a' : ChainAddr} {p p' : Fin 3}
-    (h : wctHeader 5 a.2.1.val a.1.val (p.val + 256 * a.2.2.2.val) a.2.2.1.val =
-      wctHeader 5 a'.2.1.val a'.1.val (p'.val + 256 * a'.2.2.2.val) a'.2.2.1.val) : a = a' ∧ p = p' := by
-  have hn := congrArg BitVec.toNat h
-  rw [wctHeader_toNat', wctHeader_toNat'] at hn
+    (h : ftsChainHeader a.1.val a.2.1.val a.2.2.1.val a.2.2.2.val p.val =
+      ftsChainHeader a'.1.val a'.2.1.val a'.2.2.1.val a'.2.2.2.val p'.val) : a = a' ∧ p = p' := by
   obtain ⟨⟨i, hi⟩, ⟨k, hk⟩, ⟨j, hj⟩, ⟨t, ht⟩⟩ := a
   obtain ⟨⟨i', hi'⟩, ⟨k', hk'⟩, ⟨j', hj'⟩, ⟨t', ht'⟩⟩ := a'
   obtain ⟨p, hp⟩ := p
   obtain ⟨p', hp'⟩ := p'
-  simp only at hn
-  have e1 : i / 2 ^ 32 = 0 := Nat.div_eq_of_lt (by omega)
-  have e2 : i' / 2 ^ 32 = 0 := Nat.div_eq_of_lt (by omega)
-  rw [e1, e2, Nat.mod_eq_of_lt (show k < 256 by omega), Nat.mod_eq_of_lt (show k' < 256 by omega),
-    Nat.mod_eq_of_lt (show p + 256 * t < 2 ^ 32 by omega), Nat.mod_eq_of_lt (show p' + 256 * t' < 2 ^ 32 by omega),
-    Nat.mod_eq_of_lt (show i < 2 ^ 32 by omega), Nat.mod_eq_of_lt (show i' < 2 ^ 32 by omega),
-    Nat.mod_eq_of_lt (show j < 2 ^ 32 by omega), Nat.mod_eq_of_lt (show j' < 2 ^ 32 by omega)] at hn
-  have : i = i' ∧ k = k' ∧ j = j' ∧ t = t' ∧ p = p' := by omega
-  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := this
+  obtain ⟨rfl, rfl, rfl, rfl, rfl, -⟩ := ftsChainHeaderP_injective hi (by omega) hj (by omega) (by omega)
+    hi' (by omega) hj' (by omega) (by omega) h
   exact ⟨rfl, rfl⟩
 theorem probeInput_injective {a a' : ChainAddr} {p p' : Fin 3} {c c' : Digest}
     (h : probeInput a p c = probeInput a' p' c') : a = a' ∧ p = p' ∧ c = c' := by
@@ -218,14 +209,19 @@ theorem decodeProbe_eq_none {x : HashInput} :
     rw [decodeProbe, dif_neg]
     rintro ⟨q, hq⟩
     exact h q.1.1 q.1.2 q.2 hq
+theorem ftsChainHeader_byte0 (index coord selected i step : Nat) :
+    128 ≤ (ftsChainHeader index coord selected i step).toNat % 256 := by
+  rw [ftsChainHeader_toNat, ftsChainLow_byte0]
+  omega
 theorem decodeProbe_of_hdrBlock {x : HashInput} {h : BitVec 128} (hx : hdrBlock x = bytesLE 16 h)
-    (ht : tagByte h ≠ 5) : decodeProbe x = none := by
+    (ht : h.toNat % 256 < 128) : decodeProbe x = none := by
   rw [decodeProbe_eq_none]
   intro a p c he
   rw [he, probeInput, hdrBlock_wctChainInput] at hx
   have := bytesLE_injective hx
-  apply ht
-  rw [← this, tagByte_wctHeader]
+  have hb := ftsChainHeader_byte0 a.1.val a.2.1.val a.2.2.1.val a.2.2.2.val p.val
+  rw [this] at hb
+  omega
 def seedOf (A : Correctness.Answers) (a : ChainAddr) : Digest :=
   let pair := evalWithAnswerFn A (privatePair 8 a.2.1.val a.1.val 0 (4 * a.2.2.1.val + a.2.2.2.val / 2))
   if a.2.2.2.val % 2 = 0 then pair.1 else pair.2

@@ -1,4 +1,4 @@
-import SigGolfCandidate.W9Machine.WctRelative
+import SigGolfCandidate.W9Machine.WctPackedRuns
 
 namespace W9Machine
 open SigGolfCandidate.T3M SigGolfCandidate.Rv RiscvZkvm.Rv64
@@ -32,8 +32,4 @@ def ChainPiece.result (p : ChainPiece) : Result :=
   | .leaf => leafSetupRel
 def ChainPiece.checked (p : ChainPiece) : Bool :=
   rOK (symRun {} p.words (pcOf p.pc) p.words.length) p.result
-def leafSetupSample : ChainPiece :=
-  ⟨766, [2626567299, 966012963, 943993891, 923010323, 134219155, 753767], .leaf⟩
-theorem leafSetupSample_checked : leafSetupSample.checked = true := by
-  decide +kernel
 end W9Machine

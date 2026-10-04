@@ -3,15 +3,21 @@ import SigGolfCandidate.T3.Secc.LargeCouplingCell
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layers
 import SigGolfCandidate.ClaudeWCT.W9.New.G3b.Shared
 import SigGolfCandidate.ClaudeWCT.WCT9.Forest
+import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
+import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsExtractWord
 import SigGolfCandidate.T3.Secc.LargeCouplingSign
+
 section
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
 open ClaudeWCT.W9.T3M SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open SigGolfCandidate.T3.Correctness (Answers)
 open SigGolfCandidate.T3.Security.LargeResidual (listBlock slotValue slotValue_pad64 slotValue_block4
-  chainRow_block4 slotValue_listInput width_ge chainCount_pos)
+  chainRow_block4 slotValue_listInput width_ge chainCount_pos slotValue_bytes_cons slotValue_shift)
+open SphincsSecurity (bytesLE bytesLE_length)
 open ClaudeWCT.W9.T3.Security.CanonGraph
 open ClaudeWCT.W9.T3.Security.CanonEncoding
 set_option maxHeartbeats 1000000
@@ -33,12 +39,13 @@ def cellValues : CanonGraph.Node → (Coord → Digest) → HashInput
       (v (wctItem p.1 p.2.val))
   | .wctLeaf L, v => pad64 (Extract.wctLeafInput L.index.val L.coord.val L.child.val
       (List.ofFn fun t : Fin 7 => v (wctItem (L.index, L.coord, L.child, t) 3)))
-  | .wctNode n, v => pad64 (nodeInputP 11 n.1.coord.val n.1.index.val
+  | .wctNode n, v => pad64 (nodeInputP 3 (WCT9.nodeLayer n.1.coord.val) n.1.index.val
       (2 ^ (7 - n.1.level.val - 1) + n.1.idx.val)
       (((ftsChild n.1.index n.1.coord n.1.level.val (2 * n.1.idx.val)).map v).getD 0) 0
       (((ftsChild n.1.index n.1.coord n.1.level.val (2 * n.1.idx.val + 1)).map v).getD 0))
   | .forest index, v => pad64 (Extract.forestInput index.val
-      ((List.range 9).map fun c => v (.inl (.wctNode (ftsRootNode index (fin9 c))))))
+      ((List.range 9).map fun c => (v (.inl (.wctNode (ftsTopNode index (fin9 c) 0))),
+        v (.inl (.wctNode (ftsTopNode index (fin9 c) 1))))))
 theorem treeLabel_eq (s : Secrets) (L : Labels) (lay : Layer) (tree : Fin (2^31)) (level c : Nat) :
     treeLabel L lay tree level c = ((treeChild lay tree level c).map (coordVal s L)).getD 0 := by
   unfold treeLabel treeChild
@@ -99,14 +106,20 @@ theorem cell_eq_cellValues (s : Secrets) (L : Labels) (N : CanonGraph.Node) :
         (List.ofFn fun t : Fin 7 => wctEndLabel L (Lf.index, Lf.coord, Lf.child, t))) = _
       simp only [cellValues, coordVal_wctItem, wctValueL_three]
   | wctNode n =>
-      change pad64 (nodeInputP 11 _ _ _ (ftsLabel L _ _ _ _) 0 (ftsLabel L _ _ _ _)) = _
+      change pad64 (nodeInputP 3 _ _ _ (ftsLabel L _ _ _ _) 0 (ftsLabel L _ _ _ _)) = _
       rw [ftsLabel_eq s, ftsLabel_eq s]
       rfl
   | forest index =>
-      change pad64 (Extract.forestInput _ ((List.range 9).map fun c => ftsLabel L index (fin9 c) 7 0)) =
+      change pad64 (Extract.forestInput _ ((List.range 9).map fun c =>
+          (ftsLabel L index (fin9 c) 6 0, ftsLabel L index (fin9 c) 6 1))) =
         pad64 (Extract.forestInput _ ((List.range 9).map fun c =>
-          coordVal s L (.inl (.wctNode (ftsRootNode index (fin9 c))))))
-      congr 2
+          (coordVal s L (.inl (.wctNode (ftsTopNode index (fin9 c) 0))),
+            coordVal s L (.inl (.wctNode (ftsTopNode index (fin9 c) 1))))))
+      have h0 : ∀ c, ftsLabel L index (fin9 c) 6 0 = coordVal s L (.inl (.wctNode (ftsTopNode index (fin9 c) 0))) :=
+        fun c => ftsLabel_top L index (fin9 c) 0
+      have h1 : ∀ c, ftsLabel L index (fin9 c) 6 1 = coordVal s L (.inl (.wctNode (ftsTopNode index (fin9 c) 1))) :=
+        fun c => ftsLabel_top L index (fin9 c) 1
+      simp only [h0, h1]
 theorem coordVal_from (v : Coord → Digest) :
     coordVal (fun x => v (.inr x)) (joinLabels (fun M => v (.inl M)) fun _ => 0) = v := by
   funext c
@@ -175,7 +188,15 @@ theorem cellValues_congr (N : CanonGraph.Node) (v v' : Coord → Digest)
   | forest index =>
       simp only [cellValues]
       congr 2
-      exact List.map_congr_left (fun c hc => h _ (by simp only [childSlots, List.mem_map]; exact ⟨c, hc, rfl⟩))
+      refine List.map_congr_left (fun c hc => ?_)
+      have e0 := h (.inl (.wctNode (ftsTopNode index (fin9 c) 0)), 2 + 2 * c) (by
+          simp only [childSlots, List.mem_flatMap]
+          exact ⟨c, hc, List.mem_cons_self⟩)
+      have e1 := h (.inl (.wctNode (ftsTopNode index (fin9 c) 1)), 3 + 2 * c) (by
+          simp only [childSlots, List.mem_flatMap]
+          exact ⟨c, hc, List.mem_cons_of_mem _ List.mem_cons_self⟩)
+      simp only at e0 e1
+      rw [e0, e1]
 theorem slotValue_listOf (hdr : BitVec 128) (values : List Digest) (i : Nat) (hi : i < values.length) :
     slotValue (pad64 (Extract.listInput (values.getD 0 0) hdr (values.drop 1))) (listBlock i) =
       values.getD i 0 := by
@@ -186,6 +207,49 @@ theorem slotValue_listOf (hdr : BitVec 128) (values : List Digest) (i : Nat) (hi
     | cons x xs => rfl
   rw [hcons] at key
   exact key
+theorem slotValue_pairs (pairs : List (Digest × Digest)) :
+    ∀ c, c < pairs.length →
+      slotValue (pairs.flatMap fun p => bytesLE 16 p.1 ++ bytesLE 16 p.2) (2 * c) = (pairs.getD c (0, 0)).1 ∧
+      slotValue (pairs.flatMap fun p => bytesLE 16 p.1 ++ bytesLE 16 p.2) (2 * c + 1) = (pairs.getD c (0, 0)).2 := by
+  induction pairs with
+  | nil => intro c hc; simp at hc
+  | cons p ps ih =>
+      intro c hc
+      have hl : ∀ x : Digest, (bytesLE 16 x).length = 16 := fun x => bytesLE_length 16 x
+      simp only [List.flatMap_cons, List.append_assoc]
+      rcases c with _ | c
+      · refine ⟨?_, ?_⟩
+        · exact slotValue_bytes_cons p.1 _
+        · rw [Nat.mul_zero, Nat.zero_add, show (1 : Nat) = 0 + 1 from rfl, slotValue_shift _ _ 0 (hl p.1)]
+          exact slotValue_bytes_cons p.2 _
+      · have hc' : c < ps.length := by simp at hc; omega
+        obtain ⟨h1, h2⟩ := ih c hc'
+        refine ⟨?_, ?_⟩
+        · rw [show 2 * (c + 1) = 2 * c + 1 + 1 by ring, slotValue_shift _ _ _ (hl p.1),
+            show 2 * c + 1 = 2 * c + 0 + 1 by ring, slotValue_shift _ _ _ (hl p.2), Nat.add_zero, h1]
+          rfl
+        · rw [show 2 * (c + 1) + 1 = 2 * c + 1 + 1 + 1 by ring, slotValue_shift _ _ _ (hl p.1),
+            slotValue_shift _ _ _ (hl p.2), h2]
+          rfl
+theorem slotValue_forest (index : Nat) (pairs : List (Digest × Digest)) (hlen : pairs.length = 9) (c : Nat)
+    (hc : c < 9) :
+    slotValue (pad64 (Extract.forestInput index pairs)) (2 + 2 * c) = (pairs.getD c (0, 0)).1 ∧
+      slotValue (pad64 (Extract.forestInput index pairs)) (3 + 2 * c) = (pairs.getD c (0, 0)).2 := by
+  have hflen := WCT9.forestInput_length index pairs hlen
+  have hl16 : zero16.length = 16 := by simp [zero16]
+  have hl : ∀ x : BitVec 128, (bytesLE 16 x).length = 16 := fun x => bytesLE_length 16 x
+  obtain ⟨h1, h2⟩ := slotValue_pairs pairs c (by omega)
+  refine ⟨?_, ?_⟩
+  · rw [slotValue_pad64 _ _ (by rw [Extract.forestInput, hflen]; omega)]
+    unfold Extract.forestInput WCT9.forestInput
+    rw [List.append_assoc, show 2 + 2 * c = 2 * c + 1 + 1 by ring, slotValue_shift _ _ _ hl16,
+      slotValue_shift _ _ _ (hl _)]
+    exact h1
+  · rw [slotValue_pad64 _ _ (by rw [Extract.forestInput, hflen]; omega)]
+    unfold Extract.forestInput WCT9.forestInput
+    rw [List.append_assoc, show 3 + 2 * c = 2 * c + 1 + 1 + 1 by ring, slotValue_shift _ _ _ hl16,
+      slotValue_shift _ _ _ (hl _)]
+    exact h2
 theorem slot_cellValues (N : CanonGraph.Node) (v : Coord → Digest) :
     ∀ cs ∈ childSlots N, slotValue (cellValues N v) cs.2 = v cs.1 := by
   intro cs hcs
@@ -229,14 +293,29 @@ theorem slot_cellValues (N : CanonGraph.Node) (v : Coord → Digest) :
       · refine ((slotValue_block4 _ _ _ _).2.2).trans ?_
         rw [hc]; rfl
   | forest index =>
-      simp only [childSlots, List.mem_map, List.mem_range] at hcs
-      obtain ⟨c, hc, rfl⟩ := hcs
-      simp only [cellValues, Extract.forestInput]
-      rw [slotValue_listOf _ _ _ (by simp; omega)]
-      simp [hc]
+      simp only [childSlots, List.mem_flatMap, List.mem_range] at hcs
+      obtain ⟨c, hc, hmem⟩ := hcs
+      have hf := slotValue_forest index.val ((List.range 9).map fun c =>
+        (v (.inl (.wctNode (ftsTopNode index (fin9 c) 0))), v (.inl (.wctNode (ftsTopNode index (fin9 c) 1)))))
+        (by simp) c hc
+      simp only [List.getD_eq_getElem _ _ (show c < ((List.range 9).map fun c =>
+        (v (.inl (.wctNode (ftsTopNode index (fin9 c) 0))), v (.inl (.wctNode (ftsTopNode index (fin9 c) 1))))).length
+          by simpa using hc), List.getElem_map, List.getElem_range] at hf
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
+      rcases hmem with rfl | rfl
+      · exact hf.1
+      · exact hf.2
 end ClaudeWCT.W9.T3.Security.LargeResidual
 end
+
 section
+
+
+
+
+
+
+
 namespace ClaudeWCT.W9.T3.Security.LargeResidual
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -262,7 +341,7 @@ theorem honestValue_eq (h : Agrees T labels) : honestValue T = coordVal (secrets
       rw [honest_answer h M]
       rfl
   | inr x => rfl
-theorem ftsChild_isSome (index : Fin (2^31)) (coord : Fin 9) (level c : Nat) (hl : level ≤ 7)
+theorem ftsChild_isSome (index : Fin (2^31)) (coord : Fin 9) (level c : Nat) (hl : level ≤ 6)
     (hc : c < 2 ^ (7 - level)) : (ftsChild index coord level c).isSome := by
   unfold ftsChild
   by_cases h0 : level = 0
@@ -399,16 +478,12 @@ theorem honestPieces_eq (h : Agrees T labels) (index : Fin (2^31)) (lay : Layer)
       treeLabel_eq (secretsOf T), honestValue_eq h]
 noncomputable def layerPieces (T : Answers) (index : Nat) (lay : Layer) : Pieces :=
   honestPieces T lay (route index lay).2 (route index lay).1 (Wots.referenceDigits T (routeAddr index lay))
-theorem referenceSearch_route (T : Answers) (index : Nat) (lay : Layer) :
+theorem referenceSearch_route (T : Answers) (index : Nat) (lay : Layer) (hindex : index < 2 ^ 31) :
     Wots.referenceSearch T (routeAddr index lay) =
-      evalWithAnswerFn T (counterSearch lay (route index lay).2 (route index lay).1
+      evalWithAnswerFn T (WCT9.layerCounterSearch lay (route index lay).2 (route index lay).1
         (Extract.honestMsg T index lay) 0 counterLimit) := by
-  have hmsg : Wots.leafMsg T (routeAddr index lay) = Extract.honestMsg T index lay := by
-    unfold Wots.leafMsg Extract.honestMsg
-    simp only [routeAddr]
-    by_cases h : lay.val < 3
-    · rw [dif_pos h, dif_pos h, WotsExtract.route_tree_succ index lay h]
-    · rw [dif_neg h, dif_neg h, WotsExtract.route_forest index lay h]
+  have hmsg : Wots.leafMsg T (routeAddr index lay) = Extract.honestMsg T index lay :=
+    WotsExtract.leafMsg_route T index lay hindex
   unfold Wots.referenceSearch
   rw [hmsg]
   rfl
@@ -420,24 +495,22 @@ theorem referenceDigits_some (T : Answers) (L : Wots.LeafAddr) (c : BitVec 32) (
 theorem signLayers_eq (T : Answers) (cache : SigGolfCandidate.T3.Cache)
     (hcache : cache.region = Correctness.cacheRegion (Correctness.maskedTop T))
     (index : Nat) (hindex : index < 2 ^ 31) :
-    ∀ n, n ≤ 4 → evalWithAnswerFn T (signLayers cache index n (Extract.walkTarget T index n)) =
+    ∀ n, n ≤ 4 → ∀ msg : WCT9.LayerMsg, (∀ k, n = k + 1 → msg = Extract.honestMsg T index (Fin.ofNat 4 k)) →
+      evalWithAnswerFn T (WCT9.signLayersBC cache index n msg) =
       if ∀ l, l < n → (Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 l))).isSome then
         some ((List.range n).map fun l => layerPieces T index (Fin.ofNat 4 l))
       else none := by
   intro n
   induction n with
   | zero =>
-      intro _
-      simp [signLayers]
+      intro _ _ _
+      simp [WCT9.signLayersBC]
   | succ n ih =>
-      intro hn
+      intro hn msg hval
       have hlay : (Fin.ofNat 4 n : Layer).val = n := by simp; omega
-      have hmsg : Extract.walkTarget T index (n + 1) = Extract.honestMsg T index (Fin.ofNat 4 n) := by
-        have hl : (⟨n, by omega⟩ : Layer) = Fin.ofNat 4 n := Fin.ext hlay.symm
-        simp only [Extract.walkTarget, dif_pos (show n < 4 by omega), hl]
-      rw [hmsg]
-      simp only [signLayers, evalWithAnswerFn_bind]
-      rw [← referenceSearch_route]
+      rw [hval n rfl]
+      simp only [WCT9.signLayersBC, evalWithAnswerFn_bind]
+      rw [← referenceSearch_route T index _ hindex]
       cases hs : Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 n)) with
       | none =>
           simp only [evalWithAnswerFn_pure]
@@ -467,13 +540,13 @@ theorem signLayers_eq (T : Answers) (cache : SigGolfCandidate.T3.Cache)
           · simp only [hn0, if_false, evalWithAnswerFn_bind]
             rw [Correctness.eval_buildTree_result T _ _ _ digits hvalid (route_leaf_bound index _)]
             simp only
-            have hroot : (((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n) - 1) []).getD 0 0, 0, ((builtTree T (Fin.ofNat 4 n) (route index (Fin.ofNat 4 n)).2).getD
-                (height (Fin.ofNat 4 n) - 1) []).getD 1 0) = Extract.walkTarget T index n := by
-              rw [Extract.walkTarget_pair T index n (by omega) hn0]
-              rfl
-            rw [hroot, ih (by omega)]
-            by_cases hall : ∀ l, l < n → (Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 l))).isSome
+            obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+            have hlow := Extract.honestMsg_lower T index (k + 1) (by omega) (by omega)
+            simp only [Nat.add_sub_cancel] at hlow
+            rw [ih (by omega) _ (fun k' hk' => by
+              rw [show k' = k by omega, hlow]
+              rfl)]
+            by_cases hall : ∀ l, l < k + 1 → (Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 l))).isSome
             · rw [if_pos hall, if_pos (fun l hl => by
                 rcases Nat.lt_succ_iff_lt_or_eq.mp hl with hl | rfl
                 · exact hall l hl
@@ -488,12 +561,9 @@ theorem signLayers_eq (T : Answers) (cache : SigGolfCandidate.T3.Cache)
               simp only [evalWithAnswerFn_pure]
 end Layers
 section Payload
-theorem walkTarget_four (T : Answers) (index : Nat) :
-    Extract.walkTarget T index 4 = (WCT9.honestForest T index, 0, 0) := by
-  have h4 : Extract.walkTarget T index 4 = (Extract.honestForest T index, 0, 0) := by
-    simp only [Extract.walkTarget, dif_pos (show 3 < 4 by decide), Extract.honestMsg]
-    rfl
-  rw [h4, Extract.honestForest_eq_recover]
+theorem honestMsg_top (T : Answers) (index : Nat) :
+    Extract.honestMsg T index (Fin.ofNat 4 3) = .forest (WCT9.honestForest T index) := by
+  rw [Extract.honestMsg_three, Extract.honestForest_eq_recover]
   rfl
 theorem routeOk_iff (T : Answers) (index : Nat) :
     (∀ l, l < 4 → (Wots.referenceSearch T (routeAddr index (Fin.ofNat 4 l))).isSome) ↔ RouteOk T index := by
@@ -523,7 +593,9 @@ theorem signPayload_disclosed {T : Answers} {labels : Labels} (h : Agrees T labe
       simp only [evalWithAnswerFn_bind]
       rw [WCT9.eval_signForest]
       simp only
-      rw [← walkTarget_four, signLayers_eq T cache hcache _ (Nat.mod_lt _ (by positivity)) 4 le_rfl]
+      rw [signLayers_eq T cache hcache _ (Nat.mod_lt _ (by positivity)) 4 le_rfl _ (fun k hk => by
+        obtain rfl : k = 3 := by omega
+        exact (honestMsg_top T _).symm)]
       by_cases hok : RouteOk T (N.toNat % 2 ^ 31)
       · rw [if_pos ((routeOk_iff T _).mpr hok), if_pos hok]
         simp only [evalWithAnswerFn_pure]

@@ -1,5 +1,6 @@
 import SigGolfCandidate.W9Machine.WctChainPieces
 import SigGolfCandidate.W9Machine.WctJTData
+import SigGolfCandidate.ClaudeWCT.WCT9.Basic
 
 namespace W9Machine
 open SigGolfCandidate.T3M
@@ -40,5 +41,5 @@ def ChainRoutine.checked (r : ChainRoutine) : Bool :=
     == expectedKinds r.digits) &&
   ((r.pieces.zip r.pieces.tail).all fun pq ↦ pq.2.pc == pq.1.nextPc) &&
   ((r.pieces.filter ChainPiece.isHash).length == 6) &&
-  decide (r.cycles ≤ 89) && decide (r.fuel ≤ 47)
+  decide (r.cycles ≤ 84) && decide (r.fuel ≤ 47)
 end W9Machine

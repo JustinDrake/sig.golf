@@ -7,7 +7,6 @@ open SigGolfCandidate.T3.Security.Wots
 open SigGolfCandidate.T3.Correctness (Answers leafSeed)
 open SphincsSecurity (bytesLE)
 set_option maxHeartbeats 1000000
-set_option maxRecDepth 10000
 set_option backward.isDefEq.respectTransparency false
 theorem mem_entriesOf {answers : Answers} {qs : List Spec.Domain} {input : HashInput}
     (h : (.inl (.inr input) : Spec.Domain) ∈ qs) : (input, answers (.inl (.inr input))) ∈ entriesOf answers qs := by
