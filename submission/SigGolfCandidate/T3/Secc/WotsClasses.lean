@@ -17,8 +17,8 @@ attribute [local irreducible] referenceGame offlineGame
 namespace SmallA
 theorem hdrBlock_chainRow (a : ChainAddr) (s : Nat) (v : Digest) :
     Extract.hdrBlock (chainRow a s v) =
-      bytesLE 16 (header 1 a.key.lay.val a.key.tree (s + 256 * a.chain) a.key.leaf) := by
-  rw [Mask.chainRow_eq, ← Mask.pad64_chainInput, chainInput_eq_zero, Extract.hdrBlock_chainInputP]
+      bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) :=
+  chainInput_header _ _ _ _ _ _
 theorem hdrBlock_encodingRow (L : LeafAddr) (m : Digest) (c : BitVec 32) :
     Extract.hdrBlock (encodingRow L m c) = bytesLE 16 (header 4 L.lay.val L.tree 0 L.leaf) := by
   unfold encodingRow encodingInput
@@ -32,27 +32,27 @@ theorem chainRow_ne_encodingRow (a : ChainAddr) (s : Nat) (v : Digest) (L : Leaf
   intro h
   have hb := congrArg Extract.hdrBlock h
   rw [hdrBlock_chainRow, hdrBlock_encodingRow] at hb
-  exact Mask.header_ne_of_tag (by decide) (bytesLE_injective hb)
+  exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hb)
 theorem chainRow_ne_digest (a : ChainAddr) (s : Nat) (v : Digest) (rho : Digest) (m : Message) (c : BitVec 32) :
     chainRow a s v ≠ pad64 (digestInput rho m c) := by
   intro h
   have hb := congrArg Extract.hdrBlock h
   rw [hdrBlock_chainRow, hdrBlock_digest] at hb
-  exact Mask.header_ne_of_tag (by decide) (bytesLE_injective hb)
+  exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hb)
 theorem encodingRow_ne_digest (L : LeafAddr) (m : Digest) (c : BitVec 32) (rho : Digest) (m' : Message)
     (c' : BitVec 32) : encodingRow L m c ≠ pad64 (digestInput rho m' c') := by
   intro h
   have hb := congrArg Extract.hdrBlock h
   rw [hdrBlock_encodingRow, hdrBlock_digest] at hb
   exact Mask.header_ne_of_tag (by decide) (bytesLE_injective hb)
-theorem posOf_chainRow (a : ChainAddr) (s : Nat) (v : Digest) (htree : a.key.tree < 2 ^ 40)
-    (hleaf : a.key.leaf < 2 ^ 32) (hc : a.chain < 2 ^ 24) (hs : s < 256) :
+theorem posOf_chainRow (a : ChainAddr) (s : Nat) (v : Digest) (htree : a.key.tree < 2 ^ 31)
+    (hleaf : a.key.leaf < 4096) (hc : a.chain < 64) (hs : s < 8) :
     Extract.posOf (chainRow a s v) = some (.chain a.key.lay a.key.tree a.key.leaf a.chain s) :=
   Extract.posOf_eq ⟨htree, hleaf, hc, hs⟩ (by rw [hdrBlock_chainRow]; rfl)
 theorem sourceChain_bounds {a : ChainAddr} (ha : WotsExtract.SourceChain a) :
-    a.key.tree < 2 ^ 40 ∧ a.key.leaf < 2 ^ 32 ∧ a.chain < 2 ^ 24 := by
+    a.key.tree < 2 ^ 31 ∧ a.key.leaf < 4096 ∧ a.chain < 64 := by
   obtain ⟨⟨ht, hl⟩, hc⟩ := ha
-  have hh : 2 ^ height a.key.lay ≤ 2 ^ 32 :=
+  have hh : 2 ^ height a.key.lay ≤ 2 ^ 12 :=
     Nat.pow_le_pow_right (by norm_num) (by have := height_le a.key.lay; omega)
   have hcc := Mask.chainCount_le a.key.lay
   refine ⟨by omega, by omega, by omega⟩

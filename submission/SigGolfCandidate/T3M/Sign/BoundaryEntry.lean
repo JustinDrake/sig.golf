@@ -275,14 +275,16 @@ private theorem sumTo_le_sumTo_top (f g : Nat → Nat) : ∀ n, (∀ j < n, f j 
 def tl0 (leaf : Nat) (ds : List Nat) (dest : Nat) : LeafArgs :=
   ⟨0, 0, leaf, ds, true, DIGITS, SIG + 2192, dest, 447⟩
 theorem tl0_costs (leaf dest : Nat) {ds : List Nat} (hd : ∀ i < 54, ds.getD i 0 ≤ 7) :
-    (tl0 leaf ds dest).leafK ≤ (tl0 leaf ds dest).leafC ∧ (tl0 leaf ds dest).leafC ≤ 13328 := by
+    (tl0 leaf ds dest).leafK ≤ (tl0 leaf ds dest).leafC ∧ (tl0 leaf ds dest).leafC ≤ 18674 := by
   have he : ∀ i < 54, (tl0 leaf ds dest).e i ≤ 7 := fun i hi => hd i hi
   have hiK : ∀ i, (tl0 leaf ds dest).iterK i ≤ (tl0 leaf ds dest).iterC i := fun i => by
-    unfold LeafArgs.iterK LeafArgs.iterC; omega
-  have hiC : ∀ i < 54, (tl0 leaf ds dest).iterC i ≤ 219 := fun i hi => by
+    unfold LeafArgs.iterK LeafArgs.iterC
+    norm_num [tl0, Keygen.rungK, Keygen.rungC, Keygen.headerK]
+    omega
+  have hiC : ∀ i < 54, (tl0 leaf ds dest).iterC i ≤ 331 := fun i hi => by
     have := he i hi
     have e1 : (tl0 leaf ds dest).iterC i =
-        21 + (if i < 51 then 5 else 3) + 1 + (26 * (tl0 leaf ds dest).e i + 10) + 0 := rfl
+        21 + (if i < 51 then 5 else 3) + 1 + (42 * (tl0 leaf ds dest).e i + 10) + 0 := rfl
     rw [e1]; split_ifs <;> omega
   have hpK : ∀ p < 27, (tl0 leaf ds dest).pairK p ≤ (tl0 leaf ds dest).pairC p := fun p _ => by
     have e1 : (tl0 leaf ds dest).pairK p = 19 + (tl0 leaf ds dest).iterK (2 * p) +
@@ -292,14 +294,14 @@ theorem tl0_costs (leaf dest : Nat) {ds : List Nat} (hd : ∀ i < 54, ds.getD i 
     have := hiK (2 * p)
     have := hiK (2 * p + 1)
     rw [e1, e2]; split_ifs <;> omega
-  have hpC : ∀ p < 27, (tl0 leaf ds dest).pairC p ≤ 467 := fun p hp => by
+  have hpC : ∀ p < 27, (tl0 leaf ds dest).pairC p ≤ 691 := fun p hp => by
     have e2 : (tl0 leaf ds dest).pairC p = 26 + (tl0 leaf ds dest).iterC (2 * p) +
         (if 2 * p + 1 < 54 then 3 + (tl0 leaf ds dest).iterC (2 * p + 1) else 0) := rfl
     have := hiC (2 * p) (by omega)
     have := hiC (2 * p + 1) (by omega)
     rw [e2]; split_ifs <;> omega
   have hs1 := sumTo_le_sumTo_top _ _ 27 hpK
-  have hs2 := sumTo_le_mul_top _ 467 27 hpC
+  have hs2 := sumTo_le_mul_top _ 691 27 hpC
   have hn : (tl0 leaf ds dest).n = 54 := rfl
   have hso : (tl0 leaf ds dest).so = true := rfl
   unfold LeafArgs.leafK LeafArgs.leafC
@@ -320,7 +322,10 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
     (hv8 : A.valp % 8 = 0) (hv : A.valp + 16 * 54 ≤ 2 ^ 24)
     (hvs : A.valp + 16 * 54 ≤ PRIV ∨ LEAFPK + 960 ≤ A.valp) (hd8 : A.so = false → A.dest % 8 = 0)
     (hd : A.dest + 16 ≤ 2 ^ 24) (hds : A.dest + 16 ≤ PRIV ∨ LEAFPK + 960 ≤ A.dest ∨ (CHAIN + 80 ≤ A.dest ∧ A.dest + 16 ≤ LOUT))
-    (hdv : A.dest + 16 ≤ A.valp ∨ A.valp + 16 * 54 ≤ A.dest) : LeafPreS sk s A := by
+    (hdv : A.dest + 16 ≤ A.valp ∨ A.valp + 16 * 54 ≤ A.dest)
+    (hroute : A.tree * 2 ^ height A.lay + A.leaf < 2 ^ 31)
+    (hleafHeight : A.leaf < 2 ^ height A.lay)
+    (hsteps : ∀ i < A.n, A.e i ≤ 8) : LeafPreS sk s A := by
   have hn : A.n = 54 := by show chainCount A.lay = 54; rw [hlay]; rfl
   have h4 : n4 A.lay = 51 := by rw [hlay]; rfl
   exact
@@ -337,6 +342,9 @@ theorem leafPreS_of {s : MachineState} {A : LeafArgs} (hb : Base sk cache s) (hl
       x31 := h31
       htree := htree
       hleaf := hleaf
+      hroute := hroute
+      hleafHeight := hleafHeight
+      hsteps := hsteps
       p0 := hb.p0
       p8 := hb.p8
       p32 := hb.p32
@@ -481,11 +489,14 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
       (Or.inl (by show SIG + 2192 + 16 * 54 ≤ PRIV; sgo)) (fun h => by simp [tl0] at h)
       (by show dest0 + 16 ≤ 2 ^ 24; omega) (Or.inl (by show dest0 + 16 ≤ PRIV; sgo))
       (Or.inl (by show dest0 + 16 ≤ SIG + 2192; sgo))
+      (by change 0 * 2 ^ 12 + leaf < 2 ^ 31; omega)
+      (by change leaf < 4096; omega)
+      (fun i hi => by have := hd7 i hi; change ds.getD i 0 ≤ 8; omega)
   obtain ⟨k0le, c0le⟩ := tl0_costs leaf dest0 hd7
   have hL0 := buildLeaf_tsimS subAt_sign sk hp0 u1pc
   dsimp only
   rw [signTop, bind_assoc]
-  refine TBSim.mono (TBSim.steps su1 (TBSim.bind (W₂ := 36000) (TSim.toTBSim hL0 k0le) (fun r0 v0 hv0 => ?_)))
+  refine TBSim.mono (TBSim.steps su1 (TBSim.bind (W₂ := 30000) (TSim.toTBSim hL0 k0le) (fun r0 v0 hv0 => ?_)))
     (by omega) (fun _ _ h => h)
   obtain ⟨root0, values⟩ := r0
   obtain ⟨v0pc, -, v0vals, v0len, -, v0r, v0f⟩ := hv0
@@ -498,7 +509,7 @@ theorem l0Spec_of (hK : CounterSearchSpec sk) : L0Spec sk cache := by
     (frame_l0 uf (fun A hA => by unfold CsW at hA; unfold L0W; constructor <;> sgo)))
     (frame_l0 u1f (fun _ h => h.elim)))
     (frame_l0 v0f (leafW_l0 rfl (by simp only [tl0]; sgo) (by simp only [tl0]; sgo)))
-  show TBSim image sk v0 36000 ((topPath (cacheDec cache) leaf >>= fun path => pure (values, path)) >>=
+  show TBSim image sk v0 30000 ((topPath (cacheDec cache) leaf >>= fun path => pure (values, path)) >>=
     fun part => pure (some [part])) (L0Post t)
   simp only [topPath, bind_assoc, pure_bind]
   obtain ⟨v1,s447,v1pc,v1r,v1f⟩ := blk447_spec v0 v0pc
@@ -727,6 +738,10 @@ theorem lower_layer (hK : CounterSearchSpec sk) {lay : Layer} {index : Nat} {msg
         sgo)
       hlay := hlay
       htree := htree
+      hroute := by
+        intro l hl
+        have hidx := h.hidx
+        fin_cases lay <;> norm_num [route, height] at * <;> omega
       hsel := hleaf
       hdb := fun i hi => by
         have := hdb i (by rw [chainCount_low hlay]; exact hi)

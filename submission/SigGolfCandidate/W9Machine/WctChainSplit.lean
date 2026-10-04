@@ -238,6 +238,17 @@ theorem hash_coordinate_frame (B dst : Nat) (s : MachineState) (ans : BitVec 256
   rw [writeHash_getMem_ofNat s ans (B + dst) A h12 hA (by omega)]
   unfold coordinateRegion at hn
   rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
+theorem wct_stepByte (w : Word) (L J m : Nat) (hL : L < 2 ^ 32) (hm : m < 256) (hJ : J < 2 ^ 24)
+    (h1 : w.toNat % 2 ^ 32 = L) (h2 : w.toNat / 2 ^ 40 = J) :
+    StoreKind.merge .b w 4 (BitVec.ofNat 64 m) = BitVec.ofNat 64 (L + 2 ^ 32 * m + 2 ^ 40 * J) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [StoreKind.merge]
+  rw [replaceByte_toNat _ _ (by omega)]
+  simp only [BitVec.truncate_eq_setWidth, BitVec.toNat_setWidth, BitVec.toNat_ofNat]
+  rw [Nat.mod_eq_of_lt (show L + 2 ^ 32 * m + 2 ^ 40 * J < 2 ^ 64 by omega)]
+  generalize w.toNat = x at *
+  norm_num at h1 h2 ⊢
+  omega
 theorem wct_header_step (k index t old digit : Nat) (hk : k < 9) (hi : index < 2 ^ 31)
     (ht : t < 7) (ho : old < 3) (hd : digit < 3) :
     StoreKind.merge .b (BitVec.ofNat 64 (hdr0 5 k index (old + 256 * t))) 4
@@ -251,7 +262,7 @@ theorem wct_header_step (k index t old digit : Nat) (hk : k < 9) (hi : index < 2
     norm_num
     omega
   rw [heq old ho, heq digit hd]
-  apply stepByte _ (1281 + 65536 * k) t digit (by omega) (by omega) (by omega)
+  apply wct_stepByte _ (1281 + 65536 * k) t digit (by omega) (by omega) (by omega)
   · rw [BitVec.toNat_ofNat,
       Nat.mod_eq_of_lt (by omega : 1281 + 65536 * k + 2 ^ 32 * old + 2 ^ 40 * t < 2 ^ 64)]
     omega

@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3.PackedChain
 import SigGolfCandidate.T3.FullCache.NativeGame
 import SigGolfCandidate.T3.FullCache.NativeMac
 import SigGolfCandidate.T3.FullCache.RequestRun
@@ -5280,10 +5281,7 @@ theorem row_length (point : Point) (value : Digest) : (row point value).length=6
   simp [row,chainInput,zero16,bytesLE_length]
 theorem row_position {left right : Point} {value value' : Digest}
     (heq : row left value=row right value') : left=right := by
-  unfold row chainInput at heq
-  obtain ⟨hprefix,_⟩ := List.append_inj heq (by simp [List.length_append,zero16,bytesLE_length])
-  obtain ⟨hprefix,_⟩ := List.append_inj hprefix (by simp [List.length_append,zero16,bytesLE_length])
-  obtain ⟨_,hheader⟩ := List.append_inj hprefix rfl
+  obtain ⟨hheader,_⟩ := chainInput_fields heq
   have hl := left.1.layer.isLt
   have hr := right.1.layer.isLt
   have hlt := left.1.tree.isLt
@@ -5294,17 +5292,15 @@ theorem row_position {left right : Point} {value value' : Digest}
   have hrc := right.1.chain.isLt
   have hls := left.2.isLt
   have hrs := right.2.isLt
-  have hh := header_injective (by decide : 1<256) (by omega) (by omega) (by omega) (by omega)
-    (by decide : 1<256) (by omega) (by omega) (by omega) (by omega) (bytesLE_injective hheader)
-  obtain ⟨hstep,hchain⟩ := pack_nat_injective (by omega : left.2.val<256)
-    (by omega : right.2.val<256) hh.2.2.2.1
+  have hh := chainHeader_injective (by omega) (by omega) (by omega) (by omega)
+    (by omega) (by omega) (by omega) (by omega) hheader
   apply Prod.ext
-  · apply Address.ext <;> apply Fin.ext
-    · exact hh.2.1
-    · exact hh.2.2.1
-    · exact hh.2.2.2.2
-    · exact hchain
-  · exact Fin.ext hstep
+  · apply Address.ext
+    · exact hh.1
+    · exact Fin.ext hh.2.1
+    · exact Fin.ext hh.2.2.1
+    · exact Fin.ext hh.2.2.2.1
+  · exact Fin.ext hh.2.2.2.2
 theorem row_separated (values : Point → Labels → Digest) :
     FiniteGraphSampling.Separated (fun point labels => row point (values point labels)) := by
   intro left right hne before after heq

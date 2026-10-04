@@ -20,12 +20,12 @@ set_option linter.unusedSimpArgs false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
 namespace SmallA
-theorem posOf_chainRow (a : ChainAddr) (s : Nat) (v : Digest) (htree : a.key.tree < 2 ^ 40)
-    (hleaf : a.key.leaf < 2 ^ 32) (hc : a.chain < 2 ^ 24) (hs : s < 256) :
+theorem posOf_chainRow (a : ChainAddr) (s : Nat) (v : Digest) (htree : a.key.tree < 2 ^ 31)
+    (hleaf : a.key.leaf < 4096) (hc : a.chain < 64) (hs : s < 8) :
     Extract.posOf (chainRow a s v) = some (.chain a.key.lay a.key.tree a.key.leaf a.chain s) :=
   Extract.posOf_eq ⟨htree, hleaf, hc, hs⟩
     (show Extract.hdrBlock (chainRow a s v) =
-        bytesLE 16 (header 1 a.key.lay.val a.key.tree (s + 256 * a.chain) a.key.leaf) from
+        bytesLE 16 (chainHeader a.key.lay a.key.tree a.key.leaf a.chain s) from
       SigGolfCandidate.T3.Security.Wots.SmallA.hdrBlock_chainRow a s v)
 end SmallA
 open SigGolfCandidate.T3.Security.Wots.SmallA (chainRow_ne_encodingRow chainRow_ne_digest encodingRow_ne_digest sourceChain_bounds)

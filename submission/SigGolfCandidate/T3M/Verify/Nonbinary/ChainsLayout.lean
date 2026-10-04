@@ -2,7 +2,6 @@ import SigGolfCandidate.T3M.Verify.ChainRuns
 
 namespace SigGolfCandidate.T3M.Nonbinary
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
-set_option maxRecDepth 200000
 set_option linter.unusedSimpArgs false
 def mx (q : Nat) : Nat := if q<17 then 4 else 3
 def off (i : Nat) : Word := BitVec.ofNat 64 (64*(53-i))-BitVec.ofNat 64 1664
@@ -11,26 +10,26 @@ def baseTab : List Nat := [82075,82116,82155,82192,82226,82258,82297,82334,82369
 def base (q dB dC : Nat) : Nat :=
   baseTab.getD (if q<17 then 25*q+5*dB+dC else 425+4*dB+dC) 0
 def partLen (q d : Nat) : Nat :=
-  if d=mx q then 4 else if d+1=mx q then 6 else 5+2*(mx q-d)
+  if d=mx q then 4 else if d+1=mx q then 5 else 4+2*(mx q-d)
 def pcB (q dB dC : Nat) : Nat := base q dB dC+2*mx q+1
 def pcC (q dB dC : Nat) : Nat := pcB q dB dC+partLen q dB
 def pcX (q dB dC : Nat) : Nat := pcC q dB dC+partLen q dC
 def entW (q k : Nat) : Nat := if q<17 then 176744+256*k+8*q else 209920+8*k
 def headJD (rb : Reg) (o : Word) (tgt i d : Nat) : Result :=
   ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) o)).set .x12 (addC (addC (.reg rb) o) 48)).set .x25 (hLoad i d),
-    [(kAt rb o 24,.reg .x4),(kAt rb o 16,hLoad i d)],
-    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8,.valid (hKey i d) 8]⟩,.c (pcOf tgt),.jump,6,6⟩
+    [(kAt rb o 16,hLoad i d)],
+    [.valid (kAt rb o 16) 8]⟩,.c (pcOf tgt),.jump,5,5⟩
 def headJDTerm (rb : Reg) (o : Word) (tgt i d : Nat) : Result :=
   ⟨⟨(RegFile.init.set .x10 (addC (.reg rb) o)).set .x25 (hLoad i d),
-    [(kAt rb o 24,.reg .x4),(kAt rb o 16,hLoad i d)],
-    [.valid (kAt rb o 24) 8,.valid (kAt rb o 16) 8,.valid (hKey i d) 8]⟩,.c (pcOf tgt),.jump,5,5⟩
+    [(kAt rb o 16,hLoad i d)],
+    [.valid (kAt rb o 16) 8]⟩,.c (pcOf tgt),.jump,4,4⟩
 def tailR (slot : Option Nat) (p : Nat) : Result :=
   let n := if slot.isSome then 1 else 0
   ⟨⟨(match slot with
       | some a => RegFile.init.set .x12 (.c (BitVec.ofNat 64 a))
       | none => RegFile.init), [], []⟩, .c (pcOf (p + n)), .ecall, n, n⟩
 def headRHT (rb : Reg) (o : Word) (d sl p i : Nat) : Result :=
-  {headRH rb o d (some sl) p i with pc:=.c (pcOf (p+5)),steps:=5,cycles:=5}
+  {headRH rb o d (some sl) p i with pc:=.c (pcOf (p+4)),steps:=4,cycles:=4}
 def shift10 (w : Reg) (b : Nat) : E :=
   if b<10 then .bin .sll (.reg w) (.c (BitVec.ofNat 64 (10-b)))
   else .bin .srl (.reg w) (.c (BitVec.ofNat 64 (b-10)))
@@ -55,7 +54,7 @@ def partOK (q i d p : Nat) : Bool :=
   else rOK (vrun p 8)
       (if d+1=mx q then headRHT .x19 (off i) d (slot i) p i
        else headRH .x19 (off i) d none p i) &&
-    rungsOK q (d+1) (slot i) (p+6)
+    rungsOK q (d+1) (slot i) (p+5)
 def entCheck (q k : Nat) : Bool :=
   let dA := k%(mx q+1)
   let dB := k/(mx q+1)%(mx q+1)

@@ -62,9 +62,10 @@ theorem ftsLeaf_eq (index coord leaf : Nat) (secret : Digest) :
     T3.ftsLeaf index coord leaf secret = T3.shortHash (blk4 0 (header 9 coord index 0 leaf) secret 0) := by
   unfold T3.ftsLeaf blk4
   rw [bytesLE16_zero]
-theorem chainInputP_eq (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 value : Digest) :
-    T3M.chainInputP lay tree leaf i step pad0 pad1 value =
-      blk4 pad0 (header 1 lay.val tree (step + 256 * i) leaf) pad1 value := rfl
+theorem chainInputP_eq (lay : Layer) (tree leaf i step : Nat) (pad0 pad1 : Digest)
+    (headerPad : Word) (value : Digest) :
+    T3M.chainInputP lay tree leaf i step pad0 pad1 headerPad value =
+      blk4 pad0 (T3M.chainHeaderP lay tree leaf i step headerPad) pad1 value := rfl
 theorem digestInput_length (rho : Digest) (m : T3.Message) (c : BitVec 32) :
     (T3.digestInput rho m c).length = 64 := by
   simp only [T3.digestInput, List.length_append, bytesLE_length]

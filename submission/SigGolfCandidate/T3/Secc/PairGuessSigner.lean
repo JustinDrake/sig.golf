@@ -1,3 +1,4 @@
+import SigGolfCandidate.T3.PackedChain
 import SigGolfCandidate.T3.Secc.PairGuessWorld
 
 namespace SigGolfCandidate.T3.Security.BPair
@@ -62,9 +63,18 @@ theorem privateMac_free (region : Region) : AllQueriesSatisfy (privateMac region
   · intro key; exact pure_allowed _ _
 theorem chainStep_free (lay : Layer) (tree leaf i step : Nat) (value : Digest) :
     AllQueriesSatisfy (shortHash (chainInput lay tree leaf i step value)) FtsFree := by
-  unfold chainInput
-  rw [zero16_eq]
-  exact shortHash_free 0 _ _ _ _ _ (by decide)
+  unfold shortHash publicHash
+  apply bind_allowed FtsFree
+  · apply (allQueriesSatisfy_query_iff _ _).mpr
+    change decodeProbe (pad64 (chainInput lay tree leaf i step value)) = none
+    rw [decodeProbe_eq_none, chainInput_padded]
+    intro f c he
+    have hh := congrArg Extract.hdrBlock he
+    rw [hdrBlock_probeInput] at hh
+    change ((chainInput lay tree leaf i step value).drop 16).take 16 = _ at hh
+    rw [chainInput_header] at hh
+    exact chainHeader_ne_header _ _ _ _ _ _ _ _ _ _ (bytesLE_injective hh)
+  · intro _; exact pure_allowed _ _
 theorem chain_free (lay : Layer) (tree leaf i start count : Nat) (value : Digest) :
     AllQueriesSatisfy (chain lay tree leaf i start count value) FtsFree := by
   unfold chain

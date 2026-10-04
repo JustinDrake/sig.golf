@@ -163,8 +163,8 @@ def rungR (d : Nat) (slot : Option Nat) (p : Nat) : Result :=
   ⟨⟨(match slot with
       | some a => RegFile.init.set .x12 (.c (BitVec.ofNat 64 a))
       | none => RegFile.init),
-    [(⟨some (.reg .x10), 16⟩, .bin (.st .b 4) (.ld (addC (.reg .x10) 16)) (posE d))],
-    [.align8 (.reg .x10), .valid ⟨some (.reg .x10), 20⟩ 1]⟩, .c (pcOf (p + n)), .ecall, n, n⟩
+    [(⟨some (.reg .x10), 16⟩, .bin (.st .b 1) (.ld (addC (.reg .x10) 16)) (posE d))],
+    [.align8 (.reg .x10), .valid ⟨some (.reg .x10), 17⟩ 1]⟩, .c (pcOf (p + n)), .ecall, n, n⟩
 def copyRegs (rb : Reg) (off : Word) : RegFile :=
   (RegFile.init.set .x3 (lAt rb off 48)).set .x14 (lAt rb off 56)
 def copyMem (rb : Reg) (off : Word) (slot : Nat) : SymMem :=
@@ -178,25 +178,23 @@ def copyN (rb : Reg) (off : Word) (slot : Nat) (tgt : Nat) : Result :=
   ⟨⟨copyRegs rb off, copyMem rb off slot, copyObl rb off⟩, .c (pcOf tgt), .jump, 5, 5⟩
 def hOff (i d : Nat) : Word := BitVec.ofNat 64 (64 * i + 8 * d) - 2048
 def hKey (i d : Nat) : Addr := ⟨some (.reg .x28), hOff i d⟩
-def hLoad (i d : Nat) : E := .ld (addC (.reg .x28) (hOff i d))
+def hLoad (i d : Nat) : E := addC (.reg .x28) (BitVec.ofNat 64 (i + 256 * d))
 def headJH (rb : Reg) (off : Word) (tgt i d : Nat) (slot : Option Nat) : Result :=
   ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
       (match slot with
        | some a => .c (BitVec.ofNat 64 a)
        | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
-    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
-    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
-    .c (pcOf tgt), .jump, 6, 6⟩
+    [(kAt rb off 16, hLoad i d)], [.valid (kAt rb off 16) 8]⟩,
+    .c (pcOf tgt), .jump, 5, 5⟩
 def ecallR (p : Nat) : Result := ⟨SymState.init, .c (pcOf p), .ecall, 0, 0⟩
 def landOff (d : Nat) : Nat := if d = 6 then 2 else 1
 def headRH (rb : Reg) (off : Word) (d : Nat) (slot : Option Nat) (p i : Nat) : Result :=
-  let n := if slot.isSome then 6 else 5
+  let n := if slot.isSome then 5 else 4
   ⟨⟨((RegFile.init.set .x10 (addC (.reg rb) off)).set .x12
       (match slot with
        | some a => .c (BitVec.ofNat 64 a)
        | none => addC (addC (.reg rb) off) 48)).set .x25 (hLoad i d),
-    [(kAt rb off 24, .reg .x4), (kAt rb off 16, hLoad i d)],
-    [.valid (kAt rb off 24) 8, .valid (kAt rb off 16) 8, .valid (hKey i d) 8]⟩,
+    [(kAt rb off 16, hLoad i d)], [.valid (kAt rb off 16) 8]⟩,
     .c (pcOf (p + n)), .ecall, n, n⟩
 def copyFH (rb : Reg) (off : Word) (slot : Nat) (p : Nat) : Result :=
   ⟨⟨copyRegs rb off, copyMem rb off slot, copyObl rb off⟩, .c (pcOf (p + 4)), .fuel, 4, 4⟩
@@ -226,7 +224,7 @@ def offL (i : Nat) : Word := BitVec.ofNat 64 (64 * (42 - i)) - BitVec.ofNat 64 1
 def slotL (i : Nat) : Nat := if i = 0 then 768 else 784 + 16 * i
 def hSlot (i d : Nat) : Option Nat := if d = 6 then some (slotL i) else none
 def triBase (t dB dC : Nat) : Nat := triBaseTab.getD (64 * t + 8 * dB + dC) 0
-def partLen (d : Nat) : Nat := if d = 7 then 4 else 19 - 2 * d
+def partLen (d : Nat) : Nat := if d = 7 then 4 else 18 - 2 * d
 def pcB (t dB dC : Nat) : Nat := triBase t dB dC + 15
 def pcC (t dB dC : Nat) : Nat := pcB t dB dC + partLen dB
 def pcX (t dB dC : Nat) : Nat := pcC t dB dC + partLen dC
@@ -237,7 +235,7 @@ def rungsOK (d0 slot p : Nat) : Bool :=
 def partOK (i d p : Nat) : Bool :=
   if d = 7 then rOK (vrun p 4) (copyFH .x22 (offL i) (slotL i) p)
   else rOK (vrun p 8) (headRH .x22 (offL i) d (if d = 6 then some (slotL i) else none) p i) &&
-    rungsOK (d + 1) (slotL i) (p + 6)
+    rungsOK (d + 1) (slotL i) (p + 5)
 def entCheck (t k : Nat) : Bool :=
   if k % 8 = 7 then
     rOK (vrun (entW t k) 7) (copyN .x22 (offL (3 * t)) (slotL (3 * t)) (pcB t (k / 8 % 8) (k / 64)))

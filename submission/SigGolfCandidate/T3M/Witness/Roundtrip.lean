@@ -403,6 +403,17 @@ theorem wchainPads_witEnc (lay : Layer) (i : Fin (chainCount lay)) : wchainPads 
     layerBytes_chain _ _ _ _ _ (by omega), window_append_left _ _ _ _ (by simp [zeros]),
     window_append_left _ _ _ _ (by simp [zeros]), window_zeros _ _ _ (by omega), window_zeros _ _ _ (by omega),
     readDigest_zeros]
+theorem wchainHeaderPad_witEnc (lay : Layer) (i : Fin (chainCount lay)) :
+    wchainHeaderPad (witEnc N w) lay i.val = 0 := by
+  have hi := i.isLt
+  unfold wchainHeaderPad chainBlock
+  rw [wdig_witEnc,
+    show ((witList N w).drop (layerBase lay + 64 * height lay + 64 * (chainCount lay - 1 - i.val) + 16)).take 16
+      = window (witList N w) (layerBase lay + (64 * height lay + 64 * (chainCount lay - 1 - i.val) + 16)) 16 by
+        unfold window; congr 2; omega,
+    win_layer _ _ _ _ _ (by omega), layerBytes_chain _ _ _ _ _ (by omega),
+    window_append_left _ _ _ _ (by simp [zeros]), window_zeros _ _ _ (by omega), readDigest_zeros]
+  rfl
 theorem wpath_witEnc (lay : Layer) (j : Fin (height lay)) :
     wpath (witEnc N w) lay (route (N.toNat % 2 ^ 31) lay).1 j.val = (w.signature.layers lay).path j := by
   have hj := j.isLt
@@ -556,7 +567,7 @@ theorem witDecP_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections
 theorem padDecP_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections N))
     (hle : slotBase (selections N) 7 ≤ 115) : padDecP N (witEnc N w) = 0 := by
   unfold padDecP
-  show Pads.mk _ _ _ _ = Pads.mk _ _ _ _
+  show Pads.mk _ _ _ _ _ = Pads.mk _ _ _ _ _
   congr 1
   · funext s; exact wleafPad_witEnc N w s.val s.isLt
   · funext k
@@ -572,6 +583,7 @@ theorem padDecP_witEnc (N : HashOutput) (w : Witness) (hc : ChosenOk (selections
       exact (wfold_witEnc N w hc hle hmem.1 hmem.2).2
   · funext lay i; exact wchainPads_witEnc N w lay i
   · funext lay j; exact wmerklePad_witEnc N w lay j
+  · funext lay i; exact wchainHeaderPad_witEnc N w lay i
 theorem shaped_witEnc (N : HashOutput) (w : Witness) (hsel : selectionsOk (selections N) = true)
     (hadm : admissible (selections N) = true) : Shaped N (witEnc N w) :=
   ⟨hsel, hadm, streamMatches_witEnc N w (chosenOk_of N hsel) (slotBase_seven_le N (chosenOk_of N hsel) hadm)⟩

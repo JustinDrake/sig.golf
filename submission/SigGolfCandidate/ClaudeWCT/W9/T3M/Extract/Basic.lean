@@ -1,4 +1,4 @@
-import SigGolfCandidate.T3M.Witness.Queries
+import SigGolfCandidate.T3M.Extract.Basic
 import SigGolfCandidate.ClaudeWCT.WCT9.Correctness
 
 namespace ClaudeWCT.W9.T3M.Extract
@@ -6,6 +6,10 @@ open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
 open Correctness (Answers treeValue builtTree leafSeed leafEnd)
 open SphincsSecurity (bytesLE)
+export SigGolfCandidate.T3M.Extract
+  (canonicalHeader canonicalHeader_unmarked canonicalHeader_marked canonicalHeader_pad_irrelevant
+   canonicalHeader_zero_pad bytesLE_header_words bytesLE8_marker bytesLE16_marker
+   canonicalHeader_words canonicalHeader_high_irrelevant canonicalHeader_high_zero canonicalHeader_marker_ne)
 noncomputable def honestRoot (answers : Answers) (lay : Layer) (tree : Nat) : Digest :=
   treeValue (builtTree answers lay tree) (height lay) 0
 def wctSeed (answers : Answers) (index coord child chain : Nat) : Digest :=
@@ -60,7 +64,7 @@ noncomputable def honestInput (answers : Answers) : Pos → HashInput
       (treeValue (ftsLevels answers index coord) level (2 * node)) 0
       (treeValue (ftsLevels answers index coord) level (2 * node + 1)))
 def Pos.hdr : Pos → BitVec 128
-  | .chain lay tree lf i step => header 1 lay.val tree (step + 256 * i) lf
+  | .chain lay tree lf i step => chainHeader lay tree lf i step
   | .leaf lay tree lf => header 2 lay.val tree 0 lf
   | .node lay tree level nd => header 3 lay.val tree 0 (2 ^ (height lay - level - 1) + nd)
   | .forest index => header 15 0 index 0 0
@@ -68,7 +72,7 @@ def Pos.hdr : Pos → BitVec 128
   | .wctLeaf index coord child => header 6 coord index 0 child
   | .wctNode index coord level nd => header 11 coord index 0 (2 ^ (7 - level - 1) + nd)
 def Pos.Bounded : Pos → Prop
-  | .chain _ tree lf i step => tree < 2 ^ 40 ∧ lf < 2 ^ 32 ∧ i < 2 ^ 24 ∧ step < 256
+  | .chain _ tree lf i step => tree < 2 ^ 31 ∧ lf < 4096 ∧ i < 64 ∧ step < 8
   | .leaf _ tree lf => tree < 2 ^ 40 ∧ lf < 2 ^ 32
   | .node lay tree level nd => tree < 2 ^ 40 ∧ level < height lay ∧ nd < 2 ^ (height lay - level - 1)
   | .forest index => index < 2 ^ 40
@@ -76,7 +80,7 @@ def Pos.Bounded : Pos → Prop
   | .wctLeaf index coord child => index < 2 ^ 31 ∧ coord < 9 ∧ child < 128
   | .wctNode index coord level nd => index < 2 ^ 31 ∧ coord < 9 ∧ level < 7 ∧ nd < 2 ^ (7 - level - 1)
 def hdrBlock (input : HashInput) : HashInput := (input.drop 16).take 16
-def SameHeader (actual honest : HashInput) : Prop := hdrBlock actual = hdrBlock honest
+def SameHeader (actual honest : HashInput) : Prop := canonicalHeader (hdrBlock actual) = canonicalHeader (hdrBlock honest)
 def HitIn (answers : Answers) (qs : List Spec.Domain) : Prop :=
   ∃ pos actual, pos.Bounded ∧ .inl (.inr actual) ∈ qs ∧ HashHit answers (honestInput answers pos) actual ∧
     SameHeader actual (honestInput answers pos)

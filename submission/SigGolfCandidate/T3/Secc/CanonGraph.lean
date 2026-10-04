@@ -236,8 +236,7 @@ theorem hdrBlock_cell (secrets : Secrets) (node : Node) (labels : Labels) :
   cases node with
   | chain p =>
       change Extract.hdrBlock (chainInput p.1.layer p.1.tree.val p.1.leaf.val p.1.chain.val p.2.val _) = _
-      rw [chainInput_eq_zero, ← pad64_chainInputP, Extract.hdrBlock_chainInputP]
-      rfl
+      exact chainInput_header _ _ _ _ _ _
   | leaf L =>
       simp only [cell, Extract.leafInput]
       rw [Extract.hdrBlock_listInput]

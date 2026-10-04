@@ -68,7 +68,7 @@ theorem submission_expand_valid :
   rw [submission_expand, submission_sizes, submission_layout]
   rw [Riscv.Image.Valid]
   rw [Riscv.Image.byteSize,
-    show Images.expandImage.code.length = 41685 from Images.expandCode_length,
+    show Images.expandImage.code.length = 41710 from Images.expandCode_length,
     show Images.expandImage.data.length = 8704 from Images.expandData_length]
   rw [layoutValid_of_data_length _ _ _ 8704 Images.expandData_length]
   decide +kernel
