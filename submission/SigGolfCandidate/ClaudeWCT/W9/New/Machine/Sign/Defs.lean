@@ -123,7 +123,7 @@ def LayPost (t : MachineState) : Option (List Pieces) → MachineState → Prop
   | none, u => FailedT u
   | some ps, u => u.pc = pcOf 540 ∧ ps.length = 4 ∧ (∀ lay : Layer, PieceAt u lay (ps.getD lay.val ([], []))) ∧
       Frame t u (fun A => ¬ (SIG ≤ A ∧ A < SIG + 2192))
-def layC : Nat := 26 + 2879687599
+def layC : Nat := 26 + 2877375919
 def LayersSpec (im : Image) (sk : BitVec 256) (cache : Bytes 131072) (Inv : MachineState → Prop) : Prop :=
   ∀ (index : Nat) (root : Digest) (t : MachineState), LayPre index root t → Inv t →
     TBSim im sk t layC (signLayers (cacheDec cache) index 4 root) (LayPost t)

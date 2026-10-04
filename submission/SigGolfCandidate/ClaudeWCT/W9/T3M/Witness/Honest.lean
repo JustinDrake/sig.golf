@@ -12,7 +12,7 @@ section
 
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
-open SigGolfCandidate.T3M (wdig wrho wdc wctr wvalue wpath wchainPads wchainHeaderPad wmerklePad zeros layerStorage)
+open SigGolfCandidate.T3M (wdig wrho wdc wctr wvalue wpath wchainPads wmerklePad zeros layerStorage)
 open SphincsSecurity (bytesLE)
 def expandN (message : Message) (pk : Digest) (sig : WCT9.Signature) :
     M (Option (HashOutput × WCT9.Witness)) := do
@@ -58,7 +58,6 @@ def padDecP (_N : HashOutput) (w : WBytes) : Pads where
   wctMerkle k l := wmpad w k.val l.val
   chain lay i := wchainPads w lay i.val
   merkle lay j := wmerklePad w lay j.val
-  chainHeader lay i := wchainHeaderPad w lay i.val
 def Shaped (N : HashOutput) (_w : WBytes) : Prop := WCT9.admissible N = true
 instance (N : HashOutput) (w : WBytes) : Decidable (Shaped N w) := by
   unfold Shaped; infer_instance
@@ -96,25 +95,24 @@ theorem recoverFtsP_zero (sig : WCT9.Signature) (index : Nat) (output : HashOutp
 theorem verifyPads_zero (m : Message) (pk : Digest) (w : WCT9.Witness) :
     verifyPads m pk w 0 = WCT9.Rev3.verify m pk w := by
   unfold verifyPads verifyPadsTail WCT9.Rev3.verify WCT9.verifyWith
-  simp only [recoverFtsP_zero, Pads.zero_toT3, SigGolfCandidate.T3M.verifyLayersP_zero _ _ (Nat.mod_lt _ (by decide))]
+  simp only [recoverFtsP_zero, Pads.zero_toT3, SigGolfCandidate.T3M.verifyLayersP_zero]
   rfl
 theorem verifyLayersP_congr (w w' : Witness) (pads pads' : SigGolfCandidate.T3M.Pads) (index : Nat)
     (hl : w.signature.layers = w'.signature.layers) (hc : w.counters = w'.counters)
-    (hp : pads.chain = pads'.chain) (hm : pads.merkle = pads'.merkle)
-    (hh : pads.chainHeader = pads'.chainHeader) :
+    (hp : pads.chain = pads'.chain) (hm : pads.merkle = pads'.merkle) :
     ∀ n root, verifyLayersP w pads index n root = verifyLayersP w' pads' index n root := by
   intro n
   induction n with
   | zero => intro root; rfl
   | succ n ih =>
       intro root
-      simp only [SigGolfCandidate.T3M.verifyLayersP, SigGolfCandidate.T3M.recoverLayerP, hl, hc, hp, hm, hh, ih]
+      simp only [SigGolfCandidate.T3M.verifyLayersP, SigGolfCandidate.T3M.recoverLayerP, hl, hc, hp, hm, ih]
 theorem layersP_decW (N : HashOutput) (w : WBytes) (n : Nat) (root : Digest) :
     layersP w (N.toNat % 2 ^ 31) n root =
       verifyLayersP (WCT9.toT3Witness (witDecP N w)) (padDecP N w).toT3 (N.toNat % 2 ^ 31) n root := by
   rw [SigGolfCandidate.T3M.layersP_dec]
   exact verifyLayersP_congr (SigGolfCandidate.T3M.witDecP N w) (WCT9.toT3Witness (witDecP N w))
-    (SigGolfCandidate.T3M.padDecP N w) (padDecP N w).toT3 _ rfl rfl rfl rfl rfl n root
+    (SigGolfCandidate.T3M.padDecP N w) (padDecP N w).toT3 _ rfl rfl rfl rfl n root
 theorem wctStep_none (w : WBytes) (N : HashOutput) (coord : WCT9.Coord) : wctStep w N none coord = pure none := rfl
 theorem foldlM_wctStep_none (w : WBytes) (N : HashOutput) :
     ∀ l : List WCT9.Coord, l.foldlM (wctStep w N) none = pure none
@@ -259,7 +257,7 @@ section
 
 namespace ClaudeWCT.W9.T3M
 open OracleComp OracleSpec SigGolfCandidate.T3
-open SigGolfCandidate.T3M (wdig wle32 wrho wdc wctr wvalue wpath wchainPads wchainHeaderPad wmerklePad sibOff zeros layerStorage
+open SigGolfCandidate.T3M (wdig wle32 wrho wdc wctr wvalue wpath wchainPads wmerklePad sibOff zeros layerStorage
   window window_append_left window_append_right window_flatMap_const window_full window_zeros readDigest_zeros
   extract_readLE layerBase rhoOff dcOff counterOff)
 open SphincsSecurity (bytesLE bytesLE_length)
@@ -361,12 +359,6 @@ theorem wchainPads_witEnc (lay : Layer) (i : Fin (chainCount lay)) :
   have hb := layerBase_ge lay
   rw [wdig_T3 N w _ (Or.inr (by unfold SigGolfCandidate.T3M.chainBlock; omega)),
     wdig_T3 N w _ (Or.inr (by unfold SigGolfCandidate.T3M.chainBlock; omega))]
-  exact h
-theorem wchainHeaderPad_witEnc (lay : Layer) (i : Fin (chainCount lay)) :
-    wchainHeaderPad (witEnc N w) lay i.val = 0 := by
-  have h := SigGolfCandidate.T3M.wchainHeaderPad_witEnc N (WCT9.toT3Witness w) lay i
-  unfold wchainHeaderPad at h ⊢
-  rw [wdig_T3 N w _ (Or.inr (by unfold SigGolfCandidate.T3M.chainBlock; have := layerBase_ge lay; omega))]
   exact h
 theorem wpath_witEnc (lay : Layer) (j : Fin (height lay)) :
     wpath (witEnc N w) lay (route (N.toNat % 2 ^ 31) lay).1 j.val = (w.signature.layers lay).path j := by
@@ -563,13 +555,12 @@ theorem witDecP_witEnc (N : HashOutput) (w : WCT9.Witness) : witDecP N (witEnc N
       (funext fun j => wpath_witEnc N _ lay j)
 theorem padDecP_witEnc (N : HashOutput) (w : WCT9.Witness) : padDecP N (witEnc N w) = 0 := by
   unfold padDecP
-  show Pads.mk _ _ _ _ _ = Pads.mk _ _ _ _ _
+  show Pads.mk _ _ _ _ = Pads.mk _ _ _ _
   congr 1
   · funext k t; exact wcpads_witEnc N w k t
   · funext k l; exact wmpad_witEnc N w k l
   · funext lay i; exact wchainPads_witEnc N w lay i
   · funext lay j; exact wmerklePad_witEnc N w lay j
-  · funext lay i; exact wchainHeaderPad_witEnc N w lay i
 end ClaudeWCT.W9.T3M
 end
 

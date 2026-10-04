@@ -13,7 +13,7 @@ def FtsGood : Prop :=
     K none = pure (false, 0) →
     (∀ root t, FtsOut ⟨pk, w, a⟩ root t →
       GoodQFor Frozen.image t N C Q A (K (some root))) →
-    GoodQFor Frozen.image u (N + 2023) (C + 2023) Q (A + 2023)
+    GoodQFor Frozen.image u (N + 2002) (C + 2002) Q (A + 2002)
       (ccM (if ClaudeWCT.W9.T3M.gateOk a then ClaudeWCT.W9.T3M.wctP w a
         else pure none) K)
 end W9Drv

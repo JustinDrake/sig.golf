@@ -1,4 +1,3 @@
-import SigGolfCandidate.T3M.Keygen.PackedBlocks
 import SigGolfCandidate.T3M.Mem
 import SigGolfCandidate.T3M.Images.Keygen
 
@@ -33,7 +32,7 @@ def sub_0 : List (BitVec 32) := [2579]
 def sub_1 : List (BitVec 32) := [18488931]
 def sub_2 : List (BitVec 32) := [134839,487493267,963331,9352067,7057443,8107043]
 def sub_8 : List (BitVec 32) := [89785443]
-def sub_9 : List (BitVec 32) := [0x7340006f, 0x014383b3, 0x02039313, 0x01041f13, 0x01e36333, 0x10136313, 0x00020e37, 0x1a0e0e13, 0x006e3823, 0x00020537, 0x1a050513, 0x04000593, 0x00020637, 0x1d060613]
+def sub_9 : List (BitVec 32) := [9016211,21201843,33788691,17047315,31679283,269706003,134711,437128723,7223331,132407,436536595,67110291,132663,486934035]
 def sub_23 : List (BitVec 32) := [115]
 def sub_24 : List (BitVec 32) := [1706515,0xfa1ff06f]
 def sub_26 : List (BitVec 32) := [32871]
@@ -78,11 +77,7 @@ def maxHigh : List (BitVec 32) := [4197011,0x984ff06f]
 def maxLayout : Rv.Layout := [(0, maxLow), (2, maxHigh)]
 def maxDigitCode : List (BitVec 32) := layoutCode maxLayout
 theorem maxLayout_ok : layoutOk 0 maxLayout = true := by decide +kernel
-def packedHelper : List (BitVec 32) :=
-  PackedBlocks.keygen_layer0 ++ PackedBlocks.keygen_layer1 ++
-    PackedBlocks.keygen_layer23 ++ PackedBlocks.keygen_body
-def seg_542 : List (BitVec 32) :=
-  List.replicate 45 0x00000013 ++ packedHelper ++ List.replicate 505 0x00000013
+def seg_542 : List (BitVec 32) := List.replicate 575 0x00000013
 def mainL : Rv.Layout := [(0, seg_0), (26, seg_26), (28, seg_28), (34, seg_34), (36, seg_36), (39, seg_39), (48, seg_48), (50, seg_50), (51, seg_51), (52, seg_52), (64, seg_64), (65, seg_65), (81, seg_81), (84, seg_84), (113, seg_113), (114, seg_114), (116, seg_116), (117, subCode), (277, seg_277), (289, seg_289), (295, seg_295), (309, seg_309), (310, seg_310), (330, seg_330), (334, seg_334), (542, seg_542), (1117, maxDigitCode), (1121, revCode)]
 theorem mainL_ok : layoutOk 0 mainL = true := by decide +kernel
 abbrev image : Image := Images.keygenImage
@@ -138,16 +133,14 @@ theorem codeAt_330 : CodeAt image (pcOf 330) seg_330 :=
 theorem codeAt_334 : CodeAt image (pcOf 334) seg_334 :=
   codeAt_layout code_eq mainL_ok (i := 24) (by kernel_rfl) (by decide)
 def SubAt (image : Image) (b : Nat) : Prop := CodeAt image (pcOf b) subCode ∧ (b = 117 ∨ b = 1013) ∧
-  (CodeAt image (pcOf (b + 1000)) maxDigitCode ∧ CodeAt image (pcOf (b + 1004)) revCode ∧
-    ((image = Images.keygenImage ∧ b = 117) ∨ (image = Images.signImage ∧ b = 1013)))
+  (CodeAt image (pcOf (b + 1000)) maxDigitCode ∧ CodeAt image (pcOf (b + 1004)) revCode)
 theorem codeAt_max : CodeAt image (pcOf 1117) maxDigitCode :=
   codeAt_layout code_eq mainL_ok (i := 26) (by kernel_rfl) (by decide)
 theorem codeAt_1121 : CodeAt image (pcOf 1121) revCode :=
   codeAt_layout code_eq mainL_ok (i := 27) (by kernel_rfl) (by decide)
-theorem subAt_keygen : SubAt image 117 :=
-  ⟨codeAt_subCode, Or.inl rfl, codeAt_max, codeAt_1121, Or.inl ⟨rfl, rfl⟩⟩
+theorem subAt_keygen : SubAt image 117 := ⟨codeAt_subCode, Or.inl rfl, codeAt_max, codeAt_1121⟩
 theorem codeAt_rev {image : Image} {b : Nat} (h : SubAt image b) : CodeAt image (pcOf (b + 1004)) revCode :=
-  h.2.2.2.1
+  h.2.2.2
 theorem codeAt_maxLow {image : Image} {b : Nat} (h : SubAt image b) :
     CodeAt image (pcOf (b + 1000)) maxLow := by
   have q := codeAt_sublayout (L := maxLayout) (b := b + 1000) h.2.2.1 maxLayout_ok
@@ -402,7 +395,7 @@ theorem run_8 {b : Nat} (hb : b = 117 ∨ b = 1013) :
   · exact blk117_8.trans (congrArg some (by kernel_rfl))
   · exact blk1013_8.trans (congrArg some (by kernel_rfl))
 def st_9 : SymState := blk117_9.res.st
-def pcE_9 (b : Nat) : E := .c (pcOf (b + 470))
+def pcE_9 (b : Nat) : E := .c (pcOf (b + 23))
 theorem run_9 {b : Nat} (hb : b = 117 ∨ b = 1013) :
     symRun { noAlias := true } sub_9 (pcOf (b + 9)) 100 =
       some ⟨st_9, pcE_9 b, blk117_9.res.stop, blk117_9.res.steps, blk117_9.res.cycles⟩ := by
