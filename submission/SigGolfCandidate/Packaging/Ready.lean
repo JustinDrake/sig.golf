@@ -22,7 +22,7 @@ namespace ClaudeWCT.W9.Final
 open ClaudeWCT.W9.T3M (Images)
 abbrev submission (I : Images) : SigGolf.Submission := ClaudeWCT.W9.T3M.Final.submissionNew I
 theorem signature_bytes (I : Images) : (submission I).sizes.signature = 5456 := rfl
-theorem witness_bytes (I : Images) : (submission I).sizes.witness = 25240 := rfl
+theorem witness_bytes (I : Images) : (submission I).sizes.witness = 24264 := rfl
 theorem cache_bytes (I : Images) : (submission I).sizes.cache = 131072 := rfl
 theorem layout_offsets (I : Images) : (submission I).layout =
     { message := 64, secretKey := 128, publicKey := 160,
@@ -55,7 +55,7 @@ theorem PendingInputs.machine {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.
   verify_accept_cycles := h.verify_accept_cycles
 theorem PendingInputs.securityP {I : Images} (h : PendingInputs I) : ClaudeWCT.W9.T3M.Final.SecurityP :=
   ClaudeWCT.W9.T3.Secc.t3_securityP h.near_bound h.pair_bound h.large_route
-theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7981 :=
+theorem certificate_of_pending {I : Images} (h : PendingInputs I) : SigGolf.Certificate (submission I) 7937 :=
   ClaudeWCT.W9.T3M.Final.certificate_of_security h.securityP h.machine
 end ClaudeWCT.W9.Final
 end
@@ -103,7 +103,7 @@ theorem certificate_of_machine_inputs
     (er : ClaudeWCT.W9.T3M.Final.ExpandRefines finalImages)
     (et : ClaudeWCT.W9.T3M.Final.ExpandTerminates finalImages) :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7981 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7937 := by
   exact ClaudeWCT.W9.Final.certificate_of_pending (I := finalImages)
     { large_route := ClaudeWCT.W9.T3.Security.LargeCoupling.large_route_hlarge
       pair_bound := ClaudeWCT.W9.T3.Security.WPair.pair_guess_bound
@@ -126,7 +126,7 @@ theorem certificate_of_verify_inputs
     (vt : ClaudeWCT.W9.T3M.Final.VerifyTerminates verifyImages)
     (vc : ClaudeWCT.W9.T3M.Final.VerifyAcceptCycles verifyImages) :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7981 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7937 := by
   rw [verifyImages_eq] at vr vt vc
   exact certificate_of_machine_inputs vr vt vc
     ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.1
@@ -314,7 +314,7 @@ section
 namespace SigGolfCandidate.Packaging
 theorem certificate_ready :
     SigGolf.Certificate
-      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7981 := by
+      (SigGolfCandidate.Transfer.currentOf SigGolfCandidate.T3M.submission) 7937 := by
   obtain ⟨vr, vt, vc⟩ := W9Fin.verify_final verify_image_eq
   exact certificate_of_machine_inputs vr vt vc
     ClaudeWCT.W9.Machine.ExpandLink.expand_pending_v1.1

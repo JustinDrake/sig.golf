@@ -4,13 +4,7 @@ import SigGolfCandidate.SphincsSecurity.Proof.Base.UniformTableProducts
 import SigGolfCandidate.SphincsSecurity.Proof.Base.QueryTracePotential
 import SigGolfCandidate.SphincsSecurity.Proof.Ots.EncodingMarkerAccumulation
 import SigGolfCandidate.T3.Secc.WotsPrefixGame
-
 section
-
-
-
-
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M
@@ -400,10 +394,7 @@ end Potential
 end Enc.Lazy
 end SigGolfCandidate.T3.Security.Wots
 end
-
 section
-
-
 namespace SigGolfCandidate.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -416,14 +407,14 @@ set_option backward.isDefEq.respectTransparency false
 attribute [local instance low] Classical.propDecidable
 attribute [local irreducible] referenceGame offlineGame
 def EncodingInput (input : HashInput) : Prop :=
-  ∃ (L : LeafAddr) (message : Digest) (counter : BitVec 32), input = encodingRow L message counter
+  ∃ (L : LeafAddr) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32), input = encodingRow L message counter
 def EncodingRow : Answers → T3.Spec.Domain → Prop
   | _, .inl (.inr input) => EncodingInput input
   | _, _ => False
 noncomputable def encodingCount (s : RefSample) : Nat :=
   (s.trace.filter fun e => decide (EncodingRow s.answers (.inl (.inr e.1)))).length
 namespace Enc
-theorem counterSearch_first (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem counterSearch_first (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel start k digits, k < fuel →
       (∀ i < k, decode lay ((T (.inl (.inr (pad64 (encodingInput lay tree leaf message
         (BitVec.ofNat 32 (start + i))))))).extractLsb' 0 128) = none) →
@@ -464,7 +455,7 @@ theorem reached_valid_reference {T : Answers} {L : LeafAddr} {input : HashInput}
   rw [hs]
   rfl
 def MatchEntry (T : Answers) (entry : Entry) : Prop :=
-  ∃ (L : CanonGraph.LeafPos) (message : Digest) (counter : BitVec 32),
+  ∃ (L : CanonGraph.LeafPos) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32),
     entry.1 = encodingRow (leafOf L) message counter ∧
       referenceInput T (leafOf L) ≠ some (encodingRow (leafOf L) message counter) ∧
       decode L.lay (low entry.2) = some (referenceDigits T (leafOf L))

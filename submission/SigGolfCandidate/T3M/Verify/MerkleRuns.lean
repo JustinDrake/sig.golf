@@ -1,5 +1,4 @@
 import SigGolfCandidate.T3M.Verify.LayerRuns
-
 namespace SigGolfCandidate.T3M
 open SigGolfCandidate.Legacy SigGolfCandidate.Legacy.Riscv RiscvZkvm.Rv64 SigGolfCandidate.Rv
 open SigGolfCandidate.T3M.Verify
@@ -15,7 +14,7 @@ def mkWords (lay l : Nat) : Nat := (if l = 0 then 8 else 5) + (if mkReg lay l th
 def mkOff (lay ci : Nat) : Nat → Nat
   | 0 => 0
   | kk + 1 => mkOff lay ci kk + mkWords lay (mkLo lay ci + kk)
-def mkBase (lay : Nat) : Nat := [11288,15768,18968,22104].getD lay 0
+def mkBase (lay : Nat) : Nat := [10568, 14792, 17992, 21128].getD lay 0
 def mkBo (lay l : Nat) : Nat := mkBase lay + 64 * (hL lay - 1 - l)
 def mkBlk (lay l : Nat) : Nat := 0x800 + mkBo lay l
 def mkCur (lay l b : Nat) : Nat := mkBlk lay l + 48 * b
@@ -80,8 +79,9 @@ def mkLvlCheckD (lay ci sh kk : Nat) : Bool :=
     (mkLvlSpecD lay ci sh kk) [] (mkLvlPostD lay ci kk) (mkKeep ++ mkLvlKeep (mkLo lay ci + kk))
 def mkLvlCheck (lay ci sh kk : Nat) : Bool :=
   if mkIsDisp lay ci kk then mkLvlCheckD lay ci sh kk else mkLvlCheckN lay ci sh kk
+def mkLvls (lay ci : Nat) : Nat := if lay = 0 then mkBits lay ci else mkBits lay ci - 1
 def mkBlockCheck (lay ci sh : Nat) : Bool :=
-  mkEntCheck lay ci sh && (List.range (mkBits lay ci)).all (mkLvlCheck lay ci sh)
+  mkEntCheck lay ci sh && (List.range (mkLvls lay ci)).all (mkLvlCheck lay ci sh)
 def mkChunkCheck (lay ci lo n : Nat) : Bool := (List.range' lo n).all (mkBlockCheck lay ci)
 def cmpPc (c : Nat) : Nat := 38675 + 53 * c
 def cmpDst (c : Nat) : Nat := 13336 + 48 * (c / 32 % 2)

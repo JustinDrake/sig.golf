@@ -5,10 +5,7 @@ import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layer
 import SigGolfCandidate.T3.Secc.WotsStructural
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsReferenceInputs
 import SigGolfCandidate.T3.Secc.WotsStructuralFinal
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.Wots.Structural
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -100,6 +97,10 @@ theorem honestRoot_variant (hv : Variant labels T T') (lay : Layer) (tree : Nat)
     Extract.honestRoot T lay tree = Extract.honestRoot T' lay tree := by
   unfold Extract.honestRoot
   rw [builtTree_variant hv]
+theorem honestPair_variant (hv : Variant labels T T') (lay : Layer) (tree : Nat) :
+    Extract.honestPair T lay tree = Extract.honestPair T' lay tree := by
+  unfold Extract.honestPair
+  rw [builtTree_variant hv]
 theorem posOf_some_spec {x : HashInput} {p : Extract.Pos} (h : Extract.posOf x = some p) :
     p.Bounded ∧ Extract.canonicalHeader (Extract.hdrBlock x) = bytesLE 16 p.hdr := by
   unfold Extract.posOf at h
@@ -149,7 +150,7 @@ theorem leafMsg_variant (hv : Variant labels T T') (L : LeafAddr) (htree : L.tre
     (hleaf : L.leaf < 2 ^ height L.lay) : leafMsg T L = leafMsg T' L := by
   unfold leafMsg
   split
-  · exact honestRoot_variant hv _ _
+  · exact honestPair_variant hv _ _
   · rename_i hl
     have h3 : L.lay = 3 := by
       apply Fin.ext
@@ -158,10 +159,10 @@ theorem leafMsg_variant (hv : Variant labels T T') (L : LeafAddr) (htree : L.tre
       omega
     have hh : height L.lay = 6 := by rw [h3]; rfl
     rw [hh] at hleaf ⊢
-    exact honestForest_variant hv _ (by
+    rw [honestForest_variant hv _ (by
       have : L.tree * 2 ^ 6 < 2 ^ 31 * 2 ^ 6 := Nat.mul_lt_mul_of_pos_right htree (by decide)
       have : (2 : Nat) ^ 31 * 2 ^ 6 + 2 ^ 6 ≤ 2 ^ 40 := by norm_num
-      omega)
+      omega)]
 theorem referenceSearch_variant (hv : Variant labels T T') (L : LeafAddr) (htree : L.tree < 2 ^ 31)
     (hleaf : L.leaf < 2 ^ height L.lay) : referenceSearch T L = referenceSearch T' L := by
   unfold referenceSearch
@@ -178,12 +179,7 @@ theorem depth_variant (hv : Variant labels T T') (a : ChainAddr) (htree : a.key.
 end Depth
 end ClaudeWCT.W9.T3.Security.Wots.Structural
 end
-
 section
-
-
-
-
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -550,11 +546,7 @@ theorem reference_structural_le (adversary : AdversaryP) (q : Nat) (hV : TraceIn
   exact ⟨position, input, answer, hmem, hV sample hsupp (input, answer) hmem, hpos, hb, hsrc, hc, hhit⟩
 end ClaudeWCT.W9.T3.Security.Wots
 end
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3.Security.Wots
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots

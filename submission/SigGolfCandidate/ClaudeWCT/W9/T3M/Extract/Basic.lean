@@ -1,6 +1,5 @@
 import SigGolfCandidate.T3M.Extract.Basic
 import SigGolfCandidate.ClaudeWCT.WCT9.Correctness
-
 namespace ClaudeWCT.W9.T3M.Extract
 open OracleComp OracleSpec SigGolfCandidate.T3
 open SigGolfCandidate.T3M.SecurityInputs SigGolfCandidate.T3M.SecurityExtraction
@@ -37,9 +36,12 @@ def forestInput (index : Nat) (roots : List Digest) : HashInput :=
   listInput (roots.getD 0 0) (header 15 0 index 0 0) (roots.drop 1)
 def honestForest (answers : Answers) (index : Nat) : Digest :=
   evalWithAnswerFn answers (WCT9.forestPk index (ftsRootsHonest answers index))
-noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : Digest :=
-  if h : lay.val < 3 then honestRoot answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
-  else honestForest answers index
+noncomputable def honestPair (answers : Answers) (lay : Layer) (tree : Nat) : LayerMessage :=
+  (treeValue (builtTree answers lay tree) (height lay - 1) 0, 0,
+    treeValue (builtTree answers lay tree) (height lay - 1) 1)
+noncomputable def honestMsg (answers : Answers) (index : Nat) (lay : Layer) : LayerMessage :=
+  if h : lay.val < 3 then honestPair answers ⟨lay.val + 1, by omega⟩ (route index ⟨lay.val + 1, by omega⟩).2
+  else (honestForest answers index, 0, 0)
 inductive Pos where
   | chain (lay : Layer) (tree leaf i step : Nat)
   | leaf (lay : Layer) (tree leaf : Nat)

@@ -5,7 +5,6 @@ import SigGolfCandidate.ClaudeWCT.W9.New.Positions.FtsBridge
 import SigGolfCandidate.ClaudeWCT.W9.T3M.Extract.Layer
 import SigGolfCandidate.ClaudeWCT.WCT9.Honest
 import SigGolfCandidate.T3.Secc.WotsStructuralHonest
-
 namespace ClaudeWCT.W9.T3.Security.Wots.Structural
 open OracleComp OracleSpec ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security SigGolfCandidate.T3.Security.Wots
@@ -71,7 +70,7 @@ theorem posOf_prefixed_none {t : Nat} (ht : t % 256 ≠ 1 ∧ t % 256 ≠ 2 ∧ 
     Extract.hdrBlock_prefix,
     Extract.canonicalHeader_marker_ne _ (by rw [header_firstByte]; decide)] at he
   exact header_ne_hdr ht l tr pos ix p (bytesLE_injective he)
-theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest) (counter : BitVec 32) :
+theorem posOf_encoding (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) (counter : BitVec 32) :
     Extract.posOf (pad64 (encodingInput lay tree leaf message counter)) = none := by
   unfold encodingInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
@@ -79,7 +78,7 @@ theorem posOf_digest (rho : Digest) (message : Message) (counter : BitVec 32) :
     Extract.posOf (pad64 (digestInput rho message counter)) = none := by
   unfold digestInput
   exact posOf_prefixed_none (by decide) _ _ _ _ _ _
-theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest) :
+theorem sat_counterSearch (T : Answers) (lay : Layer) (tree leaf : Nat) (message : Digest × BitVec 96 × Digest) :
     ∀ fuel counter, QueriesSat T (HonestQuery T) (counterSearch lay tree leaf message counter fuel) := by
   intro fuel
   induction fuel with

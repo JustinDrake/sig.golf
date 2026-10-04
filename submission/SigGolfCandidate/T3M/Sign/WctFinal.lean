@@ -93,8 +93,7 @@ open ClaudeWCT.W9.Machine.Sign (SignCodeAt SignRefinesW SignTerminatesW signNew)
 set_option maxRecDepth 100000
 theorem wct_signCodeAt : SignCodeAt Images.signImage := by
   refine ⟨?_, ?_⟩
-  · apply ClaudeWCT.W9.Machine.Sign.newCodeAt_of_drop
-    decide +kernel
+  · exact ⟨SigGolfCandidate.T3M.Sign.seg_2074, by decide +kernel⟩
   · exact ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
 theorem wct_sign_certified : SignRefinesW submission.image ∧ SignTerminatesW submission.image := by
   exact ClaudeWCT.W9.Machine.Sign.signMain submission.image

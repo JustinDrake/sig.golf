@@ -8,9 +8,7 @@ import SigGolfCandidate.ClaudeWCT.W9.New.G6.LazyCouple
 import SigGolfCandidate.ClaudeWCT.W9.New.G6.LazyCount
 import SigGolfCandidate.ClaudeWCT.W9.T3.Secc.WotsSmallContract
 import SigGolfCandidate.ClaudeWCT.Numerics.WCTPrice
-
 section
-
 namespace SigGolfCandidate.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3M SigGolfCandidate.T3M.Final
@@ -23,8 +21,8 @@ theorem honestMsg_short {A T : Correctness.Answers} (h : Wots.Ref.ShortAgree A T
     Extract.honestMsg A index lay = Extract.honestMsg T index lay := by
   unfold Extract.honestMsg
   split_ifs
-  · exact Wots.Ref.honestRoot_short h _ _
-  · exact Wots.Ref.honestForest_short h _
+  · exact Wots.Ref.honestPair_short h _ _
+  · rw [Wots.Ref.honestForest_short h _]
 theorem good_short {A T : Correctness.Answers} (h : Wots.Ref.ShortAgree A T) (w : WBytes) (index : Nat) (lay : Layer)
     (hg : Extract.Good A w index lay) : Extract.Good T w index lay := by
   obtain ⟨digits, ⟨hctr, hdec⟩, hpath, hchain⟩ := hg
@@ -113,11 +111,7 @@ theorem caseC_not_signer_eval (answers : Correctness.Answers) (published : T3.Ca
   exact hsig'
 end SigGolfCandidate.T3.Security.CaseC
 end
-
 section
-
-
-
 namespace ClaudeWCT.W9.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -134,8 +128,8 @@ theorem honestMsg_short {A T : Correctness.Answers} (h : SigGolfCandidate.T3.Sec
     ClaudeWCT.W9.T3M.Extract.honestMsg A index lay = ClaudeWCT.W9.T3M.Extract.honestMsg T index lay := by
   unfold ClaudeWCT.W9.T3M.Extract.honestMsg
   split_ifs
-  · exact SigGolfCandidate.T3.Security.Wots.Ref.honestRoot_short h _ _
-  · exact ClaudeWCT.W9.T3.Security.Wots.Ref.honestForest_short h _
+  · exact SigGolfCandidate.T3.Security.Wots.Ref.honestPair_short h _ _
+  · rw [ClaudeWCT.W9.T3.Security.Wots.Ref.honestForest_short h _]
 theorem good_short {A T : Correctness.Answers} (h : SigGolfCandidate.T3.Security.Wots.Ref.ShortAgree A T) (w : WBytes)
     (index : Nat) (lay : Layer) (hg : ClaudeWCT.W9.T3M.Extract.Good A w index lay) :
     ClaudeWCT.W9.T3M.Extract.Good T w index lay := by
@@ -232,10 +226,7 @@ theorem caseC_not_signer_eval (answers : Correctness.Answers) (published : SigGo
   exact hsig'
 end ClaudeWCT.W9.T3.Security.CaseC
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -332,9 +323,7 @@ theorem payoff_of_ghosts (q : Nat) (T : Correctness.Answers) (published : SigGol
   rw [if_pos ⟨hbirths.trans hq, hexplen.trans hlen, N, hbirth, hS, hcov⟩]
 end ClaudeWCT.W9.T3.Security.CaseC
 end
-
 section
-
 namespace ClaudeWCT.W9.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -531,10 +520,7 @@ theorem signL_ΦI {U : Finset HashInput} (hU : CanonGraph.canonInputs ⊆ U) (sl
       rw [hbir1, hnon1]
 end ClaudeWCT.W9.T3.Security.CaseC
 end
-
 section
-
-
 namespace ClaudeWCT.W9.T3.Security.WPair
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -622,9 +608,7 @@ theorem near_chain (adversary : AdversaryP) (q : Nat) (hq : q ≤ 2 ^ 127)
 end Chain
 end ClaudeWCT.W9.T3.Security.WPair
 end
-
 section
-
 namespace ClaudeWCT.W9.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
@@ -657,14 +641,7 @@ theorem forced_payoff_sum_le {U : Finset HashInput} (hU : CanonGraph.canonInputs
   forced_payoff_le hU ω adversary slot q
 end ClaudeWCT.W9.T3.Security.CaseC
 end
-
 section
-
-
-
-
-
-
 namespace ClaudeWCT.W9.T3.Security.CaseC
 open OracleComp OracleSpec OracleComp.EvalDist ENNReal
 open SigGolfCandidate.T3 SigGolfCandidate.T3.Security
