@@ -46,7 +46,7 @@ theorem encB_facts (lay : Nat) (hlay : lay < 4) :
     encB lay % 8 = 0 ∧ encB lay + 64 < 16777216 ∧ (encB lay = 256 ∨ 0x800 + layerEnd lay ≤ encB lay) := by
   interval_cases lay <;> decide
 theorem dst_facts (lay : Nat) (hlay : lay < 4) (D : Nat) (hD : D ∈ dstSet lay) :
-    safeDest D = true ∧ D % 8 = 0 ∧ D + 32 ≤ 2 ^ 23 ∧ (D = 320 ∨ 0x800 + layerEnd lay ≤ D) ∧ layerEnd lay % 8 = 0 ∧
+    safeDest D = true ∧ D % 8 = 0 ∧ D + 32 ≤ 2 ^ 23 ∧ (D = 256 ∨ 0x800 + layerEnd lay ≤ D) ∧ layerEnd lay % 8 = 0 ∧
     accessValid (BitVec.ofNat 64 D) 8 = true ∧ accessValid (BitVec.ofNat 64 (D + 8)) 8 = true := by
   interval_cases lay <;> simp [dstSet] at hD <;>
     first | (subst hD; decide +kernel) | (rcases hD with rfl | rfl <;> decide +kernel)
@@ -272,7 +272,7 @@ theorem encA_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (M : T3
     have h11 : t.getReg .x11 = BitVec.ofNat 64 64 := hkt (.x11, 64) (by simp [bK, bKB, layK])
     obtain ⟨D, hD, h12⟩ : ∃ D ∈ dstSet lay.val, t.getReg .x12 = BitVec.ofNat 64 D := by
       by_cases h3 : lay.val = 3
-      · exact ⟨320, by simp [dstSet, h3], hkt (.x12, 320) (by simp [bK, h3])⟩
+      · exact ⟨256, by simp [dstSet, h3], hkt (.x12, 256) (by simp [bK, h3])⟩
       · obtain ⟨D, hD, h⟩ := hs.dst.resolve_left h3
         exact ⟨D, hD, by rw [ht.keep .x12 (by simp [keepA, h3]), h]⟩
     have hDf := dst_facts lay.val lay.isLt D hD
